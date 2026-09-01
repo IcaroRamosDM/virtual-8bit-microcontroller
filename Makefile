@@ -1,20 +1,22 @@
 CC := gcc
 
+CPPFLAGS := -Iinclude
 C_STANDARD := -std=c17
 WARNINGS := -Wall -Wextra -Wpedantic -Werror
 DEBUG_FLAGS := -g
 CFLAGS := $(C_STANDARD) $(WARNINGS) $(DEBUG_FLAGS)
 
 TARGET := build/vm8
-SOURCES := src/main.c
+SOURCES := $(wildcard src/*.c)
+HEADERS := $(wildcard include/*.h)
 
 .PHONY: all run clean
 
 all: $(TARGET)
 
-$(TARGET): $(SOURCES)
+$(TARGET): $(SOURCES) $(HEADERS)
 	mkdir -p build
-	$(CC) $(CFLAGS) $(SOURCES) -o $(TARGET)
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(SOURCES) -o $(TARGET)
 
 run: $(TARGET)
 	./$(TARGET)
