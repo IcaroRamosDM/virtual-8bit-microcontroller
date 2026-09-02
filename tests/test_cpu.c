@@ -422,6 +422,150 @@ static void test_cpu_step_executes_load_immediate_a(void)
   assert(zero_cpu.cycle_count == expected_cycle_count);
 }
 
+static void test_cpu_step_executes_load_immediate_b(void)
+{
+  const uint8_t nonzero_value = UINT8_C(0x5A);
+  const uint8_t nonzero_program[] = {
+    OPCODE_LOAD_IMMEDIATE_B,
+    nonzero_value
+  };
+  const size_t nonzero_program_size =
+    sizeof nonzero_program / sizeof nonzero_program[0];
+
+  const uint8_t zero_value = 0;
+  const uint8_t zero_program[] = {
+    OPCODE_LOAD_IMMEDIATE_B,
+    zero_value
+  };
+  const size_t zero_program_size =
+    sizeof zero_program / sizeof zero_program[0];
+
+  const uint64_t expected_cycle_count = UINT64_C(1);
+
+  Cpu nonzero_cpu = {
+    .zero_flag = true,
+    .carry_flag = true
+  };
+  Cpu zero_cpu = {
+    .register_b = UINT8_MAX,
+    .carry_flag = true
+  };
+
+  const bool nonzero_program_loaded = cpu_load_program(
+    &nonzero_cpu,
+    nonzero_program,
+    nonzero_program_size
+  );
+  const bool zero_program_loaded = cpu_load_program(
+    &zero_cpu,
+    zero_program,
+    zero_program_size
+  );
+
+  assert(nonzero_program_loaded);
+  assert(zero_program_loaded);
+
+  const CpuStepResult nonzero_result = cpu_step(&nonzero_cpu);
+  const CpuStepResult zero_result = cpu_step(&zero_cpu);
+
+  assert(nonzero_result == CPU_STEP_OK);
+  assert(nonzero_cpu.register_b == nonzero_value);
+  assert(!nonzero_cpu.zero_flag);
+  assert(nonzero_cpu.carry_flag);
+  assert(!nonzero_cpu.halted);
+  assert(
+    nonzero_cpu.program_counter == (uint8_t)nonzero_program_size
+  );
+  assert(nonzero_cpu.cycle_count == expected_cycle_count);
+
+  assert(zero_result == CPU_STEP_OK);
+  assert(zero_cpu.register_b == zero_value);
+  assert(zero_cpu.zero_flag);
+  assert(zero_cpu.carry_flag);
+  assert(!zero_cpu.halted);
+  assert(zero_cpu.program_counter == (uint8_t)zero_program_size);
+  assert(zero_cpu.cycle_count == expected_cycle_count);
+}
+
+static void test_cpu_step_executes_add_a_b(void)
+{
+  typedef struct AddTestCase
+  {
+    uint8_t initial_a;
+    uint8_t initial_b;
+    uint8_t expected_a;
+    bool expected_zero_flag;
+    bool expected_carry_flag;
+  } AddTestCase;
+
+  const AddTestCase test_cases[] = {
+    {
+      .initial_a = UINT8_C(0x12),
+      .initial_b = UINT8_C(0x34),
+      .expected_a = UINT8_C(0x46),
+      .expected_zero_flag = false,
+      .expected_carry_flag = false
+    },
+    {
+      .initial_a = UINT8_C(0xF0),
+      .initial_b = UINT8_C(0x20),
+      .expected_a = UINT8_C(0x10),
+      .expected_zero_flag = false,
+      .expected_carry_flag = true
+    },
+    {
+      .initial_a = UINT8_C(0xFF),
+      .initial_b = UINT8_C(0x01),
+      .expected_a = 0,
+      .expected_zero_flag = true,
+      .expected_carry_flag = true
+    },
+    {
+      .initial_a = 0,
+      .initial_b = 0,
+      .expected_a = 0,
+      .expected_zero_flag = true,
+      .expected_carry_flag = false
+    }
+  };
+
+  const size_t test_case_count =
+    sizeof test_cases / sizeof test_cases[0];
+  const uint8_t instruction_address = 0;
+  const uint8_t expected_program_counter =
+    instruction_address + 1;
+  const uint64_t expected_cycle_count = UINT64_C(1);
+
+  for (size_t index = 0; index < test_case_count; ++index)
+  {
+    const AddTestCase *test_case = &test_cases[index];
+
+    Cpu cpu = {
+      .register_a = test_case->initial_a,
+      .register_b = test_case->initial_b,
+      .zero_flag = !test_case->expected_zero_flag,
+      .carry_flag = !test_case->expected_carry_flag
+    };
+
+    cpu_write_memory(
+      &cpu,
+      instruction_address,
+      OPCODE_ADD_A_B
+    );
+
+    const CpuStepResult result = cpu_step(&cpu);
+
+    assert(result == CPU_STEP_OK);
+    assert(cpu.register_a == test_case->expected_a);
+    assert(cpu.register_b == test_case->initial_b);
+    assert(cpu.zero_flag == test_case->expected_zero_flag);
+    assert(cpu.carry_flag == test_case->expected_carry_flag);
+    assert(cpu.program_counter == expected_program_counter);
+    assert(cpu.cycle_count == expected_cycle_count);
+    assert(!cpu.halted);
+  }
+}
+
 int main(void)
 {
   test_cpu_reset_clears_state();
@@ -437,8 +581,9 @@ int main(void)
   test_cpu_run_handles_zero_limit_and_halted_cpu();
   test_cpu_load_program_accepts_full_memory();
   test_cpu_load_program_validates_input();
-
-  puts("All tests passed.");
+  test_cpu_step_executes_load_immediate_b();
+  test_cpu_step_executes_add_a_b();
+  puts("All CPU tests passed.");
 
   return 0;
 }

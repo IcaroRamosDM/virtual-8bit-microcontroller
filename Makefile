@@ -7,12 +7,14 @@ DEBUG_FLAGS := -g
 CFLAGS := $(C_STANDARD) $(WARNINGS) $(DEBUG_FLAGS)
 
 TARGET := build/vm8
-TEST_TARGET := build/test_cpu
+CPU_TEST_TARGET := build/test_cpu
+CLI_TEST_TARGET := build/test_cli
+TEST_TARGETS := $(CPU_TEST_TARGET) $(CLI_TEST_TARGET)
 
 SOURCES := $(wildcard src/*.c)
-CORE_SOURCES := $(filter-out src/main.c,$(SOURCES))
-TEST_SOURCES := tests/test_cpu.c
 HEADERS := $(wildcard include/*.h)
+CPU_TEST_SOURCES := src/cpu.c tests/test_cpu.c
+CLI_TEST_SOURCES := src/cli.c tests/test_cli.c
 
 .PHONY: all run test help clean
 
@@ -22,15 +24,20 @@ $(TARGET): $(SOURCES) $(HEADERS)
 	mkdir -p build
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(SOURCES) -o $(TARGET)
 
-$(TEST_TARGET): $(CORE_SOURCES) $(TEST_SOURCES) $(HEADERS)
+$(CPU_TEST_TARGET): $(CPU_TEST_SOURCES) $(HEADERS)
 	mkdir -p build
-	$(CC) $(CPPFLAGS) $(CFLAGS) $(CORE_SOURCES) $(TEST_SOURCES) -o $(TEST_TARGET)
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(CPU_TEST_SOURCES) -o $(CPU_TEST_TARGET)
+
+$(CLI_TEST_TARGET): $(CLI_TEST_SOURCES) $(HEADERS)
+	mkdir -p build
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(CLI_TEST_SOURCES) -o $(CLI_TEST_TARGET)
 
 run: $(TARGET)
 	./$(TARGET)
 
-test: $(TEST_TARGET)
-	./$(TEST_TARGET)
+test: $(TEST_TARGETS)
+	./$(CPU_TEST_TARGET)
+	./$(CLI_TEST_TARGET)
 
 help: $(TARGET)
 	./$(TARGET) help

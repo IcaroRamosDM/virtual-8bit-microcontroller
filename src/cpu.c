@@ -46,6 +46,24 @@ CpuStepResult cpu_step(Cpu *cpu)
       cpu->zero_flag = (cpu->register_a == 0);
       return CPU_STEP_OK;
 
+    case OPCODE_LOAD_IMMEDIATE_B:
+      cpu->register_b = cpu_fetch_byte(cpu);
+      cpu->zero_flag = (cpu->register_b == 0);
+      return CPU_STEP_OK;
+
+    case OPCODE_ADD_A_B:
+    {
+      const uint16_t sum =
+        (uint16_t)cpu->register_a +
+        (uint16_t)cpu->register_b;
+
+      cpu->register_a = (uint8_t)sum;
+      cpu->zero_flag = (cpu->register_a == 0);
+      cpu->carry_flag = (sum > UINT8_MAX);
+
+      return CPU_STEP_OK;
+    }
+
     case OPCODE_HALT:
       cpu->halted = true;
       return CPU_STEP_HALTED;

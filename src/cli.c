@@ -76,10 +76,39 @@ void cli_print_help(void)
   puts("    Explanation: Loads the next 8-bit value into register A.");
   puts("    Flags: Z is set if the value is zero; C is unchanged.");
   puts("    Assembly example: LDI A, 0xA5");
-  
   printf(
     "    Encoding example: 0x%02X 0xA5\n",
     (unsigned int)OPCODE_LOAD_IMMEDIATE_A
+  );
+  puts("");
+
+
+  printf(
+    "  LDI B, imm8     Opcode: 0x%02X | Size: 2 bytes\n",
+    (unsigned int)OPCODE_LOAD_IMMEDIATE_B
+  );
+  puts("    Effect: B <- imm8; Z <- (B == 0); C unchanged.");
+  puts("    Explanation: Loads the next 8-bit value into register B.");
+  puts("    Flags: Z is set if the value is zero; C is unchanged.");
+  puts("    Assembly example: LDI B, 0x5A");
+  printf(
+    "    Encoding example: 0x%02X 0x5A\n",
+    (unsigned int)OPCODE_LOAD_IMMEDIATE_B
+  );
+  puts("");
+
+  printf(
+    "  ADD A, B        Opcode: 0x%02X | Size: 1 byte\n",
+    (unsigned int)OPCODE_ADD_A_B
+  );
+  puts("    Effect: A <- (A + B) mod 256; Z <- (A == 0); C <- carry.");
+  puts("    Explanation: Adds register B to register A.");
+  puts("    The 8-bit result is stored in A; B is unchanged.");
+  puts("    Flags: Z reports a zero result; C reports unsigned overflow.");
+  puts("    Assembly example: ADD A, B");
+  printf(
+    "    Encoding: 0x%02X\n",
+    (unsigned int)OPCODE_ADD_A_B
   );
   puts("");
 

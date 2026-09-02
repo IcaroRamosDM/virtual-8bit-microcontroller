@@ -29,10 +29,17 @@ int main(int argument_count, char *arguments[])
       return EXIT_FAILURE;
   }
 
+  const uint8_t demo_value_a = UINT8_C(0xF0);
+  const uint8_t demo_value_b = UINT8_C(0x20);
   const uint8_t program[] = {
-    OPCODE_NOP,
+    OPCODE_LOAD_IMMEDIATE_A,
+    demo_value_a,
+    OPCODE_LOAD_IMMEDIATE_B,
+    demo_value_b,
+    OPCODE_ADD_A_B,
     OPCODE_HALT
   };
+
   const size_t program_size = sizeof program / sizeof program[0];
   const uint64_t instruction_limit = CPU_MEMORY_SIZE;
   Cpu cpu = {0};
@@ -74,6 +81,10 @@ int main(int argument_count, char *arguments[])
       return EXIT_FAILURE;
   }
 
+  printf("Register A: 0x%02X\n", (unsigned int)cpu.register_a);
+  printf("Register B: 0x%02X\n", (unsigned int)cpu.register_b);
+  printf("Zero flag: %s\n", cpu.zero_flag ? "set" : "clear");
+  printf("Carry flag: %s\n", cpu.carry_flag ? "set" : "clear");
   printf("Program counter: %" PRIu8 "\n", cpu.program_counter);
   printf("Cycle count: %" PRIu64 "\n", cpu.cycle_count);
 

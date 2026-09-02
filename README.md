@@ -28,6 +28,7 @@ The initial CPU model contains:
 - command-line parsing and built-in help for simulator commands and CPU instructions.
 
 Public headers use `#pragma once`. The memory size is derived from the complete 8-bit address space, and the implementation starts from a fully zero-initialized CPU state.
+The current cycle counter is intentionally simplified: every attempted instruction counts as one cycle regardless of its byte length.
 
 ## Current instruction set
 
@@ -36,19 +37,25 @@ Public headers use `#pragma once`. The memory size is derived from the complete 
 | `NOP` | `0x00` | Completes one cycle without changing CPU state beyond the program counter and cycle count. |
 | `HALT` | `0x01` | Stops instruction execution after the current cycle. |
 | `LDI A, imm8` | `0x10` | Loads an 8-bit immediate value into register `A`, updates the zero flag, and preserves the carry flag. |
+| `LDI B, imm8` | `0x11` | Loads an 8-bit immediate value into register `B`, updates the zero flag, and preserves the carry flag. |
+| `ADD A, B` | `0x20` | Adds register `B` to `A`, stores the low eight bits in `A`, and updates the zero and carry flags. |
 
 An invalid opcode halts execution and produces a distinct step result.
-`LDI A, imm8` occupies two bytes: the opcode followed by the immediate value.
+The two `LDI` instructions occupy two bytes each: the opcode followed by the immediate value. `ADD A, B` encodes both registers in its one-byte opcode.
 
 ## Current execution flow
 
-The demonstration program defines `NOP` followed by `HALT`, loads those bytes through `cpu_load_program`, and executes them through `cpu_run` with an instruction limit. The current output is:
+The demonstration program loads `0xF0` into `A`, loads `0x20` into `B`, adds the registers, and halts. It loads those bytes through `cpu_load_program` and executes them through `cpu_run` with an instruction limit. The current output is:
 
 ```text
 Virtual 8-bit microcontroller simulator
 Execution result: halted
-Program counter: 2
-Cycle count: 2
+Register A: 0x10
+Register B: 0x20
+Zero flag: clear
+Carry flag: set
+Program counter: 6
+Cycle count: 4
 ```
 
 `main.c` is limited to defining the demonstration program, requesting loading and execution, presenting the result, and returning the process exit status. Program copying and the execution loop remain in testable CPU functions.
@@ -84,6 +91,8 @@ Run the automated tests:
 ```bash
 make test
 ```
+
+The test target builds and runs separate CPU and CLI test executables.
 
 Display simulator and instruction help:
 
