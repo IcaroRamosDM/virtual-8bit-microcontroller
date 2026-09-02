@@ -5,7 +5,7 @@
 
 enum
 {
-  CPU_MEMORY_SIZE = 256
+  CPU_MEMORY_SIZE = UINT8_MAX +1
 };
 
 typedef struct Cpu
@@ -21,3 +21,6 @@ typedef struct Cpu
 } Cpu;
 
 void cpu_reset(Cpu *cpu);
+uint8_t cpu_read_memory(const Cpu *cpu, uint8_t address);
+void cpu_write_memory(Cpu *cpu, uint8_t address, uint8_t value);
+uint8_t cpu_fetch_byte(Cpu *cpu);
