@@ -14,7 +14,7 @@ CORE_SOURCES := $(filter-out src/main.c,$(SOURCES))
 TEST_SOURCES := tests/test_cpu.c
 HEADERS := $(wildcard include/*.h)
 
-.PHONY: all run test clean
+.PHONY: all run test help clean
 
 all: $(TARGET)
 
@@ -31,6 +31,9 @@ run: $(TARGET)
 
 test: $(TEST_TARGET)
 	./$(TEST_TARGET)
+
+help: $(TARGET)
+	./$(TARGET) help
 
 clean:
 	$(RM) -r build

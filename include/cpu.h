@@ -24,7 +24,8 @@ typedef struct Cpu
 typedef enum Opcode
 {
   OPCODE_NOP = 0x00,
-  OPCODE_HALT = 0x01
+  OPCODE_HALT = 0x01,
+  OPCODE_LOAD_IMMEDIATE_A = 0x10
 } Opcode;
 
 typedef enum CpuStepResult

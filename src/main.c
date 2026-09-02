@@ -5,10 +5,30 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "cli.h"
 #include "cpu.h"
 
-int main(void)
+int main(int argument_count, char *arguments[])
 {
+  const CliCommand command = cli_parse_command(
+    argument_count,
+    arguments
+  );
+
+  switch (command)
+  {
+    case CLI_COMMAND_RUN:
+      break;
+
+    case CLI_COMMAND_HELP:
+      cli_print_help();
+      return EXIT_SUCCESS;
+
+    case CLI_COMMAND_INVALID:
+      fputs("Unknown command. Run 'make help'.\n", stderr);
+      return EXIT_FAILURE;
+  }
+
   const uint8_t program[] = {
     OPCODE_NOP,
     OPCODE_HALT

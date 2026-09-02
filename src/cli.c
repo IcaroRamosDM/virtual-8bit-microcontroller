@@ -1,0 +1,93 @@
+#include <stdio.h>
+#include <string.h>
+
+#include "cli.h"
+#include "cpu.h"
+
+enum
+{
+  CLI_ARGUMENT_COUNT_WITHOUT_COMMAND = 1,
+  CLI_ARGUMENT_COUNT_WITH_COMMAND = 2,
+  CLI_COMMAND_ARGUMENT_INDEX = 1
+};
+
+CliCommand cli_parse_command(
+    int argument_count,
+    char *arguments[]
+)
+{
+  if (argument_count == CLI_ARGUMENT_COUNT_WITHOUT_COMMAND)
+  {
+    return CLI_COMMAND_RUN;
+  }
+
+  if (argument_count != CLI_ARGUMENT_COUNT_WITH_COMMAND)
+  {
+    return CLI_COMMAND_INVALID;
+  }
+
+  const char *command = arguments[CLI_COMMAND_ARGUMENT_INDEX];
+
+  if ((strcmp(command, "help") == 0) ||
+      (strcmp(command, "--help") == 0))
+  {
+    return CLI_COMMAND_HELP;
+  }
+
+  return CLI_COMMAND_INVALID;
+}
+
+void cli_print_help(void)
+{
+  puts("VM8 virtual 8-bit microcontroller simulator");
+  puts("");
+
+  puts("Commands:");
+  puts("  make run      Build and run the demonstration program.");
+  puts("  make test     Build and run the test suite.");
+  puts("  make help     Build and display this help.");
+  puts("");
+
+  puts("Direct executable commands:");
+  puts("  ./build/vm8          Run the demonstration program.");
+  puts("  ./build/vm8 help     Display this help.");
+  puts("  ./build/vm8 --help   Display this help.");
+  puts("");
+
+  puts("Supported instructions:");
+
+  printf(
+    "  NOP             Opcode: 0x%02X | Size: 1 byte\n",
+    (unsigned int)OPCODE_NOP
+  );
+  puts("    Effect: Performs no data operation.");
+
+  printf(
+    "  HALT            Opcode: 0x%02X | Size: 1 byte\n",
+    (unsigned int)OPCODE_HALT
+  );
+  puts("    Effect: Stops program execution.");
+
+  printf(
+    "  LDI A, imm8     Opcode: 0x%02X | Size: 2 bytes\n",
+    (unsigned int)OPCODE_LOAD_IMMEDIATE_A
+  );
+  puts("    Effect: A <- imm8; Z <- (A == 0); C unchanged.");
+  puts("    Explanation: Loads the next 8-bit value into register A.");
+  puts("    Flags: Z is set if the value is zero; C is unchanged.");
+  puts("    Assembly example: LDI A, 0xA5");
+  
+  printf(
+    "    Encoding example: 0x%02X 0xA5\n",
+    (unsigned int)OPCODE_LOAD_IMMEDIATE_A
+  );
+  puts("");
+
+  puts("Current program workflow:");
+  puts("  Define bytecode in the program array in src/main.c.");
+  puts(
+    "  Example: { OPCODE_LOAD_IMMEDIATE_A, "
+    "UINT8_C(0xA5), OPCODE_HALT }"
+  );
+  puts("  Execute it with: make run");
+}

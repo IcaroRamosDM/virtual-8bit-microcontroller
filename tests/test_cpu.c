@@ -357,12 +357,78 @@ static void test_cpu_run_handles_zero_limit_and_halted_cpu(void)
   assert(halted_cpu.halted);
 }
 
+static void test_cpu_step_executes_load_immediate_a(void)
+{
+  const uint8_t nonzero_value = UINT8_C(0xA5);
+  const uint8_t nonzero_program[] = {
+    OPCODE_LOAD_IMMEDIATE_A,
+    nonzero_value
+  };
+  const size_t nonzero_program_size =
+    sizeof nonzero_program / sizeof nonzero_program[0];
+
+  const uint8_t zero_value = 0;
+  const uint8_t zero_program[] = {
+    OPCODE_LOAD_IMMEDIATE_A,
+    zero_value
+  };
+  const size_t zero_program_size =
+    sizeof zero_program / sizeof zero_program[0];
+
+  const uint64_t expected_cycle_count = UINT64_C(1);
+
+  Cpu nonzero_cpu = {
+    .zero_flag = true,
+    .carry_flag = true
+  };
+  Cpu zero_cpu = {
+    .register_a = UINT8_MAX,
+    .carry_flag = true
+  };
+
+  const bool nonzero_program_loaded = cpu_load_program(
+    &nonzero_cpu,
+    nonzero_program,
+    nonzero_program_size
+  );
+  const bool zero_program_loaded = cpu_load_program(
+    &zero_cpu,
+    zero_program,
+    zero_program_size
+  );
+
+  assert(nonzero_program_loaded);
+  assert(zero_program_loaded);
+
+  const CpuStepResult nonzero_result = cpu_step(&nonzero_cpu);
+  const CpuStepResult zero_result = cpu_step(&zero_cpu);
+
+  assert(nonzero_result == CPU_STEP_OK);
+  assert(nonzero_cpu.register_a == nonzero_value);
+  assert(!nonzero_cpu.zero_flag);
+  assert(nonzero_cpu.carry_flag);
+  assert(!nonzero_cpu.halted);
+  assert(
+    nonzero_cpu.program_counter == (uint8_t)nonzero_program_size
+  );
+  assert(nonzero_cpu.cycle_count == expected_cycle_count);
+
+  assert(zero_result == CPU_STEP_OK);
+  assert(zero_cpu.register_a == zero_value);
+  assert(zero_cpu.zero_flag);
+  assert(zero_cpu.carry_flag);
+  assert(!zero_cpu.halted);
+  assert(zero_cpu.program_counter == (uint8_t)zero_program_size);
+  assert(zero_cpu.cycle_count == expected_cycle_count);
+}
+
 int main(void)
 {
   test_cpu_reset_clears_state();
   test_cpu_memory_read_and_write();
   test_cpu_fetch_byte_reads_and_advances_program_counter();
   test_cpu_step_executes_nop_and_halt();
+  test_cpu_step_executes_load_immediate_a();
   test_cpu_step_rejects_invalid_opcode();
   test_cpu_load_program_copies_valid_program();
   test_cpu_run_stops_at_halt();

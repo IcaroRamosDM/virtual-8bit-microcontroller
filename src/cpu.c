@@ -41,6 +41,11 @@ CpuStepResult cpu_step(Cpu *cpu)
     case OPCODE_NOP:
       return CPU_STEP_OK;
 
+    case OPCODE_LOAD_IMMEDIATE_A:
+      cpu->register_a = cpu_fetch_byte(cpu);
+      cpu->zero_flag = (cpu->register_a == 0);
+      return CPU_STEP_OK;
+
     case OPCODE_HALT:
       cpu->halted = true;
       return CPU_STEP_HALTED;

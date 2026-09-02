@@ -24,7 +24,8 @@ The initial CPU model contains:
 - byte fetching with automatic program-counter advancement;
 - single-instruction execution with explicit status results;
 - validated program loading into unified memory;
-- bounded program execution with explicit termination results.
+- bounded program execution with explicit termination results;
+- command-line parsing and built-in help for simulator commands and CPU instructions.
 
 Public headers use `#pragma once`. The memory size is derived from the complete 8-bit address space, and the implementation starts from a fully zero-initialized CPU state.
 
@@ -34,8 +35,10 @@ Public headers use `#pragma once`. The memory size is derived from the complete 
 | --- | --- | --- |
 | `NOP` | `0x00` | Completes one cycle without changing CPU state beyond the program counter and cycle count. |
 | `HALT` | `0x01` | Stops instruction execution after the current cycle. |
+| `LDI A, imm8` | `0x10` | Loads an 8-bit immediate value into register `A`, updates the zero flag, and preserves the carry flag. |
 
 An invalid opcode halts execution and produces a distinct step result.
+`LDI A, imm8` occupies two bytes: the opcode followed by the immediate value.
 
 ## Current execution flow
 
@@ -49,6 +52,8 @@ Cycle count: 2
 ```
 
 `main.c` is limited to defining the demonstration program, requesting loading and execution, presenting the result, and returning the process exit status. Program copying and the execution loop remain in testable CPU functions.
+
+The CLI module keeps command parsing and help presentation separate from CPU execution. Run `make help` to see simulator commands, instruction encodings, effects, flag behavior, and usage examples.
 
 ## Project structure
 
@@ -78,6 +83,12 @@ Run the automated tests:
 
 ```bash
 make test
+```
+
+Display simulator and instruction help:
+
+```bash
+make help
 ```
 
 Remove generated files:
