@@ -24,3 +24,29 @@ uint8_t cpu_fetch_byte(Cpu *cpu)
 
   return value;
 }
+
+CpuStepResult cpu_step(Cpu *cpu)
+{
+  if (cpu->halted)
+  {
+    return CPU_STEP_HALTED;
+  }
+
+  const uint8_t opcode = cpu_fetch_byte(cpu);
+
+  ++cpu->cycle_count;
+
+  switch ((Opcode)opcode)
+  {
+    case OPCODE_NOP:
+      return CPU_STEP_OK;
+
+    case OPCODE_HALT:
+      cpu->halted = true;
+      return CPU_STEP_HALTED;
+
+    default:
+      cpu->halted = true;
+      return CPU_STEP_INVALID_OPCODE;
+  }
+}

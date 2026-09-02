@@ -5,7 +5,7 @@
 
 enum
 {
-  CPU_MEMORY_SIZE = UINT8_MAX +1
+  CPU_MEMORY_SIZE = UINT8_MAX + 1
 };
 
 typedef struct Cpu
@@ -20,7 +20,22 @@ typedef struct Cpu
   uint8_t memory[CPU_MEMORY_SIZE];
 } Cpu;
 
+typedef enum Opcode
+{
+  OPCODE_NOP = 0x00,
+  OPCODE_HALT = 0x01
+} Opcode;
+
+typedef enum CpuStepResult
+{
+  CPU_STEP_OK,
+  CPU_STEP_HALTED,
+  CPU_STEP_INVALID_OPCODE
+} CpuStepResult;
+
 void cpu_reset(Cpu *cpu);
 uint8_t cpu_read_memory(const Cpu *cpu, uint8_t address);
 void cpu_write_memory(Cpu *cpu, uint8_t address, uint8_t value);
 uint8_t cpu_fetch_byte(Cpu *cpu);
+
+CpuStepResult cpu_step(Cpu *cpu);
