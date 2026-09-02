@@ -19,3 +19,5 @@ typedef struct Cpu
   uint64_t cycle_count;
   uint8_t memory[CPU_MEMORY_SIZE];
 } Cpu;
+
+void cpu_reset(Cpu *cpu);
