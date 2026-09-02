@@ -144,7 +144,7 @@ void cli_print_help(void)
   );
   puts("");
 
-    printf(
+  printf(
     "  JMP addr8       Opcode: 0x%02X | Size: 2 bytes\n",
     (unsigned int)OPCODE_JUMP
   );
@@ -160,6 +160,40 @@ void cli_print_help(void)
     (unsigned int)OPCODE_JUMP
   );
   puts("");
+
+  printf(
+    "  LDA addr8       Opcode: 0x%02X | Size: 2 bytes\n",
+    (unsigned int)OPCODE_LOAD_A_FROM_MEMORY
+  );
+  puts("    Effect: A <- memory[addr8]; Z <- (A == 0); C unchanged.");
+  puts(
+    "    Explanation: Loads register A "
+    "from an absolute memory address."
+  );
+  puts("    Register B and memory are unchanged.");
+  puts("    Assembly example: LDA 0x80");
+  printf(
+    "    Encoding example: 0x%02X 0x80\n",
+    (unsigned int)OPCODE_LOAD_A_FROM_MEMORY
+  );
+  puts("");
+
+  printf(
+    "  STA addr8       Opcode: 0x%02X | Size: 2 bytes\n",
+    (unsigned int)OPCODE_STORE_A_TO_MEMORY
+  );
+  puts("    Effect: memory[addr8] <- A; registers and flags unchanged.");
+  puts(
+    "    Explanation: Stores register A "
+    "at an absolute memory address."
+  );
+  puts("    Assembly example: STA 0x80");
+  printf(
+    "    Encoding example: 0x%02X 0x80\n",
+    (unsigned int)OPCODE_STORE_A_TO_MEMORY
+  );
+  puts("");
+
 
   puts("Current program workflow:");
   puts("  Define bytecode in the program array in src/main.c.");

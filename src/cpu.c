@@ -99,6 +99,25 @@ CpuStepResult cpu_step(Cpu *cpu)
       return CPU_STEP_OK;
     }
 
+    case OPCODE_LOAD_A_FROM_MEMORY:
+    {
+      const uint8_t address = cpu_fetch_byte(cpu);
+
+      cpu->register_a = cpu_read_memory(cpu, address);
+      cpu->zero_flag = (cpu->register_a == 0);
+
+      return CPU_STEP_OK;
+    }
+
+    case OPCODE_STORE_A_TO_MEMORY:
+    {
+      const uint8_t address = cpu_fetch_byte(cpu);
+
+      cpu_write_memory(cpu, address, cpu->register_a);
+
+      return CPU_STEP_OK;
+    }
+
     case OPCODE_HALT:
       cpu->halted = true;
       return CPU_STEP_HALTED;

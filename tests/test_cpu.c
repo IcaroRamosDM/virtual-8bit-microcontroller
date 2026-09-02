@@ -748,6 +748,131 @@ static void test_cpu_step_executes_jump(void)
   assert(!cpu.halted);
 }
 
+static void test_cpu_step_executes_load_a_from_memory(void)
+{
+  typedef struct LoadMemoryTestCase
+  {
+    uint8_t stored_value;
+    bool expected_zero_flag;
+  } LoadMemoryTestCase;
+
+  const LoadMemoryTestCase test_cases[] = {
+    {
+      .stored_value = 0,
+      .expected_zero_flag = true
+    },
+    {
+      .stored_value = UINT8_C(0xA5),
+      .expected_zero_flag = false
+    }
+  };
+
+  const size_t test_case_count =
+    sizeof test_cases / sizeof test_cases[0];
+  const uint8_t data_address = UINT8_C(0x80);
+  const uint8_t expected_register_b = UINT8_C(0x5A);
+  const uint8_t program[] = {
+    OPCODE_LOAD_A_FROM_MEMORY,
+    data_address
+  };
+  const size_t program_size =
+    sizeof program / sizeof program[0];
+  const uint64_t expected_cycle_count = UINT64_C(1);
+
+  for (size_t index = 0; index < test_case_count; ++index)
+  {
+    const LoadMemoryTestCase *test_case = &test_cases[index];
+
+    Cpu cpu = {
+      .register_a = UINT8_MAX,
+      .register_b = expected_register_b,
+      .zero_flag = !test_case->expected_zero_flag,
+      .carry_flag = true
+    };
+
+    const bool loaded = cpu_load_program(
+      &cpu,
+      program,
+      program_size
+    );
+
+    assert(loaded);
+
+    cpu_write_memory(
+      &cpu,
+      data_address,
+      test_case->stored_value
+    );
+
+    const CpuStepResult result = cpu_step(&cpu);
+
+    assert(result == CPU_STEP_OK);
+    assert(cpu.register_a == test_case->stored_value);
+    assert(cpu.register_b == expected_register_b);
+    assert(
+      cpu.zero_flag == test_case->expected_zero_flag
+    );
+    assert(cpu.carry_flag);
+    assert(
+      cpu_read_memory(&cpu, data_address) ==
+      test_case->stored_value
+    );
+    assert(cpu.program_counter == (uint8_t)program_size);
+    assert(cpu.cycle_count == expected_cycle_count);
+    assert(!cpu.halted);
+  }
+}
+
+static void test_cpu_step_executes_store_a_to_memory(void)
+{
+  const uint8_t data_address = UINT8_C(0x80);
+  const uint8_t initial_memory_value = UINT8_C(0x3C);
+  const uint8_t value_to_store = UINT8_C(0xA5);
+  const uint8_t expected_register_b = UINT8_C(0x5A);
+  const uint8_t program[] = {
+    OPCODE_STORE_A_TO_MEMORY,
+    data_address
+  };
+  const size_t program_size =
+    sizeof program / sizeof program[0];
+  const uint64_t expected_cycle_count = UINT64_C(1);
+
+  Cpu cpu = {
+    .register_a = value_to_store,
+    .register_b = expected_register_b,
+    .zero_flag = true,
+    .carry_flag = true
+  };
+
+  const bool loaded = cpu_load_program(
+    &cpu,
+    program,
+    program_size
+  );
+
+  assert(loaded);
+
+  cpu_write_memory(
+    &cpu,
+    data_address,
+    initial_memory_value
+  );
+
+  const CpuStepResult result = cpu_step(&cpu);
+
+  assert(result == CPU_STEP_OK);
+  assert(
+    cpu_read_memory(&cpu, data_address) == value_to_store
+  );
+  assert(cpu.register_a == value_to_store);
+  assert(cpu.register_b == expected_register_b);
+  assert(cpu.zero_flag);
+  assert(cpu.carry_flag);
+  assert(cpu.program_counter == (uint8_t)program_size);
+  assert(cpu.cycle_count == expected_cycle_count);
+  assert(!cpu.halted);
+}
+
 int main(void)
 {
   test_cpu_reset_clears_state();
@@ -768,6 +893,8 @@ int main(void)
   test_cpu_step_executes_sub_a_b();
   test_cpu_step_executes_jump_if_zero();
   test_cpu_step_executes_jump();
+  test_cpu_step_executes_load_a_from_memory();
+  test_cpu_step_executes_store_a_to_memory();
 
   puts("All CPU tests passed.");
 
