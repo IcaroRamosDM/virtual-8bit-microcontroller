@@ -39,9 +39,13 @@ The current cycle counter is intentionally simplified: every attempted instructi
 | `LDI A, imm8` | `0x10` | Loads an 8-bit immediate value into register `A`, updates the zero flag, and preserves the carry flag. |
 | `LDI B, imm8` | `0x11` | Loads an 8-bit immediate value into register `B`, updates the zero flag, and preserves the carry flag. |
 | `ADD A, B` | `0x20` | Adds register `B` to `A`, stores the low eight bits in `A`, and updates the zero and carry flags. |
+| `SUB A, B` | `0x21` | Subtracts register `B` from `A`, stores the wrapped 8-bit result in `A`, and sets carry when an unsigned borrow occurs. |
+| `JZ addr8` | `0x30` | Jumps to an absolute 8-bit address when the zero flag is set; otherwise execution continues after its operand. |
 
 An invalid opcode halts execution and produces a distinct step result.
-The two `LDI` instructions occupy two bytes each: the opcode followed by the immediate value. `ADD A, B` encodes both registers in its one-byte opcode.
+The two `LDI` instructions and `JZ` occupy two bytes each: the opcode followed by an immediate value or target address. `ADD A, B` and `SUB A, B` encode both registers in their one-byte opcodes.
+
+The carry flag reports unsigned carry for addition and unsigned borrow for subtraction. `JZ` always fetches its address operand; a taken branch replaces the program counter with that address, while a non-taken branch continues at the following byte.
 
 ## Current execution flow
 

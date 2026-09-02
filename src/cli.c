@@ -112,6 +112,38 @@ void cli_print_help(void)
   );
   puts("");
 
+    printf(
+    "  SUB A, B        Opcode: 0x%02X | Size: 1 byte\n",
+    (unsigned int)OPCODE_SUB_A_B
+  );
+  puts("    Effect: A <- (A - B) mod 256; Z <- (A == 0); C <- borrow.");
+  puts("    Explanation: Subtracts register B from register A.");
+  puts("    The 8-bit result is stored in A; B is unchanged.");
+  puts(
+    "    Flags: Z reports a zero result; "
+    "C is set when the original A is less than B."
+  );
+  puts("    Assembly example: SUB A, B");
+  printf(
+    "    Encoding: 0x%02X\n",
+    (unsigned int)OPCODE_SUB_A_B
+  );
+  puts("");
+
+    printf(
+    "  JZ addr8        Opcode: 0x%02X | Size: 2 bytes\n",
+    (unsigned int)OPCODE_JUMP_IF_ZERO
+  );
+  puts("    Effect: PC <- addr8 if Z == 1; otherwise execution continues.");
+  puts("    Explanation: Jumps to an absolute 8-bit address when Z is set.");
+  puts("    Registers and flags are unchanged.");
+  puts("    Assembly example: JZ 0x80");
+  printf(
+    "    Encoding example: 0x%02X 0x80\n",
+    (unsigned int)OPCODE_JUMP_IF_ZERO
+  );
+  puts("");
+
   puts("Current program workflow:");
   puts("  Define bytecode in the program array in src/main.c.");
   puts(

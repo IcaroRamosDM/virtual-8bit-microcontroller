@@ -64,6 +64,32 @@ CpuStepResult cpu_step(Cpu *cpu)
       return CPU_STEP_OK;
     }
 
+    case OPCODE_SUB_A_B:
+    {
+      const uint8_t original_a = cpu->register_a;
+      const bool borrow = original_a < cpu->register_b;
+      const uint8_t difference =
+        (uint8_t)(original_a - cpu->register_b);
+
+      cpu->register_a = difference;
+      cpu->zero_flag = (difference == 0);
+      cpu->carry_flag = borrow;
+
+      return CPU_STEP_OK;
+    }
+
+    case OPCODE_JUMP_IF_ZERO:
+    {
+      const uint8_t target_address = cpu_fetch_byte(cpu);
+
+      if (cpu->zero_flag)
+      {
+        cpu->program_counter = target_address;
+      }
+
+      return CPU_STEP_OK;
+    }
+
     case OPCODE_HALT:
       cpu->halted = true;
       return CPU_STEP_HALTED;

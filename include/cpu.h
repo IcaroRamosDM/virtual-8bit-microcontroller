@@ -27,7 +27,9 @@ typedef enum Opcode
   OPCODE_HALT = 0x01,
   OPCODE_LOAD_IMMEDIATE_A = 0x10,
   OPCODE_LOAD_IMMEDIATE_B = 0x11,
-  OPCODE_ADD_A_B = 0x20
+  OPCODE_ADD_A_B = 0x20,
+  OPCODE_SUB_A_B = 0x21,
+  OPCODE_JUMP_IF_ZERO = 0x30
 } Opcode;
 
 typedef enum CpuStepResult
