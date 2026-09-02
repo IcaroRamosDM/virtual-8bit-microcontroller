@@ -1,12 +1,12 @@
 #include <inttypes.h>
 #include <stdbool.h>
-#include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 
 #include "cli.h"
 #include "cpu.h"
+#include "program.h"
 
 int main(int argument_count, char *arguments[])
 {
@@ -29,30 +29,15 @@ int main(int argument_count, char *arguments[])
       return EXIT_FAILURE;
   }
 
-  const uint8_t demo_operand = UINT8_C(0x2A);
-  const uint8_t skipped_value = UINT8_C(0xFF);
-  const uint8_t halt_address = UINT8_C(0x09);
-  const uint8_t program[] = {
-    OPCODE_LOAD_IMMEDIATE_A,
-    demo_operand,
-    OPCODE_LOAD_IMMEDIATE_B,
-    demo_operand,
-    OPCODE_SUB_A_B,
-    OPCODE_JUMP_IF_ZERO,
-    halt_address,
-    OPCODE_LOAD_IMMEDIATE_A,
-    skipped_value,
-    OPCODE_HALT
-  };
+  const Program program = program_get_demo();
 
-  const size_t program_size = sizeof program / sizeof program[0];
   const uint64_t instruction_limit = CPU_MEMORY_SIZE;
   Cpu cpu = {0};
 
   const bool program_loaded = cpu_load_program(
     &cpu,
-    program,
-    program_size
+    program.bytes,
+    program.size
   );
 
   if (!program_loaded)

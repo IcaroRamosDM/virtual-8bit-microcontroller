@@ -25,6 +25,8 @@ The initial CPU model contains:
 - single-instruction execution with explicit status results;
 - validated program loading into unified memory;
 - bounded program execution with explicit termination results;
+- an immutable bytecode-program descriptor that keeps its byte pointer and size together;
+- a dedicated module for the built-in demonstration bytecode;
 - command-line parsing and built-in help for simulator commands and CPU instructions.
 
 Public headers use `#pragma once`. The memory size is derived from the complete 8-bit address space, and the implementation starts from a fully zero-initialized CPU state.
@@ -63,13 +65,13 @@ Program counter: 10
 Cycle count: 5
 ```
 
-`main.c` is limited to defining the demonstration program, requesting loading and execution, presenting the result, and returning the process exit status. Program copying and the execution loop remain in testable CPU functions.
+The demonstration bytecode is stored privately in `src/program.c` and exposed through a `Program` value containing a pointer to constant bytes and their size. `main.c` is limited to requesting that program, coordinating loading and execution, presenting the result, and returning the process exit status. Program copying and the execution loop remain in testable CPU functions.
 
 The CLI module keeps command parsing and help presentation separate from CPU execution. Run `make help` to see simulator commands, instruction encodings, effects, flag behavior, and usage examples.
 
 ## Project structure
 
-- `src/`: C implementation files.
+- `src/`: CPU, CLI, built-in program, and simulator-entry-point implementations.
 - `include/`: public C headers.
 - `assembler/`: future assembler implementation.
 - `programs/`: programs written in the custom Assembly language.
@@ -97,8 +99,9 @@ Run the automated tests:
 make test
 ```
 
-The test target builds and runs separate CPU and CLI test executables.
+The test target builds and runs separate CPU, CLI, and program-integration test executables.
 The CPU tests include a `JMP`-to-zero loop that verifies bounded execution stops at the configured instruction limit.
+The program-integration test loads and executes the built-in demonstration, then verifies its complete final CPU state.
 
 Display simulator and instruction help:
 
