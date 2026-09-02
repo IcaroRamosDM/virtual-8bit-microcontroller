@@ -90,6 +90,15 @@ CpuStepResult cpu_step(Cpu *cpu)
       return CPU_STEP_OK;
     }
 
+    case OPCODE_JUMP:
+    {
+      const uint8_t target_address = cpu_fetch_byte(cpu);
+
+      cpu->program_counter = target_address;
+
+      return CPU_STEP_OK;
+    }
+
     case OPCODE_HALT:
       cpu->halted = true;
       return CPU_STEP_HALTED;

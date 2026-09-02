@@ -29,14 +29,19 @@ int main(int argument_count, char *arguments[])
       return EXIT_FAILURE;
   }
 
-  const uint8_t demo_value_a = UINT8_C(0xF0);
-  const uint8_t demo_value_b = UINT8_C(0x20);
+  const uint8_t demo_operand = UINT8_C(0x2A);
+  const uint8_t skipped_value = UINT8_C(0xFF);
+  const uint8_t halt_address = UINT8_C(0x09);
   const uint8_t program[] = {
     OPCODE_LOAD_IMMEDIATE_A,
-    demo_value_a,
+    demo_operand,
     OPCODE_LOAD_IMMEDIATE_B,
-    demo_value_b,
-    OPCODE_ADD_A_B,
+    demo_operand,
+    OPCODE_SUB_A_B,
+    OPCODE_JUMP_IF_ZERO,
+    halt_address,
+    OPCODE_LOAD_IMMEDIATE_A,
+    skipped_value,
     OPCODE_HALT
   };
 

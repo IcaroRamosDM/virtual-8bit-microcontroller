@@ -295,16 +295,15 @@ static void test_cpu_run_reports_invalid_opcode(void)
 
 static void test_cpu_run_enforces_instruction_limit(void)
 {
+  const uint8_t program_start = 0;
   const uint8_t program[] = {
-    OPCODE_NOP,
-    OPCODE_NOP,
-    OPCODE_NOP
+    OPCODE_JUMP,
+    program_start
   };
   const size_t program_size = sizeof program / sizeof program[0];
-  const uint64_t instruction_limit = UINT64_C(2);
+  const uint64_t instruction_limit = UINT64_C(3);
   const uint64_t expected_cycle_count = instruction_limit;
-  const uint8_t expected_program_counter =
-    (uint8_t)instruction_limit;
+  const uint8_t expected_program_counter = program_start;
   Cpu cpu = {0};
 
   const bool loaded = cpu_load_program(
@@ -709,6 +708,46 @@ static void test_cpu_step_executes_jump_if_zero(void)
   assert(!not_taken_cpu.halted);
 }
 
+static void test_cpu_step_executes_jump(void)
+{
+  const uint8_t target_address = UINT8_C(0x80);
+  const uint8_t expected_register_a = UINT8_C(0xA5);
+  const uint8_t expected_register_b = UINT8_C(0x5A);
+  const uint8_t program[] = {
+    OPCODE_JUMP,
+    target_address
+  };
+  const size_t program_size =
+    sizeof program / sizeof program[0];
+  const uint64_t expected_cycle_count = UINT64_C(1);
+
+  Cpu cpu = {
+    .register_a = expected_register_a,
+    .register_b = expected_register_b,
+    .zero_flag = true,
+    .carry_flag = true
+  };
+
+  const bool loaded = cpu_load_program(
+    &cpu,
+    program,
+    program_size
+  );
+
+  assert(loaded);
+
+  const CpuStepResult result = cpu_step(&cpu);
+
+  assert(result == CPU_STEP_OK);
+  assert(cpu.program_counter == target_address);
+  assert(cpu.cycle_count == expected_cycle_count);
+  assert(cpu.register_a == expected_register_a);
+  assert(cpu.register_b == expected_register_b);
+  assert(cpu.zero_flag);
+  assert(cpu.carry_flag);
+  assert(!cpu.halted);
+}
+
 int main(void)
 {
   test_cpu_reset_clears_state();
@@ -728,6 +767,7 @@ int main(void)
   test_cpu_step_executes_add_a_b();
   test_cpu_step_executes_sub_a_b();
   test_cpu_step_executes_jump_if_zero();
+  test_cpu_step_executes_jump();
 
   puts("All CPU tests passed.");
 

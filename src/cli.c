@@ -112,7 +112,7 @@ void cli_print_help(void)
   );
   puts("");
 
-    printf(
+  printf(
     "  SUB A, B        Opcode: 0x%02X | Size: 1 byte\n",
     (unsigned int)OPCODE_SUB_A_B
   );
@@ -130,7 +130,7 @@ void cli_print_help(void)
   );
   puts("");
 
-    printf(
+  printf(
     "  JZ addr8        Opcode: 0x%02X | Size: 2 bytes\n",
     (unsigned int)OPCODE_JUMP_IF_ZERO
   );
@@ -141,6 +141,23 @@ void cli_print_help(void)
   printf(
     "    Encoding example: 0x%02X 0x80\n",
     (unsigned int)OPCODE_JUMP_IF_ZERO
+  );
+  puts("");
+
+    printf(
+    "  JMP addr8       Opcode: 0x%02X | Size: 2 bytes\n",
+    (unsigned int)OPCODE_JUMP
+  );
+  puts("    Effect: PC <- addr8.");
+  puts(
+    "    Explanation: Jumps unconditionally "
+    "to an absolute 8-bit address."
+  );
+  puts("    Registers and flags are unchanged.");
+  puts("    Assembly example: JMP 0x80");
+  printf(
+    "    Encoding example: 0x%02X 0x80\n",
+    (unsigned int)OPCODE_JUMP
   );
   puts("");
 

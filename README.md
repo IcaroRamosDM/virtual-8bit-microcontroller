@@ -41,25 +41,26 @@ The current cycle counter is intentionally simplified: every attempted instructi
 | `ADD A, B` | `0x20` | Adds register `B` to `A`, stores the low eight bits in `A`, and updates the zero and carry flags. |
 | `SUB A, B` | `0x21` | Subtracts register `B` from `A`, stores the wrapped 8-bit result in `A`, and sets carry when an unsigned borrow occurs. |
 | `JZ addr8` | `0x30` | Jumps to an absolute 8-bit address when the zero flag is set; otherwise execution continues after its operand. |
+| `JMP addr8` | `0x31` | Jumps unconditionally to an absolute 8-bit address without changing registers or flags. |
 
 An invalid opcode halts execution and produces a distinct step result.
-The two `LDI` instructions and `JZ` occupy two bytes each: the opcode followed by an immediate value or target address. `ADD A, B` and `SUB A, B` encode both registers in their one-byte opcodes.
+The two `LDI` instructions, `JZ`, and `JMP` occupy two bytes each: the opcode followed by an immediate value or target address. `ADD A, B` and `SUB A, B` encode both registers in their one-byte opcodes.
 
-The carry flag reports unsigned carry for addition and unsigned borrow for subtraction. `JZ` always fetches its address operand; a taken branch replaces the program counter with that address, while a non-taken branch continues at the following byte.
+The carry flag reports unsigned carry for addition and unsigned borrow for subtraction. `JZ` always fetches its address operand; a taken branch replaces the program counter with that address, while a non-taken branch continues at the following byte. `JMP` always replaces the program counter with its absolute address operand.
 
 ## Current execution flow
 
-The demonstration program loads `0xF0` into `A`, loads `0x20` into `B`, adds the registers, and halts. It loads those bytes through `cpu_load_program` and executes them through `cpu_run` with an instruction limit. The current output is:
+The demonstration program loads `0x2A` into both registers, subtracts `B` from `A`, and uses the resulting zero flag to branch over an `LDI A, 0xFF` instruction. It then halts with `A` equal to zero. The program is loaded through `cpu_load_program` and executed through `cpu_run` with an instruction limit. The current output is:
 
 ```text
 Virtual 8-bit microcontroller simulator
 Execution result: halted
-Register A: 0x10
-Register B: 0x20
-Zero flag: clear
-Carry flag: set
-Program counter: 6
-Cycle count: 4
+Register A: 0x00
+Register B: 0x2A
+Zero flag: set
+Carry flag: clear
+Program counter: 10
+Cycle count: 5
 ```
 
 `main.c` is limited to defining the demonstration program, requesting loading and execution, presenting the result, and returning the process exit status. Program copying and the execution loop remain in testable CPU functions.
@@ -97,6 +98,7 @@ make test
 ```
 
 The test target builds and runs separate CPU and CLI test executables.
+The CPU tests include a `JMP`-to-zero loop that verifies bounded execution stops at the configured instruction limit.
 
 Display simulator and instruction help:
 
