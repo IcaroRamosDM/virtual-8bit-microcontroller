@@ -1,4 +1,5 @@
 #include <inttypes.h>
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -13,34 +14,46 @@ int main(void)
     OPCODE_HALT
   };
   const size_t program_size = sizeof program / sizeof program[0];
-  CpuStepResult result = CPU_STEP_OK;
+  const uint64_t instruction_limit = CPU_MEMORY_SIZE;
   Cpu cpu = {0};
 
-  if (program_size > (size_t)CPU_MEMORY_SIZE)
+  const bool program_loaded = cpu_load_program(
+    &cpu,
+    program,
+    program_size
+  );
+
+  if (!program_loaded)
   {
     fputs("Program does not fit in memory.\n", stderr);
     return EXIT_FAILURE;
   }
 
-  for (size_t index = 0; index < program_size; ++index)
-  {
-    cpu_write_memory(&cpu, (uint8_t)index, program[index]);
-  }
-
-  while (result == CPU_STEP_OK)
-  {
-    result = cpu_step(&cpu);
-  }
+  const CpuRunResult result = cpu_run(
+    &cpu,
+    instruction_limit
+  );
 
   puts("Virtual 8-bit microcontroller simulator");
 
-  if (result == CPU_STEP_INVALID_OPCODE)
+  switch (result)
   {
-    puts("Execution result: invalid opcode");
-    return EXIT_FAILURE;
+    case CPU_RUN_HALTED:
+      puts("Execution result: halted");
+      break;
+
+    case CPU_RUN_INVALID_OPCODE:
+      fputs("Execution result: invalid opcode\n", stderr);
+      return EXIT_FAILURE;
+
+    case CPU_RUN_INSTRUCTION_LIMIT_REACHED:
+      fputs(
+        "Execution result: instruction limit reached\n",
+        stderr
+      );
+      return EXIT_FAILURE;
   }
 
-  puts("Execution result: halted");
   printf("Program counter: %" PRIu8 "\n", cpu.program_counter);
   printf("Cycle count: %" PRIu64 "\n", cpu.cycle_count);
 

@@ -22,7 +22,9 @@ The initial CPU model contains:
 - a 64-bit cycle counter;
 - byte-level memory read and write operations;
 - byte fetching with automatic program-counter advancement;
-- single-instruction execution with explicit status results.
+- single-instruction execution with explicit status results;
+- validated program loading into unified memory;
+- bounded program execution with explicit termination results.
 
 Public headers use `#pragma once`. The memory size is derived from the complete 8-bit address space, and the implementation starts from a fully zero-initialized CPU state.
 
@@ -37,7 +39,7 @@ An invalid opcode halts execution and produces a distinct step result.
 
 ## Current execution flow
 
-The demonstration program writes `NOP` followed by `HALT` to memory and repeatedly calls `cpu_step` until execution stops. The current output is:
+The demonstration program defines `NOP` followed by `HALT`, loads those bytes through `cpu_load_program`, and executes them through `cpu_run` with an instruction limit. The current output is:
 
 ```text
 Virtual 8-bit microcontroller simulator
@@ -46,7 +48,7 @@ Program counter: 2
 Cycle count: 2
 ```
 
-`main.c` currently shows this integration explicitly. Reusable program loading and execution loops will move into testable CPU functions as the project grows.
+`main.c` is limited to defining the demonstration program, requesting loading and execution, presenting the result, and returning the process exit status. Program copying and the execution loop remain in testable CPU functions.
 
 ## Project structure
 

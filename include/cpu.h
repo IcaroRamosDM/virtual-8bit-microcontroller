@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
 enum
@@ -33,9 +34,24 @@ typedef enum CpuStepResult
   CPU_STEP_INVALID_OPCODE
 } CpuStepResult;
 
+typedef enum CpuRunResult
+{
+  CPU_RUN_HALTED,
+  CPU_RUN_INVALID_OPCODE,
+  CPU_RUN_INSTRUCTION_LIMIT_REACHED
+} CpuRunResult;
+
 void cpu_reset(Cpu *cpu);
+
+bool cpu_load_program(
+    Cpu *cpu,
+    const uint8_t *program,
+    size_t program_size
+    );
+
 uint8_t cpu_read_memory(const Cpu *cpu, uint8_t address);
 void cpu_write_memory(Cpu *cpu, uint8_t address, uint8_t value);
 uint8_t cpu_fetch_byte(Cpu *cpu);
 
 CpuStepResult cpu_step(Cpu *cpu);
+CpuRunResult cpu_run(Cpu *cpu, uint64_t instruction_limit);

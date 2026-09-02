@@ -50,3 +50,56 @@ CpuStepResult cpu_step(Cpu *cpu)
       return CPU_STEP_INVALID_OPCODE;
   }
 }
+
+bool cpu_load_program(
+    Cpu *cpu,
+    const uint8_t *program,
+    size_t program_size
+)
+{
+  if (program_size > sizeof cpu->memory)
+  {
+    return false;
+  }
+
+  if ((program == NULL) && (program_size != 0))
+  {
+    return false;
+  }
+
+  for (size_t index = 0; index < program_size; ++index)
+  {
+    cpu->memory[index] = program[index];
+  }
+
+  return true;
+}
+
+CpuRunResult cpu_run(Cpu *cpu, uint64_t instruction_limit)
+{
+  if (cpu->halted)
+  {
+    return CPU_RUN_HALTED;
+  }
+
+  for (uint64_t executed_instructions = 0;
+      executed_instructions < instruction_limit;
+      ++executed_instructions)
+  {
+    const CpuStepResult step_result = cpu_step(cpu);
+
+    switch (step_result)
+    {
+      case CPU_STEP_OK:
+        break;
+
+      case CPU_STEP_HALTED:
+        return CPU_RUN_HALTED;
+
+      case CPU_STEP_INVALID_OPCODE:
+        return CPU_RUN_INVALID_OPCODE;
+    }
+  }
+
+  return CPU_RUN_INSTRUCTION_LIMIT_REACHED;
+}
