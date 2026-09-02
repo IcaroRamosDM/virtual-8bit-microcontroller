@@ -27,6 +27,7 @@ The initial CPU model contains:
 - bounded program execution with explicit termination results;
 - an immutable bytecode-program descriptor that keeps its byte pointer and size together;
 - a dedicated module for the built-in demonstration bytecode;
+- an initial standalone assembler executable with validated arguments and bounded source-line reading;
 - command-line parsing and built-in help for simulator commands and CPU instructions.
 
 Public headers use `#pragma once`. The memory size is derived from the complete 8-bit address space, and the implementation starts from a fully zero-initialized CPU state.
@@ -75,8 +76,8 @@ The CLI module keeps command parsing and help presentation separate from CPU exe
 
 - `src/`: CPU, CLI, built-in program, and simulator-entry-point implementations.
 - `include/`: public C headers.
-- `assembler/`: future assembler implementation.
-- `programs/`: programs written in the custom Assembly language.
+- `assembler/`: standalone assembler implementation.
+- `programs/`: programs written in the custom Assembly language, including the current demonstration source.
 - `tests/`: automated tests.
 - `build/`: ignored generated files.
 - `Makefile`: build automation.
@@ -110,6 +111,20 @@ Display simulator and instruction help:
 ```bash
 make help
 ```
+
+Build the current assembler scaffold:
+
+```bash
+make assembler
+```
+
+Read an Assembly source file through the current interface:
+
+```bash
+./build/vm8asm programs/demo.asm build/demo.bin
+```
+
+At the current milestone, `vm8asm` validates its arguments and reads bounded source lines. Instruction parsing and binary-output generation are not implemented yet, so this command does not create `build/demo.bin`.
 
 Remove generated files:
 
