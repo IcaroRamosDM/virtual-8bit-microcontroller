@@ -10,6 +10,7 @@ TARGET := build/vm8
 ASSEMBLER_TARGET := build/vm8asm
 ASSEMBLER_DEMO_SOURCE := programs/demo.asm
 ASSEMBLER_DEMO_OUTPUT := build/demo.bin
+PROCESS_TEST_SCRIPT := tests/test_vm8_process.sh
 CPU_TEST_TARGET := build/test_cpu
 CLI_TEST_TARGET := build/test_cli
 PROGRAM_TEST_TARGET := build/test_program
@@ -149,7 +150,7 @@ run: $(TARGET)
 run-bin: $(TARGET) assemble
 	./$(TARGET) run $(ASSEMBLER_DEMO_OUTPUT)
 
-test: assemble $(TEST_TARGETS)
+test: $(TARGET) assemble $(TEST_TARGETS) $(PROCESS_TEST_SCRIPT)
 	./$(CPU_TEST_TARGET)
 	./$(CLI_TEST_TARGET)
 	./$(PROGRAM_TEST_TARGET)
@@ -165,6 +166,7 @@ test: assemble $(TEST_TARGETS)
 	./$(INSTRUCTION_ENCODER_TEST_TARGET)
 	./$(SECOND_PASS_TEST_TARGET)
 	./$(BINARY_WRITER_TEST_TARGET)
+	bash $(PROCESS_TEST_SCRIPT)
 
 help: $(TARGET)
 	./$(TARGET) help

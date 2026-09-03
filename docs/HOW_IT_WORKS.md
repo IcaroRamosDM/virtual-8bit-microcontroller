@@ -479,6 +479,8 @@ make run-bin
 
 The direct form `./build/vm8 run <program.bin>` uses the same external-binary path without first invoking the assembler. The simulator does not know whether that file came from `vm8asm`, another tool, or manual byte entry; it sees only the bytes.
 
+The process-level Bash test exercises this public interface instead of calling C functions directly. It verifies one successful binary and four expected failures: a missing file, an empty file, a 257-byte file, and a file containing the invalid opcode `0xFF`. Each failure must return a nonzero process status and place the expected diagnostic on `stderr`; successful execution must place the expected CPU state on `stdout`.
+
 ## Current module responsibilities
 
 | Module | Responsibility |
@@ -499,7 +501,7 @@ The direct form `./build/vm8 run <program.bin>` uses the same external-binary pa
 | `assembler/second_pass.*` | Label skipping, instruction encoding, bounded byte accumulation, and source-located diagnostics. |
 | `assembler/binary_writer.*` | Exact raw-byte output with open, write, and close validation. |
 | `assembler/main.c` | Argument handling, two-pass orchestration, pass-consistency checks, and binary-output coordination. |
-| `tests/` | Independent unit and integration tests, including execution of the assembler-generated binary. |
+| `tests/` | Independent C unit and integration tests plus a Bash process test of the complete simulator executable. |
 
 Keeping `main.c` focused on orchestration makes reusable behavior independently testable.
 
@@ -541,7 +543,7 @@ Displays simulator commands and the instruction reference.
 make test
 ```
 
-Assembles the demonstration and runs all automated unit and integration tests. The assembled-program test reads `build/demo.bin`, loads it into CPU memory, executes it, and verifies the expected registers, flags, program counter, cycle count, and stored data.
+Assembles the demonstration and runs all automated unit, integration, and process-level tests. The assembled-program test reads `build/demo.bin`, loads it into CPU memory, executes it, and verifies the expected registers, flags, program counter, cycle count, and stored data. `tests/test_vm8_process.sh` then launches the real executable and checks its process status and output streams across successful and failing inputs.
 
 ```bash
 make assembler
@@ -614,5 +616,6 @@ make inspect
 - `wc -c` verifies the byte count, while `od -An -tx1 -v` exposes the exact byte values.
 - Built-in and file-loaded programs use the same CPU loading and execution functions.
 - The CPU ultimately executes only a byte sequence, regardless of where those bytes originated.
+- Unit tests validate functions in isolation, while the Bash process test validates the compiled program through its public command-line interface.
 - `PC` measures byte addresses, while the simplified cycle counter measures attempted instructions.
 - Unified memory permits both code and data access, so stores must use addresses carefully.

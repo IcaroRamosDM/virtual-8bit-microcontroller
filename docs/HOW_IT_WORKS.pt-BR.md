@@ -479,6 +479,8 @@ make run-bin
 
 A forma direta `./build/vm8 run <program.bin>` utiliza o mesmo caminho de binário externo sem executar primeiro o montador. O simulador não sabe se esse arquivo veio de `vm8asm`, de outra ferramenta ou da inserção manual de bytes; ele enxerga somente os bytes.
 
+O teste de processo em Bash exercita essa interface pública em vez de chamar diretamente as funções C. Ele verifica um binário válido e quatro falhas esperadas: arquivo inexistente, arquivo vazio, arquivo de 257 bytes e arquivo contendo o opcode inválido `0xFF`. Cada falha precisa retornar um status de processo diferente de zero e colocar o diagnóstico esperado em `stderr`; a execução bem-sucedida precisa colocar o estado esperado da CPU em `stdout`.
+
 ## Responsabilidades atuais dos módulos
 
 | Módulo | Responsabilidade |
@@ -499,7 +501,7 @@ A forma direta `./build/vm8 run <program.bin>` utiliza o mesmo caminho de binár
 | `assembler/second_pass.*` | Ignorar labels, codificar instruções, acumular bytes com limite e emitir diagnósticos com localização no código-fonte. |
 | `assembler/binary_writer.*` | Saída exata dos bytes brutos com verificação de abertura, gravação e fechamento. |
 | `assembler/main.c` | Tratamento de argumentos, orquestração das duas passagens, verificação da concordância entre elas e coordenação da saída binária. |
-| `tests/` | Testes unitários e de integração independentes, incluindo a execução do binário gerado pelo montador. |
+| `tests/` | Testes unitários e de integração em C, além de um teste de processo em Bash para o executável completo do simulador. |
 
 Manter `main.c` concentrado na orquestração torna o comportamento reutilizável testável de forma independente.
 
@@ -541,7 +543,7 @@ Exibe os comandos do simulador e a referência das instruções.
 make test
 ```
 
-Monta a demonstração e executa todos os testes unitários e de integração automatizados. O teste do programa montado lê `build/demo.bin`, carrega-o na memória da CPU, executa-o e verifica os registradores, as flags, o contador de programa, o contador de ciclos e o dado armazenado esperados.
+Monta a demonstração e executa todos os testes unitários, de integração e de processo automatizados. O teste do programa montado lê `build/demo.bin`, carrega-o na memória da CPU, executa-o e verifica os registradores, as flags, o contador de programa, o contador de ciclos e o dado armazenado esperados. Em seguida, `tests/test_vm8_process.sh` inicia o executável real e verifica seu status de processo e seus fluxos de saída para entradas válidas e inválidas.
 
 ```bash
 make assembler
@@ -614,5 +616,6 @@ make inspect
 - `wc -c` verifica a quantidade de bytes, enquanto `od -An -tx1 -v` revela os valores exatos.
 - Programas embutidos e carregados de arquivo utilizam as mesmas funções de carregamento e execução da CPU.
 - A CPU finalmente executa somente uma sequência de bytes, independentemente da origem desses bytes.
+- Testes unitários validam funções isoladamente, enquanto o teste de processo em Bash valida o programa compilado por meio de sua interface pública de linha de comando.
 - `PC` mede endereços de bytes, enquanto o contador simplificado de ciclos mede instruções tentadas.
 - A memória unificada permite acesso tanto ao código quanto aos dados, portanto as instruções de armazenamento devem usar endereços com cuidado.

@@ -35,7 +35,8 @@ The initial CPU model contains:
 - a bounded binary-file reader that rejects input larger than the 256-byte memory capacity;
 - a standalone two-pass assembler with normalized source reading, a symbol table, strict instruction parsing, byte-operand resolution, instruction encoding, and raw binary output;
 - command-line selection between the built-in demonstration and an external binary program;
-- built-in help for simulator commands and CPU instructions.
+- built-in help for simulator commands and CPU instructions;
+- process-level CLI tests for successful execution and expected failure paths.
 
 Public headers use `#pragma once`. The memory size is derived from the complete 8-bit address space, and the implementation starts from a fully zero-initialized CPU state.
 The current cycle counter is intentionally simplified: every attempted instruction counts as one cycle regardless of its byte length.
@@ -87,7 +88,7 @@ An arbitrary compatible binary can be selected with `./build/vm8 run <program.bi
 - `include/`: public C headers.
 - `assembler/`: standalone assembler implementation.
 - `programs/`: programs written in the custom Assembly language, including the current demonstration source.
-- `tests/`: automated tests.
+- `tests/`: automated C unit and integration tests plus Bash process-level tests.
 - `build/`: ignored generated files.
 - `Makefile`: build automation.
 
@@ -127,6 +128,7 @@ The test target assembles `programs/demo.asm` and then builds and runs independe
 The CPU tests include a `JMP`-to-zero loop that verifies bounded execution stops at the configured instruction limit.
 The program-integration test loads and executes the built-in demonstration, then verifies its complete final CPU state and the value stored at data address `0x80`.
 The assembled-program integration test reads `build/demo.bin`, loads it into CPU memory, executes it, and verifies the same final state. This confirms that the human-readable Assembly source and built-in byte array describe equivalent programs.
+The Bash process test launches `build/vm8` exactly as a user would and verifies exit behavior plus `stdout` or `stderr` for a valid binary, a missing file, an empty file, an oversized file, and an invalid opcode.
 
 Display simulator and instruction help:
 
