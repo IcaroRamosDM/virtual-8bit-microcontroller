@@ -167,12 +167,53 @@ A CPU não precisa de um registrador de 16 bits para executar essa instrução. 
 | `LDI B, imm8` | `11 imm8` | 2 | Carrega um byte imediato em `B`; atualiza `Z`; preserva `C`. |
 | `ADD A, B` | `20` | 1 | Armazena em `A` os oito bits inferiores de `A + B`; atualiza `Z` e o carry da adição. |
 | `SUB A, B` | `21` | 1 | Armazena em `A` o resultado de `A - B` com retorno circular; atualiza `Z` e o empréstimo da subtração. |
+| `AND A, B` | `22` | 1 | Armazena em `A` o AND bit a bit; atualiza `Z`; limpa `C`. |
+| `OR A, B` | `23` | 1 | Armazena em `A` o OR bit a bit; atualiza `Z`; limpa `C`. |
+| `XOR A, B` | `24` | 1 | Armazena em `A` o OR exclusivo bit a bit; atualiza `Z`; limpa `C`. |
+| `NOT A` | `25` | 1 | Inverte todos os bits de `A`; atualiza `Z`; limpa `C`. |
+| `SHL A` | `26` | 1 | Desloca `A` para a esquerda preenchendo com zero; atualiza `Z`; armazena o bit 7 original em `C`. |
+| `SHR A` | `27` | 1 | Desloca `A` para a direita preenchendo com zero; atualiza `Z`; armazena o bit 0 original em `C`. |
 | `JZ addr8` | `30 addr8` | 2 | Carrega `PC` com o endereço absoluto quando `Z` está ativa. |
 | `JMP addr8` | `31 addr8` | 2 | Sempre carrega `PC` com o endereço absoluto. |
 | `LDA addr8` | `40 addr8` | 2 | Carrega `A` a partir do endereço de memória; atualiza `Z`; preserva `C`. |
 | `STA addr8` | `41 addr8` | 2 | Armazena `A` no endereço de memória; preserva registradores e flags. |
 
 `imm8` e `addr8` possuem um byte cada. Portanto, podem representar valores de `0x00` até `0xFF`.
+
+## Operações lógicas e de bits
+
+`AND`, `OR` e `XOR` comparam os bits correspondentes de `A` e `B`. O resultado substitui `A`, enquanto `B` permanece inalterado. `NOT` opera somente sobre `A` e troca cada zero por um e cada um por zero. Essas quatro instruções limpam `C` e ativam `Z` quando o resultado armazenado em `A` é zero.
+
+Por exemplo, com `A = 0xCA` e `B = 0xAC`:
+
+```text
+AND: 11001010 & 10101100 = 10001000 = 0x88
+OR:  11001010 | 10101100 = 11101110 = 0xEE
+XOR: 11001010 ^ 10101100 = 01100110 = 0x66
+```
+
+Para uma inversão de 8 bits:
+
+```text
+NOT: ~00001111 = 11110000
+     ~0x0F      = 0xF0
+```
+
+`SHL` e `SHR` movem todos os bits de `A` uma posição e inserem zero na nova posição aberta. O bit que sai do registrador não é perdido silenciosamente: ele é copiado para `C`.
+
+```text
+SHL: A = 10000001 -> A = 00000010, C = 1
+SHR: A = 10000001 -> A = 01000000, C = 1
+```
+
+O exemplo Assembly equivalente para o deslocamento à esquerda é:
+
+```asm
+LDI A, 0x81
+SHL A
+```
+
+Após `SHL A`, o registrador `A` contém `0x02`, carry está ativa porque o bit 7 original era um e zero está inativa porque o resultado não é zero. A notação binária acima é apenas explicativa; o montador atual aceita literais de byte decimais e hexadecimais, mas não literais binários com `0b`.
 
 ## Flags
 
@@ -184,16 +225,25 @@ A flag zero é ativada quando uma instrução que atualiza flags produz zero. At
 - `LDI B, imm8`;
 - `ADD A, B`;
 - `SUB A, B`;
+- `AND A, B`;
+- `OR A, B`;
+- `XOR A, B`;
+- `NOT A`;
+- `SHL A`;
+- `SHR A`;
 - `LDA addr8`.
 
 `JZ` lê a flag zero, mas não a modifica.
 
 ### Flag carry
 
-A flag carry possui dois significados relacionados para operações sem sinal:
+A flag carry registra informações que não cabem no resultado de 8 bits:
 
 - após `ADD`, indica carry de saída além de `0xFF`;
-- após `SUB`, indica que foi necessário um empréstimo porque o valor original de `A` era menor que `B`.
+- após `SUB`, indica que foi necessário um empréstimo porque o valor original de `A` era menor que `B`;
+- após `SHL`, recebe o bit 7 original;
+- após `SHR`, recebe o bit 0 original;
+- após `AND`, `OR`, `XOR` ou `NOT`, é limpa.
 
 Por exemplo:
 
@@ -348,7 +398,7 @@ missing     -> erro de símbolo indefinido
 
 O parser de instruções separa cada statement normalizado em um mnemônico e até dois operandos. Ele valida a estrutura sintática, como espaços, vírgulas, operandos ausentes e operandos em excesso, mas não decide se um mnemônico ou registrador é suportado.
 
-O codificador de instruções então valida o significado dos campos interpretados. Ele reconhece o conjunto atual de instruções, verifica a quantidade de operandos e a ordem dos registradores, resolve literais de byte ou símbolos e emite uma instrução codificada de um ou dois bytes. Uma falha de codificação deixa inalterado o objeto de saída fornecido pelo chamador.
+O codificador de instruções então valida o significado dos campos interpretados. Ele reconhece o conjunto atual de instruções, verifica a quantidade de operandos e a ordem dos registradores, resolve literais de byte ou símbolos e emite uma instrução codificada de um ou dois bytes. `AND`, `OR` e `XOR` exigem o par de registradores exato `A, B`, enquanto `NOT`, `SHL` e `SHR` exigem somente o registrador `A`. Uma falha de codificação deixa inalterado o objeto de saída fornecido pelo chamador.
 
 A segunda passagem lê novamente os statements normalizados, ignora as declarações de labels, executa o parser e o codificador e acrescenta cada codificação bem-sucedida a um buffer limitado do programa. Ela informa diagnósticos com o caminho original do arquivo e o número da linha, conta as instruções codificadas e rejeita qualquer gravação que ultrapassaria a capacidade de saída fornecida.
 
@@ -677,6 +727,7 @@ make inspect
 - O opcode informa à CPU quantos bytes adicionais buscar e como interpretá-los.
 - As definições dos opcodes pertencem ao módulo do conjunto de instruções, e não à interface completa da CPU.
 - A busca nos metadados recebe um byte bruto e retorna nulo quando esse byte não é um opcode suportado.
+- Operações lógicas processam independentemente os bits correspondentes, enquanto os deslocamentos preservam na flag carry o bit descartado.
 - Labels e mnemônicos pertencem ao montador, e não à CPU.
 - Um label não consome memória do programa; ele nomeia o endereço de byte atual.
 - A primeira passagem descobre os endereços, e a segunda substitui referências simbólicas por bytes numéricos.

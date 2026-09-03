@@ -179,6 +179,32 @@ static InstructionEncodeResult encode_register_pair(
   return INSTRUCTION_ENCODE_SUCCESS;
 }
 
+static InstructionEncodeResult encode_register_a(
+    const ParsedInstruction *instruction,
+    Opcode opcode,
+    EncodedInstruction *encoded_instruction
+)
+{
+  if (instruction->operand_count != ONE_OPERAND_COUNT)
+  {
+    return INSTRUCTION_ENCODE_WRONG_OPERAND_COUNT;
+  }
+
+  if (
+    strcmp(
+      instruction->operands[FIRST_OPERAND_INDEX],
+      "A"
+    ) != 0
+  )
+  {
+    return INSTRUCTION_ENCODE_INVALID_REGISTER;
+  }
+
+  encode_one_byte(encoded_instruction, opcode);
+
+  return INSTRUCTION_ENCODE_SUCCESS;
+}
+
 static InstructionEncodeResult
 encode_byte_operand_instruction(
     const ParsedInstruction *instruction,
@@ -263,6 +289,54 @@ InstructionEncodeResult instruction_encode(
     result = encode_register_pair(
       instruction,
       OPCODE_SUB_A_B,
+      &candidate
+    );
+  }
+  else if (strcmp(instruction->mnemonic, "AND") == 0)
+  {
+    result = encode_register_pair(
+      instruction,
+      OPCODE_AND_A_B,
+      &candidate
+    );
+  }
+  else if (strcmp(instruction->mnemonic, "OR") == 0)
+  {
+    result = encode_register_pair(
+      instruction,
+      OPCODE_OR_A_B,
+      &candidate
+    );
+  }
+  else if (strcmp(instruction->mnemonic, "XOR") == 0)
+  {
+    result = encode_register_pair(
+      instruction,
+      OPCODE_XOR_A_B,
+      &candidate
+    );
+  }
+  else if (strcmp(instruction->mnemonic, "NOT") == 0)
+  {
+    result = encode_register_a(
+      instruction,
+      OPCODE_NOT_A,
+      &candidate
+    );
+  }
+  else if (strcmp(instruction->mnemonic, "SHL") == 0)
+  {
+    result = encode_register_a(
+      instruction,
+      OPCODE_SHIFT_LEFT_A,
+      &candidate
+    );
+  }
+  else if (strcmp(instruction->mnemonic, "SHR") == 0)
+  {
+    result = encode_register_a(
+      instruction,
+      OPCODE_SHIFT_RIGHT_A,
       &candidate
     );
   }

@@ -196,6 +196,97 @@ void cli_print_help(void)
   puts("");
 
   printf(
+    "  AND A, B        Opcode: 0x%02X | Size: 1 byte\n",
+    (unsigned int)OPCODE_AND_A_B
+  );
+  puts("    Effect: A <- A & B; Z <- (A == 0); C <- 0.");
+  puts("    Explanation: Performs a bitwise AND between A and B.");
+  puts("    The result is stored in A; B is unchanged.");
+  puts("    Flags: Z reports a zero result; C is cleared.");
+  puts("    Assembly example: AND A, B");
+  printf(
+    "    Encoding: 0x%02X\n",
+    (unsigned int)OPCODE_AND_A_B
+  );
+  puts("");
+
+  printf(
+    "  OR A, B         Opcode: 0x%02X | Size: 1 byte\n",
+    (unsigned int)OPCODE_OR_A_B
+  );
+  puts("    Effect: A <- A | B; Z <- (A == 0); C <- 0.");
+  puts("    Explanation: Performs a bitwise OR between A and B.");
+  puts("    The result is stored in A; B is unchanged.");
+  puts("    Flags: Z reports a zero result; C is cleared.");
+  puts("    Assembly example: OR A, B");
+  printf(
+    "    Encoding: 0x%02X\n",
+    (unsigned int)OPCODE_OR_A_B
+  );
+  puts("");
+
+  printf(
+    "  XOR A, B        Opcode: 0x%02X | Size: 1 byte\n",
+    (unsigned int)OPCODE_XOR_A_B
+  );
+  puts("    Effect: A <- A ^ B; Z <- (A == 0); C <- 0.");
+  puts("    Explanation: Performs a bitwise XOR between A and B.");
+  puts("    The result is stored in A; B is unchanged.");
+  puts("    Flags: Z reports a zero result; C is cleared.");
+  puts("    Assembly example: XOR A, B");
+  printf(
+    "    Encoding: 0x%02X\n",
+    (unsigned int)OPCODE_XOR_A_B
+  );
+  puts("");
+
+  printf(
+    "  NOT A           Opcode: 0x%02X | Size: 1 byte\n",
+    (unsigned int)OPCODE_NOT_A
+  );
+  puts("    Effect: A <- ~A; Z <- (A == 0); C <- 0.");
+  puts("    Explanation: Inverts every bit in register A.");
+  puts("    Register B is unchanged.");
+  puts("    Flags: Z reports a zero result; C is cleared.");
+  puts("    Assembly example: NOT A");
+  printf(
+    "    Encoding: 0x%02X\n",
+    (unsigned int)OPCODE_NOT_A
+  );
+  puts("");
+
+  printf(
+    "  SHL A           Opcode: 0x%02X | Size: 1 byte\n",
+    (unsigned int)OPCODE_SHIFT_LEFT_A
+  );
+  puts(
+    "    Effect: C <- old A[7]; "
+    "A <- (A << 1) mod 256; Z <- (A == 0)."
+  );
+  puts("    Explanation: Shifts A left and inserts zero into bit 0.");
+  puts("    The former bit 7 moves into C; B is unchanged.");
+  puts("    Assembly example: SHL A");
+  printf(
+    "    Encoding: 0x%02X\n",
+    (unsigned int)OPCODE_SHIFT_LEFT_A
+  );
+  puts("");
+
+  printf(
+    "  SHR A           Opcode: 0x%02X | Size: 1 byte\n",
+    (unsigned int)OPCODE_SHIFT_RIGHT_A
+  );
+  puts("    Effect: C <- old A[0]; A <- A >> 1; Z <- (A == 0).");
+  puts("    Explanation: Shifts A right and inserts zero into bit 7.");
+  puts("    The former bit 0 moves into C; B is unchanged.");
+  puts("    Assembly example: SHR A");
+  printf(
+    "    Encoding: 0x%02X\n",
+    (unsigned int)OPCODE_SHIFT_RIGHT_A
+  );
+  puts("");
+
+  printf(
     "  JZ addr8        Opcode: 0x%02X | Size: 2 bytes\n",
     (unsigned int)OPCODE_JUMP_IF_ZERO
   );

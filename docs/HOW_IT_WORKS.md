@@ -167,12 +167,53 @@ The CPU does not need a 16-bit register to execute this instruction. It first fe
 | `LDI B, imm8` | `11 imm8` | 2 | Loads an immediate byte into `B`; updates `Z`; preserves `C`. |
 | `ADD A, B` | `20` | 1 | Stores the low eight bits of `A + B` in `A`; updates `Z` and addition carry. |
 | `SUB A, B` | `21` | 1 | Stores wrapped `A - B` in `A`; updates `Z` and subtraction borrow. |
+| `AND A, B` | `22` | 1 | Stores the bitwise AND in `A`; updates `Z`; clears `C`. |
+| `OR A, B` | `23` | 1 | Stores the bitwise OR in `A`; updates `Z`; clears `C`. |
+| `XOR A, B` | `24` | 1 | Stores the bitwise exclusive OR in `A`; updates `Z`; clears `C`. |
+| `NOT A` | `25` | 1 | Inverts every bit in `A`; updates `Z`; clears `C`. |
+| `SHL A` | `26` | 1 | Shifts `A` left with zero fill; updates `Z`; stores the original bit 7 in `C`. |
+| `SHR A` | `27` | 1 | Shifts `A` right with zero fill; updates `Z`; stores the original bit 0 in `C`. |
 | `JZ addr8` | `30 addr8` | 2 | Loads `PC` with the absolute address when `Z` is set. |
 | `JMP addr8` | `31 addr8` | 2 | Always loads `PC` with the absolute address. |
 | `LDA addr8` | `40 addr8` | 2 | Loads `A` from the given memory address; updates `Z`; preserves `C`. |
 | `STA addr8` | `41 addr8` | 2 | Stores `A` at the given memory address; preserves the registers and flags. |
 
 `imm8` and `addr8` are each one byte. They may therefore represent values from `0x00` through `0xFF`.
+
+## Logical and bit operations
+
+`AND`, `OR`, and `XOR` compare corresponding bits of `A` and `B`. The result replaces `A`, while `B` remains unchanged. `NOT` operates only on `A` and flips each zero to one and each one to zero. These four instructions clear `C` and set `Z` when the result stored in `A` is zero.
+
+For example, with `A = 0xCA` and `B = 0xAC`:
+
+```text
+AND: 11001010 & 10101100 = 10001000 = 0x88
+OR:  11001010 | 10101100 = 11101110 = 0xEE
+XOR: 11001010 ^ 10101100 = 01100110 = 0x66
+```
+
+For an 8-bit inversion:
+
+```text
+NOT: ~00001111 = 11110000
+     ~0x0F      = 0xF0
+```
+
+`SHL` and `SHR` move every bit in `A` by one position and insert zero into the newly opened position. The bit that leaves the register is not silently lost: it is copied into `C`.
+
+```text
+SHL: A = 10000001 -> A = 00000010, C = 1
+SHR: A = 10000001 -> A = 01000000, C = 1
+```
+
+The equivalent Assembly example for the left shift is:
+
+```asm
+LDI A, 0x81
+SHL A
+```
+
+After `SHL A`, register `A` contains `0x02`, carry is set because the original bit 7 was one, and zero is clear because the result is not zero. The binary notation above is explanatory; the current assembler accepts decimal and hexadecimal byte literals, not `0b` binary literals.
 
 ## Flags
 
@@ -184,16 +225,25 @@ The zero flag is set when a flag-updating instruction produces zero. It is curre
 - `LDI B, imm8`;
 - `ADD A, B`;
 - `SUB A, B`;
+- `AND A, B`;
+- `OR A, B`;
+- `XOR A, B`;
+- `NOT A`;
+- `SHL A`;
+- `SHR A`;
 - `LDA addr8`.
 
 `JZ` reads the zero flag but does not modify it.
 
 ### Carry flag
 
-The carry flag has two related unsigned meanings:
+The carry flag records information that does not fit in the 8-bit result:
 
 - after `ADD`, it reports carry-out beyond `0xFF`;
-- after `SUB`, it reports that a borrow was required because the original `A` was smaller than `B`.
+- after `SUB`, it reports that a borrow was required because the original `A` was smaller than `B`;
+- after `SHL`, it receives the original bit 7;
+- after `SHR`, it receives the original bit 0;
+- after `AND`, `OR`, `XOR`, or `NOT`, it is cleared.
 
 For example:
 
@@ -348,7 +398,7 @@ missing     -> undefined-symbol error
 
 The instruction parser separates each normalized statement into a mnemonic and as many as two operands. It validates structural syntax such as whitespace, commas, missing operands, and excessive operands, but does not decide whether a mnemonic or register is supported.
 
-The instruction encoder then validates the meaning of the parsed fields. It recognizes the current instruction set, checks operand counts and register order, resolves byte literals or symbols, and emits a one-byte or two-byte encoded instruction. Failed encoding leaves the caller's output object unchanged.
+The instruction encoder then validates the meaning of the parsed fields. It recognizes the current instruction set, checks operand counts and register order, resolves byte literals or symbols, and emits a one-byte or two-byte encoded instruction. `AND`, `OR`, and `XOR` require the exact register pair `A, B`, while `NOT`, `SHL`, and `SHR` require the single register `A`. Failed encoding leaves the caller's output object unchanged.
 
 The second pass reads the normalized statements again, ignores label declarations, runs the parser and encoder, and appends each successful encoding to a bounded program buffer. It reports diagnostics with the original file path and line number, counts encoded instructions, and rejects any write that would exceed the supplied output capacity.
 
@@ -677,6 +727,7 @@ make inspect
 - The opcode tells the CPU how many additional bytes to fetch and how to interpret them.
 - Opcode definitions belong to the instruction-set module rather than to the complete CPU interface.
 - The metadata lookup accepts a raw byte and returns null when that byte is not a supported opcode.
+- Logical operations process corresponding bits independently, while shifts preserve the discarded bit in the carry flag.
 - Labels and mnemonics belong to the assembler, not to the CPU.
 - A label consumes no program memory; it names the current byte address.
 - The first pass discovers addresses, and the second pass replaces symbolic references with numeric bytes.

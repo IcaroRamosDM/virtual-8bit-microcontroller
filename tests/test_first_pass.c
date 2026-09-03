@@ -49,15 +49,21 @@ static void test_recognizes_all_instruction_sizes(void)
     {3, "LDI A, 0x00"},
     {4, "ADD A, B"},
     {5, "SUB A, B"},
-    {6, "JZ target"},
-    {7, "JMP target"},
-    {8, "LDA 0x80"},
-    {9, "STA 0x80"}
+    {6, "AND A, B"},
+    {7, "OR A, B"},
+    {8, "XOR A, B"},
+    {9, "NOT A"},
+    {10, "SHL A"},
+    {11, "SHR A"},
+    {12, "JZ target"},
+    {13, "JMP target"},
+    {14, "LDA 0x80"},
+    {15, "STA 0x80"}
   };
 
   enum
   {
-    EXPECTED_PROGRAM_SIZE = 14
+    EXPECTED_PROGRAM_SIZE = 20
   };
 
   const size_t statement_count =

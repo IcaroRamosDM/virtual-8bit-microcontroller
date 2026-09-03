@@ -25,6 +25,17 @@ uint8_t cpu_fetch_byte(Cpu *cpu)
   return value;
 }
 
+static void cpu_store_alu_result(
+    Cpu *cpu,
+    uint8_t result,
+    bool carry_flag
+)
+{
+  cpu->register_a = result;
+  cpu->zero_flag = (result == 0);
+  cpu->carry_flag = carry_flag;
+}
+
 CpuStepResult cpu_step(Cpu *cpu)
 {
   if (cpu->halted)
@@ -57,13 +68,14 @@ CpuStepResult cpu_step(Cpu *cpu)
         (uint16_t)cpu->register_a +
         (uint16_t)cpu->register_b;
 
-      cpu->register_a = (uint8_t)sum;
-      cpu->zero_flag = (cpu->register_a == 0);
-      cpu->carry_flag = (sum > UINT8_MAX);
+      cpu_store_alu_result(
+        cpu,
+        (uint8_t)sum,
+        sum > UINT8_MAX
+      );
 
       return CPU_STEP_OK;
     }
-
     case OPCODE_SUB_A_B:
     {
       const uint8_t original_a = cpu->register_a;
@@ -71,9 +83,77 @@ CpuStepResult cpu_step(Cpu *cpu)
       const uint8_t difference =
         (uint8_t)(original_a - cpu->register_b);
 
-      cpu->register_a = difference;
-      cpu->zero_flag = (difference == 0);
-      cpu->carry_flag = borrow;
+      cpu_store_alu_result(
+        cpu,
+        difference,
+        borrow
+      );
+
+      return CPU_STEP_OK;
+    }
+
+    case OPCODE_AND_A_B:
+      cpu_store_alu_result(
+        cpu,
+        (uint8_t)(cpu->register_a & cpu->register_b),
+        false
+      );
+      return CPU_STEP_OK;
+
+    case OPCODE_OR_A_B:
+      cpu_store_alu_result(
+        cpu,
+        (uint8_t)(cpu->register_a | cpu->register_b),
+        false
+      );
+      return CPU_STEP_OK;
+
+    case OPCODE_XOR_A_B:
+      cpu_store_alu_result(
+        cpu,
+        (uint8_t)(cpu->register_a ^ cpu->register_b),
+        false
+      );
+      return CPU_STEP_OK;
+
+    case OPCODE_NOT_A:
+      cpu_store_alu_result(
+        cpu,
+        (uint8_t)(~cpu->register_a),
+        false
+      );
+      return CPU_STEP_OK;
+
+    case OPCODE_SHIFT_LEFT_A:
+    {
+      const bool shifted_bit =
+        (cpu->register_a & UINT8_C(0x80)) != 0;
+
+      const uint8_t result =
+        (uint8_t)(cpu->register_a << 1);
+
+      cpu_store_alu_result(
+        cpu,
+        result,
+        shifted_bit
+      );
+
+      return CPU_STEP_OK;
+    }
+
+    case OPCODE_SHIFT_RIGHT_A:
+    {
+      const bool shifted_bit =
+        (cpu->register_a & UINT8_C(0x01)) != 0;
+
+      const uint8_t result =
+        (uint8_t)(cpu->register_a >> 1);
+
+      cpu_store_alu_result(
+        cpu,
+        result,
+        shifted_bit
+      );
 
       return CPU_STEP_OK;
     }

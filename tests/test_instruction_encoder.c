@@ -97,6 +97,36 @@ static void test_encodes_supported_instructions(
       ONE_BYTE_INSTRUCTION_SIZE
     },
     {
+      "AND A, B",
+      {(uint8_t)OPCODE_AND_A_B, UNUSED_BYTE},
+      ONE_BYTE_INSTRUCTION_SIZE
+    },
+    {
+      "OR A, B",
+      {(uint8_t)OPCODE_OR_A_B, UNUSED_BYTE},
+      ONE_BYTE_INSTRUCTION_SIZE
+    },
+    {
+      "XOR A, B",
+      {(uint8_t)OPCODE_XOR_A_B, UNUSED_BYTE},
+      ONE_BYTE_INSTRUCTION_SIZE
+    },
+    {
+      "NOT A",
+      {(uint8_t)OPCODE_NOT_A, UNUSED_BYTE},
+      ONE_BYTE_INSTRUCTION_SIZE
+    },
+    {
+      "SHL A",
+      {(uint8_t)OPCODE_SHIFT_LEFT_A, UNUSED_BYTE},
+      ONE_BYTE_INSTRUCTION_SIZE
+    },
+    {
+      "SHR A",
+      {(uint8_t)OPCODE_SHIFT_RIGHT_A, UNUSED_BYTE},
+      ONE_BYTE_INSTRUCTION_SIZE
+    },
+    {
       "JZ memory_demo",
       {(uint8_t)OPCODE_JUMP_IF_ZERO, MEMORY_DEMO_ADDRESS},
       TWO_BYTE_INSTRUCTION_SIZE
@@ -191,6 +221,18 @@ static void test_reports_semantic_errors(
     {
       "ADD B, A",
       INSTRUCTION_ENCODE_INVALID_REGISTER
+    },
+    {
+      "XOR A, A",
+      INSTRUCTION_ENCODE_INVALID_REGISTER
+    },
+    {
+      "SHL B",
+      INSTRUCTION_ENCODE_INVALID_REGISTER
+    },
+    {
+      "NOT",
+      INSTRUCTION_ENCODE_WRONG_OPERAND_COUNT
     },
     {
       "JMP 256",

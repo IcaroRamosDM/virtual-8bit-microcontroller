@@ -644,6 +644,154 @@ static void test_cpu_step_executes_sub_a_b(void)
   }
 }
 
+static void test_cpu_step_executes_bitwise_operations(void)
+{
+  typedef struct BitwiseTestCase
+  {
+    Opcode opcode;
+    uint8_t initial_a;
+    uint8_t initial_b;
+    uint8_t expected_a;
+    bool expected_carry_flag;
+  } BitwiseTestCase;
+
+  static const BitwiseTestCase test_cases[] =
+  {
+    {
+      OPCODE_AND_A_B,
+      UINT8_C(0xF0),
+      UINT8_C(0x3C),
+      UINT8_C(0x30),
+      false
+    },
+    {
+      OPCODE_AND_A_B,
+      UINT8_C(0x0F),
+      UINT8_C(0xF0),
+      UINT8_C(0x00),
+      false
+    },
+    {
+      OPCODE_OR_A_B,
+      UINT8_C(0x50),
+      UINT8_C(0x0A),
+      UINT8_C(0x5A),
+      false
+    },
+    {
+      OPCODE_OR_A_B,
+      UINT8_C(0x00),
+      UINT8_C(0x00),
+      UINT8_C(0x00),
+      false
+    },
+    {
+      OPCODE_XOR_A_B,
+      UINT8_C(0xAA),
+      UINT8_C(0x0F),
+      UINT8_C(0xA5),
+      false
+    },
+    {
+      OPCODE_XOR_A_B,
+      UINT8_C(0x5A),
+      UINT8_C(0x5A),
+      UINT8_C(0x00),
+      false
+    },
+    {
+      OPCODE_NOT_A,
+      UINT8_C(0x0F),
+      UINT8_C(0xA5),
+      UINT8_C(0xF0),
+      false
+    },
+    {
+      OPCODE_NOT_A,
+      UINT8_C(0xFF),
+      UINT8_C(0xA5),
+      UINT8_C(0x00),
+      false
+    },
+    {
+      OPCODE_SHIFT_LEFT_A,
+      UINT8_C(0x25),
+      UINT8_C(0xA5),
+      UINT8_C(0x4A),
+      false
+    },
+    {
+      OPCODE_SHIFT_LEFT_A,
+      UINT8_C(0x80),
+      UINT8_C(0xA5),
+      UINT8_C(0x00),
+      true
+    },
+    {
+      OPCODE_SHIFT_RIGHT_A,
+      UINT8_C(0x84),
+      UINT8_C(0xA5),
+      UINT8_C(0x42),
+      false
+    },
+    {
+      OPCODE_SHIFT_RIGHT_A,
+      UINT8_C(0x01),
+      UINT8_C(0xA5),
+      UINT8_C(0x00),
+      true
+    }
+  };
+
+  const size_t test_case_count =
+    sizeof test_cases / sizeof test_cases[0];
+  const uint8_t instruction_address = 0;
+  const uint8_t expected_program_counter =
+    instruction_address + 1;
+  const uint64_t expected_cycle_count = UINT64_C(1);
+
+  for (
+    size_t index = 0;
+    index < test_case_count;
+    ++index
+  )
+  {
+    const BitwiseTestCase *const test_case =
+      &test_cases[index];
+
+    const bool expected_zero_flag =
+      test_case->expected_a == 0;
+
+    Cpu cpu =
+    {
+      .register_a = test_case->initial_a,
+      .register_b = test_case->initial_b,
+      .zero_flag = !expected_zero_flag,
+      .carry_flag = !test_case->expected_carry_flag
+    };
+
+    cpu_write_memory(
+      &cpu,
+      instruction_address,
+      (uint8_t)test_case->opcode
+    );
+
+    const CpuStepResult result = cpu_step(&cpu);
+
+    assert(result == CPU_STEP_OK);
+    assert(cpu.register_a == test_case->expected_a);
+    assert(cpu.register_b == test_case->initial_b);
+    assert(cpu.zero_flag == expected_zero_flag);
+    assert(
+      cpu.carry_flag ==
+      test_case->expected_carry_flag
+    );
+    assert(cpu.program_counter == expected_program_counter);
+    assert(cpu.cycle_count == expected_cycle_count);
+    assert(!cpu.halted);
+  }
+}
+
 static void test_cpu_step_executes_jump_if_zero(void)
 {
   const uint8_t target_address = UINT8_C(0x80);
@@ -891,6 +1039,7 @@ int main(void)
   test_cpu_step_executes_load_immediate_b();
   test_cpu_step_executes_add_a_b();
   test_cpu_step_executes_sub_a_b();
+  test_cpu_step_executes_bitwise_operations();
   test_cpu_step_executes_jump_if_zero();
   test_cpu_step_executes_jump();
   test_cpu_step_executes_load_a_from_memory();
