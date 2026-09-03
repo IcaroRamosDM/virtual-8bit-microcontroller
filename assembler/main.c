@@ -1,104 +1,37 @@
-#include <errno.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
+
+#include "source_reader.h"
 
 enum
 {
   ASSEMBLER_EXECUTABLE_PATH_INDEX = 0,
   ASSEMBLER_INPUT_PATH_INDEX = 1,
   ASSEMBLER_OUTPUT_PATH_INDEX = 2,
-  ASSEMBLER_ARGUMENT_COUNT = 3,
-  ASSEMBLER_MAX_SOURCE_LINE_LENGTH = 255,
-  ASSEMBLER_LINE_BUFFER_SIZE =
-    ASSEMBLER_MAX_SOURCE_LINE_LENGTH + 2
+  ASSEMBLER_ARGUMENT_COUNT = 3
 };
 
-static bool source_line_is_too_long(
-    FILE *source,
-    const char *line
-)
+typedef struct SourceSummary
 {
-  const size_t stored_length = strlen(line);
-  const bool has_newline =
-    (stored_length > 0) &&
-    (line[stored_length - 1] == '\n');
-  const size_t content_length =
-    has_newline ? stored_length - 1 : stored_length;
+  size_t statement_count;
+} SourceSummary;
 
-  return
-    (content_length > ASSEMBLER_MAX_SOURCE_LINE_LENGTH) ||
-    (!has_newline && !feof(source));
-}
-
-static bool read_source_file(
+static bool count_source_statement(
     const char *input_path,
-    size_t *line_count
+    size_t line_number,
+    const char *statement,
+    void *context
 )
 {
-  FILE *source = fopen(input_path, "r");
+  (void)input_path;
+  (void)line_number;
+  (void)statement;
 
-  if (source == NULL)
-  {
-    const int error_number = errno;
+  SourceSummary *summary = context;
 
-    fprintf(
-        stderr,
-        "vm8asm: cannot open '%s': %s\n",
-        input_path,
-        strerror(error_number)
-    );
-
-    return false;
-  }
-
-  char line[ASSEMBLER_LINE_BUFFER_SIZE];
-
-  *line_count = 0;
-
-  while (fgets(line, sizeof line, source) != NULL)
-  {
-    ++(*line_count);
-
-    if (source_line_is_too_long(source, line))
-    {
-      fprintf(
-          stderr,
-          "%s:%zu: source line exceeds %d characters\n",
-          input_path,
-          *line_count,
-          ASSEMBLER_MAX_SOURCE_LINE_LENGTH
-      );
-
-      (void)fclose(source);
-      return false;
-    }
-  }
-
-  if (ferror(source))
-  {
-    fprintf(
-        stderr,
-        "vm8asm: failed to read '%s'.\n",
-        input_path
-    );
-
-    (void)fclose(source);
-    return false;
-  }
-
-  if (fclose(source) != 0)
-  {
-    fprintf(
-        stderr,
-        "vm8asm: failed to close '%s'.\n",
-        input_path
-    );
-
-    return false;
-  }
+  ++summary->statement_count;
 
   return true;
 }
@@ -108,9 +41,9 @@ int main(int argument_count, char *arguments[])
   if (argument_count != ASSEMBLER_ARGUMENT_COUNT)
   {
     fprintf(
-        stderr,
-        "Usage: %s <input.asm> <output.bin>\n",
-        arguments[ASSEMBLER_EXECUTABLE_PATH_INDEX]
+      stderr,
+      "Usage: %s <input.asm> <output.bin>\n",
+      arguments[ASSEMBLER_EXECUTABLE_PATH_INDEX]
     );
 
     return EXIT_FAILURE;
@@ -120,20 +53,30 @@ int main(int argument_count, char *arguments[])
     arguments[ASSEMBLER_INPUT_PATH_INDEX];
   const char *output_path =
     arguments[ASSEMBLER_OUTPUT_PATH_INDEX];
-    size_t line_count = 0;
+  SourceSummary source_summary = {0};
+  size_t line_count = 0;
 
-  if (!read_source_file(input_path, &line_count))
+  if (
+    !source_reader_read(
+      input_path,
+      count_source_statement,
+      &source_summary,
+      &line_count
+    )
+  )
   {
     return EXIT_FAILURE;
   }
 
   printf(
-      "Source read successfully: %zu line(s).\n",
-      line_count
+    "Source read successfully: %zu line(s), "
+    "%zu statement(s).\n",
+    line_count,
+    source_summary.statement_count
   );
   printf(
-      "Output generation is not implemented yet: %s\n",
-      output_path
+    "Output generation is not implemented yet: %s\n",
+    output_path
   );
 
   return EXIT_SUCCESS;
