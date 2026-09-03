@@ -3,7 +3,7 @@
 #include <stddef.h>
 
 #include "cli.h"
-#include "cpu.h"
+#include "instruction_set.h"
 
 enum
 {

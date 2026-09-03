@@ -30,6 +30,8 @@ The CPU never reads words such as `LDI`, `start`, or `memory_demo`. Those words 
 
 The CPU simulator is operational. It can run either the 18-byte built-in demonstration stored in `src/program.c` or a compatible raw binary selected on the command line. Either source can run normally or with a human-readable instruction trace.
 
+The shared `instruction_set` module owns the `Opcode` definitions and a read-only metadata table that maps every supported opcode byte to its Assembly mnemonic. A lookup receives a raw `uint8_t` because memory may contain any byte; it returns a metadata pointer for a recognized opcode or a null pointer for an unknown value.
+
 The assembler currently implements:
 
 - command-line argument validation;
@@ -466,13 +468,14 @@ The trace module supplies an observer that interprets its context as a `FILE *` 
 
 ```text
 Execution trace:
-  ADDR=0x00 OP=0x10 A=0x2A B=0x00 Z=0 C=0 NEXT=0x02 CYCLES=1 RESULT=ok
+  ADDR=0x00 OP=0x10 MNEMONIC=LDI A=0x2A B=0x00 Z=0 C=0 NEXT=0x02 CYCLES=1 RESULT=ok
 ```
 
 The fields mean:
 
 - `ADDR`: address from which the opcode was fetched;
 - `OP`: raw opcode byte;
+- `MNEMONIC`: operation name obtained from the shared instruction-set metadata, or `UNKNOWN` when no opcode matches;
 - `A` and `B`: register values after execution;
 - `Z` and `C`: zero and carry flags after execution;
 - `NEXT`: program counter after execution, including any taken jump;
@@ -482,7 +485,7 @@ The fields mean:
 The final demonstration instruction is therefore shown as:
 
 ```text
-  ADDR=0x11 OP=0x01 A=0x5A B=0x2A Z=0 C=0 NEXT=0x12 CYCLES=9 RESULT=halted
+  ADDR=0x11 OP=0x01 MNEMONIC=HALT A=0x5A B=0x2A Z=0 C=0 NEXT=0x12 CYCLES=9 RESULT=halted
 ```
 
 This observer design keeps the CPU independent of presentation. A future debugger, logger, or graphical interface can supply a different callback without putting terminal-output code inside `cpu.c`.
@@ -529,6 +532,7 @@ The process-level Bash test exercises this public interface instead of calling C
 
 | Module | Responsibility |
 | --- | --- |
+| `include/instruction_set.h`, `src/instruction_set.c` | Shared opcode definitions and read-only lookup from a raw opcode byte to instruction metadata. |
 | `include/cpu.h`, `src/cpu.c` | CPU state, memory operations, fetching, decoding, execution, program loading, bounded running, and optional per-step observer delivery. |
 | `include/cpu_trace.h`, `src/cpu_trace.c` | Human-readable formatting of post-instruction CPU snapshots. |
 | `include/program.h`, `src/program.c` | Immutable descriptor and current built-in demonstration bytecode. |
@@ -606,7 +610,7 @@ Displays simulator commands and the instruction reference.
 make test
 ```
 
-Assembles the demonstration and runs all automated unit, integration, and process-level tests. Dedicated tests verify observer delivery and exact trace formatting. The assembled-program test reads `build/demo.bin`, loads it into CPU memory, executes it, and verifies the expected registers, flags, program counter, cycle count, and stored data. `tests/test_vm8_process.sh` then launches the real executable and checks its process status and output streams across normal execution, both trace modes, and failing inputs.
+Assembles the demonstration and runs all automated unit, integration, and process-level tests. Dedicated tests verify every current opcode-to-mnemonic mapping, rejection of an unknown opcode, observer delivery, and exact trace formatting. The assembled-program test reads `build/demo.bin`, loads it into CPU memory, executes it, and verifies the expected registers, flags, program counter, cycle count, and stored data. `tests/test_vm8_process.sh` then launches the real executable and checks its process status and output streams across normal execution, both trace modes, and failing inputs.
 
 ```bash
 make assembler
@@ -671,6 +675,8 @@ make inspect
 
 - Eight-bit values are fetched and processed one byte at a time; an instruction may contain multiple bytes.
 - The opcode tells the CPU how many additional bytes to fetch and how to interpret them.
+- Opcode definitions belong to the instruction-set module rather than to the complete CPU interface.
+- The metadata lookup accepts a raw byte and returns null when that byte is not a supported opcode.
 - Labels and mnemonics belong to the assembler, not to the CPU.
 - A label consumes no program memory; it names the current byte address.
 - The first pass discovers addresses, and the second pass replaces symbolic references with numeric bytes.

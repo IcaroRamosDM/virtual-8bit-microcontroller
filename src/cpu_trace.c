@@ -4,6 +4,8 @@
 #include <stdint.h>
 #include <stdio.h>
 
+#include "instruction_set.h"
+
 static const char *cpu_trace_step_result_name(
     CpuStepResult step_result
 )
@@ -38,14 +40,24 @@ void cpu_trace_observer(
 {
   FILE *const output = context;
 
+  const InstructionMetadata *const metadata =
+    instruction_set_find_by_opcode(opcode);
+
+  const char *const mnemonic =
+    (metadata == NULL)
+      ? "UNKNOWN"
+      : metadata->mnemonic;
+
   fprintf(
     output,
     "  ADDR=0x%02X OP=0x%02X "
+    "MNEMONIC=%s "
     "A=0x%02X B=0x%02X "
     "Z=%u C=%u NEXT=0x%02X "
     "CYCLES=%" PRIu64 " RESULT=%s\n",
     (unsigned int)instruction_address,
     (unsigned int)opcode,
+    mnemonic,
     (unsigned int)cpu->register_a,
     (unsigned int)cpu->register_b,
     cpu->zero_flag ? 1U : 0U,

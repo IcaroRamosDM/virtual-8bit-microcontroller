@@ -1,6 +1,6 @@
 #include "program.h"
 
-#include "cpu.h"
+#include "instruction_set.h"
 
 enum
 {

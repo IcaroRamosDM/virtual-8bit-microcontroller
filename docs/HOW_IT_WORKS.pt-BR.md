@@ -30,6 +30,8 @@ A CPU nunca lê palavras como `LDI`, `start` ou `memory_demo`. Essas palavras ex
 
 O simulador da CPU está funcional. Ele pode executar tanto a demonstração embutida de 18 bytes armazenada em `src/program.c` quanto um binário bruto compatível selecionado pela linha de comando. Qualquer uma dessas origens pode ser executada normalmente ou com um rastreamento de instruções legível por pessoas.
 
+O módulo compartilhado `instruction_set` é o responsável pelas definições de `Opcode` e por uma tabela de metadados somente para leitura que associa cada byte de opcode suportado ao seu mnemônico Assembly. A busca recebe um `uint8_t` bruto porque a memória pode conter qualquer byte; ela retorna um ponteiro para os metadados de um opcode reconhecido ou um ponteiro nulo para um valor desconhecido.
+
 O montador atualmente implementa:
 
 - validação dos argumentos da linha de comando;
@@ -466,13 +468,14 @@ O módulo de rastreamento fornece um observador que interpreta seu contexto como
 
 ```text
 Execution trace:
-  ADDR=0x00 OP=0x10 A=0x2A B=0x00 Z=0 C=0 NEXT=0x02 CYCLES=1 RESULT=ok
+  ADDR=0x00 OP=0x10 MNEMONIC=LDI A=0x2A B=0x00 Z=0 C=0 NEXT=0x02 CYCLES=1 RESULT=ok
 ```
 
 Os campos significam:
 
 - `ADDR`: endereço do qual o opcode foi buscado;
 - `OP`: byte bruto do opcode;
+- `MNEMONIC`: nome da operação obtido dos metadados compartilhados do conjunto de instruções, ou `UNKNOWN` quando nenhum opcode corresponde;
 - `A` e `B`: valores dos registradores depois da execução;
 - `Z` e `C`: flags zero e carry depois da execução;
 - `NEXT`: contador de programa depois da execução, incluindo qualquer salto realizado;
@@ -482,7 +485,7 @@ Os campos significam:
 A instrução final da demonstração, portanto, é exibida assim:
 
 ```text
-  ADDR=0x11 OP=0x01 A=0x5A B=0x2A Z=0 C=0 NEXT=0x12 CYCLES=9 RESULT=halted
+  ADDR=0x11 OP=0x01 MNEMONIC=HALT A=0x5A B=0x2A Z=0 C=0 NEXT=0x12 CYCLES=9 RESULT=halted
 ```
 
 Esse projeto de observador mantém a CPU independente da apresentação. Um depurador, registrador ou interface gráfica futura poderá fornecer outro callback sem inserir código de saída para terminal dentro de `cpu.c`.
@@ -529,6 +532,7 @@ O teste de processo em Bash exercita essa interface pública em vez de chamar di
 
 | Módulo | Responsabilidade |
 | --- | --- |
+| `include/instruction_set.h`, `src/instruction_set.c` | Definições compartilhadas dos opcodes e busca somente para leitura de um byte bruto de opcode para seus metadados. |
 | `include/cpu.h`, `src/cpu.c` | Estado da CPU, operações de memória, busca, decodificação, execução, carregamento do programa, execução limitada e entrega opcional de cada passo a um observador. |
 | `include/cpu_trace.h`, `src/cpu_trace.c` | Formatação legível dos estados da CPU após cada instrução. |
 | `include/program.h`, `src/program.c` | Descritor imutável e bytecode atual da demonstração embutida. |
@@ -606,7 +610,7 @@ Exibe os comandos do simulador e a referência das instruções.
 make test
 ```
 
-Monta a demonstração e executa todos os testes unitários, de integração e de processo automatizados. Testes dedicados verificam a entrega ao observador e a formatação exata do rastreamento. O teste do programa montado lê `build/demo.bin`, carrega-o na memória da CPU, executa-o e verifica os registradores, as flags, o contador de programa, o contador de ciclos e o dado armazenado esperados. Em seguida, `tests/test_vm8_process.sh` inicia o executável real e verifica seu status de processo e seus fluxos de saída na execução normal, nos dois modos de rastreamento e nas entradas inválidas.
+Monta a demonstração e executa todos os testes unitários, de integração e de processo automatizados. Testes dedicados verificam todas as associações atuais entre opcode e mnemônico, a rejeição de um opcode desconhecido, a entrega ao observador e a formatação exata do rastreamento. O teste do programa montado lê `build/demo.bin`, carrega-o na memória da CPU, executa-o e verifica os registradores, as flags, o contador de programa, o contador de ciclos e o dado armazenado esperados. Em seguida, `tests/test_vm8_process.sh` inicia o executável real e verifica seu status de processo e seus fluxos de saída na execução normal, nos dois modos de rastreamento e nas entradas inválidas.
 
 ```bash
 make assembler
@@ -671,6 +675,8 @@ make inspect
 
 - Valores de 8 bits são buscados e processados um byte por vez; uma instrução pode conter vários bytes.
 - O opcode informa à CPU quantos bytes adicionais buscar e como interpretá-los.
+- As definições dos opcodes pertencem ao módulo do conjunto de instruções, e não à interface completa da CPU.
+- A busca nos metadados recebe um byte bruto e retorna nulo quando esse byte não é um opcode suportado.
 - Labels e mnemônicos pertencem ao montador, e não à CPU.
 - Um label não consome memória do programa; ele nomeia o endereço de byte atual.
 - A primeira passagem descobre os endereços, e a segunda substitui referências simbólicas por bytes numéricos.

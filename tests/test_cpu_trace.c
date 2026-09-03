@@ -10,8 +10,9 @@
 
 enum
 {
-  TRACE_BUFFER_CAPACITY = 256,
+  TRACE_BUFFER_CAPACITY = 512,
   TRACE_INSTRUCTION_ADDRESS = 0x04,
+  TRACE_INVALID_INSTRUCTION_ADDRESS = 0x06,
   TRACE_NEXT_PROGRAM_COUNTER = 0x05,
   TRACE_REGISTER_A = 0x30,
   TRACE_REGISTER_B = 0x10,
@@ -22,10 +23,14 @@ static void test_prints_trace_entry(void)
 {
   static const char expected_output[] =
     "Execution trace:\n"
-    "  ADDR=0x04 OP=0x20 "
+    "  ADDR=0x04 OP=0x20 MNEMONIC=ADD "
     "A=0x30 B=0x10 "
     "Z=0 C=1 NEXT=0x05 "
-    "CYCLES=7 RESULT=ok\n";
+    "CYCLES=7 RESULT=ok\n"
+    "  ADDR=0x06 OP=0xFF MNEMONIC=UNKNOWN "
+    "A=0x30 B=0x10 "
+    "Z=0 C=1 NEXT=0x05 "
+    "CYCLES=7 RESULT=invalid-opcode\n";
 
   Cpu cpu =
   {
@@ -50,6 +55,14 @@ static void test_prints_trace_entry(void)
     OPCODE_ADD_A_B,
     &cpu,
     CPU_STEP_OK,
+    output
+  );
+
+  cpu_trace_observer(
+    TRACE_INVALID_INSTRUCTION_ADDRESS,
+    UINT8_MAX,
+    &cpu,
+    CPU_STEP_INVALID_OPCODE,
     output
   );
 

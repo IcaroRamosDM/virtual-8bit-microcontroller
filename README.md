@@ -32,6 +32,7 @@ The initial CPU model contains:
 - bounded program execution with explicit termination results;
 - an optional per-instruction observer that receives post-execution CPU snapshots;
 - a human-readable execution trace for built-in and file-loaded programs;
+- shared instruction-set metadata that maps raw opcode bytes to decoded mnemonics;
 - an immutable bytecode-program descriptor that keeps its byte pointer and size together;
 - a dedicated module for the built-in demonstration bytecode;
 - a bounded binary-file reader that rejects input larger than the 256-byte memory capacity;
@@ -42,6 +43,7 @@ The initial CPU model contains:
 
 Public headers use `#pragma once`. The memory size is derived from the complete 8-bit address space, and the implementation starts from a fully zero-initialized CPU state.
 The current cycle counter is intentionally simplified: every attempted instruction counts as one cycle regardless of its byte length.
+The `instruction_set` module owns the opcode definitions and their mnemonic lookup, allowing the CPU, assembler, help, built-in program, and trace to share the same opcode vocabulary without making opcode-only modules depend on the complete CPU interface.
 
 ## Current instruction set
 
@@ -142,10 +144,10 @@ Each trace entry identifies the executed instruction address and opcode, then sh
 
 ```text
 Execution trace:
-  ADDR=0x00 OP=0x10 A=0x2A B=0x00 Z=0 C=0 NEXT=0x02 CYCLES=1 RESULT=ok
+  ADDR=0x00 OP=0x10 MNEMONIC=LDI A=0x2A B=0x00 Z=0 C=0 NEXT=0x02 CYCLES=1 RESULT=ok
 ```
 
-`ADDR` is the address at which the instruction started, `OP` is its opcode, and `NEXT` is the post-execution program counter. The remaining fields show registers `A` and `B`, the zero and carry flags, the accumulated cycle count, and the step result.
+`ADDR` is the address at which the instruction started, `OP` is its raw opcode byte, `MNEMONIC` is the decoded operation name, and `NEXT` is the post-execution program counter. The remaining fields show registers `A` and `B`, the zero and carry flags, the accumulated cycle count, and the step result. An unrecognized byte is displayed as `MNEMONIC=UNKNOWN`.
 
 Run the automated tests:
 
@@ -153,7 +155,7 @@ Run the automated tests:
 make test
 ```
 
-The test target assembles `programs/demo.asm` and then builds and runs independent tests for the CPU, CPU observer, trace formatter, CLI, built-in program, binary reader, assembled-program execution, source normalization and reading, symbol table, first pass, byte parsing and resolution, instruction parser and encoder, second pass, and binary writer.
+The test target assembles `programs/demo.asm` and then builds and runs independent tests for the CPU, CPU observer, instruction-set lookup, trace formatter, CLI, built-in program, binary reader, assembled-program execution, source normalization and reading, symbol table, first pass, byte parsing and resolution, instruction parser and encoder, second pass, and binary writer.
 The CPU tests include a `JMP`-to-zero loop that verifies bounded execution stops at the configured instruction limit.
 The program-integration test loads and executes the built-in demonstration, then verifies its complete final CPU state and the value stored at data address `0x80`.
 The assembled-program integration test reads `build/demo.bin`, loads it into CPU memory, executes it, and verifies the same final state. This confirms that the human-readable Assembly source and built-in byte array describe equivalent programs.

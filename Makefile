@@ -13,6 +13,7 @@ ASSEMBLER_DEMO_OUTPUT := build/demo.bin
 PROCESS_TEST_SCRIPT := tests/test_vm8_process.sh
 CPU_TEST_TARGET := build/test_cpu
 CPU_OBSERVER_TEST_TARGET := build/test_cpu_observer
+INSTRUCTION_SET_TEST_TARGET := build/test_instruction_set
 CPU_TRACE_TEST_TARGET := build/test_cpu_trace
 CLI_TEST_TARGET := build/test_cli
 PROGRAM_TEST_TARGET := build/test_program
@@ -31,6 +32,7 @@ BINARY_WRITER_TEST_TARGET := build/test_binary_writer
 TEST_TARGETS := \
 	$(CPU_TEST_TARGET) \
 	$(CPU_OBSERVER_TEST_TARGET) \
+	$(INSTRUCTION_SET_TEST_TARGET) \
 	$(CPU_TRACE_TEST_TARGET) \
 	$(CLI_TEST_TARGET) \
 	$(PROGRAM_TEST_TARGET) \
@@ -53,7 +55,8 @@ ASSEMBLER_SOURCES := $(wildcard assembler/*.c)
 ASSEMBLER_HEADERS := $(wildcard assembler/*.h)
 CPU_TEST_SOURCES := src/cpu.c tests/test_cpu.c
 CPU_OBSERVER_TEST_SOURCES := src/cpu.c tests/test_cpu_observer.c
-CPU_TRACE_TEST_SOURCES := src/cpu_trace.c tests/test_cpu_trace.c
+INSTRUCTION_SET_TEST_SOURCES := src/instruction_set.c tests/test_instruction_set.c
+CPU_TRACE_TEST_SOURCES := src/cpu_trace.c src/instruction_set.c tests/test_cpu_trace.c
 CLI_TEST_SOURCES := src/cli.c tests/test_cli.c
 PROGRAM_TEST_SOURCES := src/cpu.c src/program.c tests/test_program.c
 BINARY_READER_TEST_SOURCES := src/binary_reader.c tests/test_binary_reader.c
@@ -97,6 +100,10 @@ $(CPU_TEST_TARGET): $(CPU_TEST_SOURCES) $(HEADERS)
 $(CPU_OBSERVER_TEST_TARGET): $(CPU_OBSERVER_TEST_SOURCES) $(HEADERS)
 	mkdir -p build
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(CPU_OBSERVER_TEST_SOURCES) -o $(CPU_OBSERVER_TEST_TARGET)
+
+$(INSTRUCTION_SET_TEST_TARGET): $(INSTRUCTION_SET_TEST_SOURCES) $(HEADERS)
+	mkdir -p build
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(INSTRUCTION_SET_TEST_SOURCES) -o $(INSTRUCTION_SET_TEST_TARGET)
 
 $(CPU_TRACE_TEST_TARGET): $(CPU_TRACE_TEST_SOURCES) $(HEADERS)
 	mkdir -p build
@@ -173,6 +180,7 @@ trace-bin: $(TARGET) assemble
 test: $(TARGET) assemble $(TEST_TARGETS) $(PROCESS_TEST_SCRIPT)
 	./$(CPU_TEST_TARGET)
 	./$(CPU_OBSERVER_TEST_TARGET)
+	./$(INSTRUCTION_SET_TEST_TARGET)
 	./$(CPU_TRACE_TEST_TARGET)
 	./$(CLI_TEST_TARGET)
 	./$(PROGRAM_TEST_TARGET)

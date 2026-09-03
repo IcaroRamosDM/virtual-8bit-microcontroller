@@ -4,8 +4,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "cpu.h"
 #include "instruction_encoder.h"
+#include "instruction_set.h"
 #include "instruction_parser.h"
 #include "symbol_table.h"
 
