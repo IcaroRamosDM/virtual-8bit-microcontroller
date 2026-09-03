@@ -1,8 +1,8 @@
-#include <stdbool.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "first_pass.h"
 #include "source_reader.h"
 
 enum
@@ -12,29 +12,6 @@ enum
   ASSEMBLER_OUTPUT_PATH_INDEX = 2,
   ASSEMBLER_ARGUMENT_COUNT = 3
 };
-
-typedef struct SourceSummary
-{
-  size_t statement_count;
-} SourceSummary;
-
-static bool count_source_statement(
-    const char *input_path,
-    size_t line_number,
-    const char *statement,
-    void *context
-)
-{
-  (void)input_path;
-  (void)line_number;
-  (void)statement;
-
-  SourceSummary *summary = context;
-
-  ++summary->statement_count;
-
-  return true;
-}
 
 int main(int argument_count, char *arguments[])
 {
@@ -53,14 +30,17 @@ int main(int argument_count, char *arguments[])
     arguments[ASSEMBLER_INPUT_PATH_INDEX];
   const char *output_path =
     arguments[ASSEMBLER_OUTPUT_PATH_INDEX];
-  SourceSummary source_summary = {0};
+
+  FirstPassResult first_pass_result;
   size_t line_count = 0;
+
+  first_pass_initialize(&first_pass_result);
 
   if (
     !source_reader_read(
       input_path,
-      count_source_statement,
-      &source_summary,
+      first_pass_process_statement,
+      &first_pass_result,
       &line_count
     )
   )
@@ -69,11 +49,15 @@ int main(int argument_count, char *arguments[])
   }
 
   printf(
-    "Source read successfully: %zu line(s), "
-    "%zu statement(s).\n",
+    "First pass completed: %zu line(s), "
+    "%zu statement(s), %zu byte(s), "
+    "%zu symbol(s).\n",
     line_count,
-    source_summary.statement_count
+    first_pass_result.statement_count,
+    first_pass_result.program_size,
+    first_pass_result.symbols.count
   );
+
   printf(
     "Output generation is not implemented yet: %s\n",
     output_path

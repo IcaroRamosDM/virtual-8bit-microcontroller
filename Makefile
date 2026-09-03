@@ -15,7 +15,16 @@ CLI_TEST_TARGET := build/test_cli
 PROGRAM_TEST_TARGET := build/test_program
 SOURCE_LINE_TEST_TARGET := build/test_source_line
 SOURCE_READER_TEST_TARGET := build/test_source_reader
-TEST_TARGETS := $(CPU_TEST_TARGET) $(CLI_TEST_TARGET) $(PROGRAM_TEST_TARGET) $(SOURCE_LINE_TEST_TARGET) $(SOURCE_READER_TEST_TARGET)
+SYMBOL_TABLE_TEST_TARGET := build/test_symbol_table
+FIRST_PASS_TEST_TARGET := build/test_first_pass
+TEST_TARGETS := \
+	$(CPU_TEST_TARGET) \
+	$(CLI_TEST_TARGET) \
+	$(PROGRAM_TEST_TARGET) \
+	$(SOURCE_LINE_TEST_TARGET) \
+	$(SOURCE_READER_TEST_TARGET) \
+	$(SYMBOL_TABLE_TEST_TARGET) \
+	$(FIRST_PASS_TEST_TARGET)
 
 SOURCES := $(wildcard src/*.c)
 HEADERS := $(wildcard include/*.h)
@@ -26,6 +35,8 @@ CLI_TEST_SOURCES := src/cli.c tests/test_cli.c
 PROGRAM_TEST_SOURCES := src/cpu.c src/program.c tests/test_program.c
 SOURCE_LINE_TEST_SOURCES := assembler/source_line.c tests/test_source_line.c
 SOURCE_READER_TEST_SOURCES := assembler/source_line.c assembler/source_reader.c tests/test_source_reader.c
+SYMBOL_TABLE_TEST_SOURCES := assembler/symbol_table.c tests/test_symbol_table.c
+FIRST_PASS_TEST_SOURCES := assembler/first_pass.c assembler/symbol_table.c tests/test_first_pass.c
 
 .PHONY: all assembler assemble run test help clean
 
@@ -64,6 +75,14 @@ $(SOURCE_READER_TEST_TARGET): $(SOURCE_READER_TEST_SOURCES) $(ASSEMBLER_HEADERS)
 	mkdir -p build
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(SOURCE_READER_TEST_SOURCES) -o $(SOURCE_READER_TEST_TARGET)
 
+$(SYMBOL_TABLE_TEST_TARGET): $(SYMBOL_TABLE_TEST_SOURCES) $(ASSEMBLER_HEADERS)
+	mkdir -p build
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(SYMBOL_TABLE_TEST_SOURCES) -o $(SYMBOL_TABLE_TEST_TARGET)
+
+$(FIRST_PASS_TEST_TARGET): $(FIRST_PASS_TEST_SOURCES) $(ASSEMBLER_HEADERS) $(HEADERS)
+	mkdir -p build
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(FIRST_PASS_TEST_SOURCES) -o $(FIRST_PASS_TEST_TARGET)
+
 run: $(TARGET)
 	./$(TARGET)
 
@@ -73,6 +92,8 @@ test: $(TEST_TARGETS)
 	./$(PROGRAM_TEST_TARGET)
 	./$(SOURCE_LINE_TEST_TARGET)
 	./$(SOURCE_READER_TEST_TARGET)
+	./$(SYMBOL_TABLE_TEST_TARGET)
+	./$(FIRST_PASS_TEST_TARGET)
 
 help: $(TARGET)
 	./$(TARGET) help
