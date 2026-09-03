@@ -28,7 +28,7 @@ The CPU never reads words such as `LDI`, `start`, or `memory_demo`. Those words 
 
 ## Current implementation boundary
 
-The CPU simulator is operational and currently runs an 18-byte demonstration program stored in `src/program.c`.
+The CPU simulator is operational. It can run either the 18-byte built-in demonstration stored in `src/program.c` or a compatible raw binary selected on the command line.
 
 The assembler currently implements:
 
@@ -45,7 +45,7 @@ The assembler currently implements:
 - a second pass that resolves symbols and accumulates the complete program byte sequence;
 - a binary writer that stores the raw bytes in the requested output file.
 
-`make assemble` now translates `programs/demo.asm` into the 18-byte `build/demo.bin` file. `make inspect` performs that assembly and then displays the generated size and raw bytes. Loading this external binary into the simulator is the next integration milestone; `make run` still executes the equivalent built-in bytecode from `src/program.c`.
+`make assemble` translates `programs/demo.asm` into the 18-byte `build/demo.bin` file. `make inspect` performs that assembly and then displays the generated size and raw bytes. `make run` executes the equivalent built-in bytecode from `src/program.c`, while `make run-bin` assembles, loads, and executes `build/demo.bin`.
 
 ## What “8-bit” means
 
@@ -451,14 +451,43 @@ Cycle count: 9
 
 An invalid opcode also halts the CPU so that execution cannot silently continue through unknown data.
 
+## Reading and executing an external binary
+
+The simulator-side binary reader opens the selected file in binary mode and reads into a caller-provided buffer. `main.c` supplies a buffer whose capacity is exactly `CPU_MEMORY_SIZE`, so the file reader cannot write beyond the virtual machine's 256-byte program capacity.
+
+After filling the buffer, the reader attempts to fetch one additional byte. This extra read distinguishes two cases that would otherwise both produce a full buffer:
+
+- if the extra read reaches end-of-file, the program contains exactly 256 bytes and is valid;
+- if another byte exists, the file is too large and is rejected.
+
+The reader reports the number of bytes actually read only after the read and file close both succeed. An empty file is a valid binary file from the reader's narrow I/O perspective, but `main.c` rejects it as an executable program. This separation keeps file-format transport separate from simulator policy.
+
+The CLI exposes two execution paths:
+
+```text
+make run
+  -> built-in byte array from src/program.c
+
+make run-bin
+  -> programs/demo.asm
+  -> vm8asm
+  -> build/demo.bin
+  -> binary_reader_read
+  -> cpu_load_program
+  -> cpu_run
+```
+
+The direct form `./build/vm8 run <program.bin>` uses the same external-binary path without first invoking the assembler. The simulator does not know whether that file came from `vm8asm`, another tool, or manual byte entry; it sees only the bytes.
+
 ## Current module responsibilities
 
 | Module | Responsibility |
 | --- | --- |
 | `include/cpu.h`, `src/cpu.c` | CPU state, memory operations, fetching, decoding, execution, program loading, and bounded running. |
 | `include/program.h`, `src/program.c` | Immutable descriptor and current built-in demonstration bytecode. |
-| `include/cli.h`, `src/cli.c` | Simulator command parsing and help presentation. |
-| `src/main.c` | High-level simulator orchestration and final state presentation. |
+| `include/binary_reader.h`, `src/binary_reader.c` | Bounded raw-binary input with open, read, size, and close validation. |
+| `include/cli.h`, `src/cli.c` | Selection of built-in, external-binary, and help commands plus help presentation. |
+| `src/main.c` | Program-source selection, high-level simulator orchestration, and final state presentation. |
 | `assembler/source_line.*` | Comment removal and whitespace normalization. |
 | `assembler/source_reader.*` | Bounded file reading and callback delivery with source locations. |
 | `assembler/symbol_table.*` | Mapping symbol names to 8-bit addresses. |
@@ -470,7 +499,7 @@ An invalid opcode also halts the CPU so that execution cannot silently continue 
 | `assembler/second_pass.*` | Label skipping, instruction encoding, bounded byte accumulation, and source-located diagnostics. |
 | `assembler/binary_writer.*` | Exact raw-byte output with open, write, and close validation. |
 | `assembler/main.c` | Argument handling, two-pass orchestration, pass-consistency checks, and binary-output coordination. |
-| `tests/` | Independent behavioral tests for the CPU, CLI, program, and assembler components. |
+| `tests/` | Independent unit and integration tests, including execution of the assembler-generated binary. |
 
 Keeping `main.c` focused on orchestration makes reusable behavior independently testable.
 
@@ -491,6 +520,18 @@ make run
 Builds and executes the simulator with the built-in bytecode demonstration.
 
 ```bash
+make run-bin
+```
+
+Builds the simulator and assembler, translates `programs/demo.asm` into `build/demo.bin`, loads that binary, and executes it.
+
+An already existing compatible binary can be executed directly:
+
+```bash
+./build/vm8 run path/to/program.bin
+```
+
+```bash
 make help
 ```
 
@@ -500,7 +541,7 @@ Displays simulator commands and the instruction reference.
 make test
 ```
 
-Builds and runs all automated tests.
+Assembles the demonstration and runs all automated unit and integration tests. The assembled-program test reads `build/demo.bin`, loads it into CPU memory, executes it, and verifies the expected registers, flags, program counter, cycle count, and stored data.
 
 ```bash
 make assembler
@@ -569,7 +610,9 @@ make inspect
 - A label consumes no program memory; it names the current byte address.
 - The first pass discovers addresses, and the second pass replaces symbolic references with numeric bytes.
 - The binary writer stores the generated values as raw bytes, not hexadecimal text.
+- The binary reader uses a caller-provided capacity and checks one extra byte to reject oversized input safely.
 - `wc -c` verifies the byte count, while `od -An -tx1 -v` exposes the exact byte values.
-- The CPU ultimately executes only the generated byte sequence.
+- Built-in and file-loaded programs use the same CPU loading and execution functions.
+- The CPU ultimately executes only a byte sequence, regardless of where those bytes originated.
 - `PC` measures byte addresses, while the simplified cycle counter measures attempted instructions.
 - Unified memory permits both code and data access, so stores must use addresses carefully.

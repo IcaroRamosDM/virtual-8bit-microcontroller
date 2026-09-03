@@ -32,8 +32,10 @@ The initial CPU model contains:
 - bounded program execution with explicit termination results;
 - an immutable bytecode-program descriptor that keeps its byte pointer and size together;
 - a dedicated module for the built-in demonstration bytecode;
+- a bounded binary-file reader that rejects input larger than the 256-byte memory capacity;
 - a standalone two-pass assembler with normalized source reading, a symbol table, strict instruction parsing, byte-operand resolution, instruction encoding, and raw binary output;
-- command-line parsing and built-in help for simulator commands and CPU instructions.
+- command-line selection between the built-in demonstration and an external binary program;
+- built-in help for simulator commands and CPU instructions.
 
 Public headers use `#pragma once`. The memory size is derived from the complete 8-bit address space, and the implementation starts from a fully zero-initialized CPU state.
 The current cycle counter is intentionally simplified: every attempted instruction counts as one cycle regardless of its byte length.
@@ -73,15 +75,15 @@ Program counter: 18
 Cycle count: 9
 ```
 
-The demonstration bytecode is stored privately in `src/program.c` and exposed through a `Program` value containing a pointer to constant bytes and their size. `main.c` is limited to requesting that program, coordinating loading and execution, presenting the result, and returning the process exit status. Program copying and the execution loop remain in testable CPU functions.
+The demonstration bytecode is stored privately in `src/program.c` and exposed through a `Program` value containing a pointer to constant bytes and their size. Running `make run` selects this built-in program.
 
-The same demonstration is also written in `programs/demo.asm`. The standalone assembler resolves its labels in two passes and generates the equivalent 18-byte raw machine-code file at `build/demo.bin`. The simulator still executes the built-in program descriptor; loading a generated `.bin` file is a future integration milestone.
+The same demonstration is also written in `programs/demo.asm`. The standalone assembler resolves its labels in two passes and generates the equivalent 18-byte raw machine-code file at `build/demo.bin`. Running `make run-bin` assembles that source, reads the generated binary into a bounded 256-byte host buffer, copies the resulting program into CPU memory, and executes it.
 
-The CLI module keeps command parsing and help presentation separate from CPU execution. Run `make help` to see simulator commands, instruction encodings, effects, flag behavior, and usage examples.
+An arbitrary compatible binary can be selected with `./build/vm8 run <program.bin>`. The CLI distinguishes the built-in and external-binary execution modes while `main.c` remains responsible for orchestration, presentation, and process status. Reusable file reading, program copying, and CPU execution remain in independently tested modules. Run `make help` to see simulator commands, instruction encodings, effects, flag behavior, and usage examples.
 
 ## Project structure
 
-- `src/`: CPU, CLI, built-in program, and simulator-entry-point implementations.
+- `src/`: CPU, CLI, binary reader, built-in program, and simulator-entry-point implementations.
 - `include/`: public C headers.
 - `assembler/`: standalone assembler implementation.
 - `programs/`: programs written in the custom Assembly language, including the current demonstration source.
@@ -103,15 +105,28 @@ Compile and run:
 make run
 ```
 
+Assemble `programs/demo.asm`, load the generated binary, and run it:
+
+```bash
+make run-bin
+```
+
+Run another compatible binary directly:
+
+```bash
+./build/vm8 run path/to/program.bin
+```
+
 Run the automated tests:
 
 ```bash
 make test
 ```
 
-The test target builds and runs independent tests for the CPU, CLI, built-in program, source normalization and reading, symbol table, first pass, byte parsing and resolution, instruction parser and encoder, second pass, and binary writer.
+The test target assembles `programs/demo.asm` and then builds and runs independent tests for the CPU, CLI, built-in program, binary reader, assembled-program execution, source normalization and reading, symbol table, first pass, byte parsing and resolution, instruction parser and encoder, second pass, and binary writer.
 The CPU tests include a `JMP`-to-zero loop that verifies bounded execution stops at the configured instruction limit.
 The program-integration test loads and executes the built-in demonstration, then verifies its complete final CPU state and the value stored at data address `0x80`.
+The assembled-program integration test reads `build/demo.bin`, loads it into CPU memory, executes it, and verifies the same final state. This confirms that the human-readable Assembly source and built-in byte array describe equivalent programs.
 
 Display simulator and instruction help:
 

@@ -13,6 +13,8 @@ ASSEMBLER_DEMO_OUTPUT := build/demo.bin
 CPU_TEST_TARGET := build/test_cpu
 CLI_TEST_TARGET := build/test_cli
 PROGRAM_TEST_TARGET := build/test_program
+BINARY_READER_TEST_TARGET := build/test_binary_reader
+ASSEMBLED_PROGRAM_TEST_TARGET := build/test_assembled_program
 SOURCE_LINE_TEST_TARGET := build/test_source_line
 SOURCE_READER_TEST_TARGET := build/test_source_reader
 SYMBOL_TABLE_TEST_TARGET := build/test_symbol_table
@@ -27,6 +29,8 @@ TEST_TARGETS := \
 	$(CPU_TEST_TARGET) \
 	$(CLI_TEST_TARGET) \
 	$(PROGRAM_TEST_TARGET) \
+	$(BINARY_READER_TEST_TARGET) \
+	$(ASSEMBLED_PROGRAM_TEST_TARGET) \
 	$(SOURCE_LINE_TEST_TARGET) \
 	$(SOURCE_READER_TEST_TARGET) \
 	$(SYMBOL_TABLE_TEST_TARGET) \
@@ -45,6 +49,8 @@ ASSEMBLER_HEADERS := $(wildcard assembler/*.h)
 CPU_TEST_SOURCES := src/cpu.c tests/test_cpu.c
 CLI_TEST_SOURCES := src/cli.c tests/test_cli.c
 PROGRAM_TEST_SOURCES := src/cpu.c src/program.c tests/test_program.c
+BINARY_READER_TEST_SOURCES := src/binary_reader.c tests/test_binary_reader.c
+ASSEMBLED_PROGRAM_TEST_SOURCES := src/binary_reader.c src/cpu.c tests/test_assembled_program.c
 SOURCE_LINE_TEST_SOURCES := assembler/source_line.c tests/test_source_line.c
 SOURCE_READER_TEST_SOURCES := assembler/source_line.c assembler/source_reader.c tests/test_source_reader.c
 SYMBOL_TABLE_TEST_SOURCES := assembler/symbol_table.c tests/test_symbol_table.c
@@ -56,7 +62,7 @@ INSTRUCTION_ENCODER_TEST_SOURCES := assembler/byte_literal.c assembler/byte_oper
 SECOND_PASS_TEST_SOURCES := assembler/byte_literal.c assembler/byte_operand.c assembler/instruction_encoder.c assembler/instruction_parser.c assembler/second_pass.c assembler/symbol_table.c tests/test_second_pass.c
 BINARY_WRITER_TEST_SOURCES := assembler/binary_writer.c tests/test_binary_writer.c
 
-.PHONY: all assembler assemble inspect run test help clean
+.PHONY: all assembler assemble inspect run run-bin test help clean
 
 all: $(TARGET)
 
@@ -88,6 +94,14 @@ $(CLI_TEST_TARGET): $(CLI_TEST_SOURCES) $(HEADERS)
 $(PROGRAM_TEST_TARGET): $(PROGRAM_TEST_SOURCES) $(HEADERS)
 	mkdir -p build
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(PROGRAM_TEST_SOURCES) -o $(PROGRAM_TEST_TARGET)
+
+$(BINARY_READER_TEST_TARGET): $(BINARY_READER_TEST_SOURCES) $(HEADERS)
+	mkdir -p build
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(BINARY_READER_TEST_SOURCES) -o $(BINARY_READER_TEST_TARGET)
+
+$(ASSEMBLED_PROGRAM_TEST_TARGET): $(ASSEMBLED_PROGRAM_TEST_SOURCES) $(HEADERS)
+	mkdir -p build
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(ASSEMBLED_PROGRAM_TEST_SOURCES) -o $(ASSEMBLED_PROGRAM_TEST_TARGET)
 
 $(SOURCE_LINE_TEST_TARGET): $(SOURCE_LINE_TEST_SOURCES) $(ASSEMBLER_HEADERS)
 	mkdir -p build
@@ -132,10 +146,15 @@ $(BINARY_WRITER_TEST_TARGET): $(BINARY_WRITER_TEST_SOURCES) $(ASSEMBLER_HEADERS)
 run: $(TARGET)
 	./$(TARGET)
 
-test: $(TEST_TARGETS)
+run-bin: $(TARGET) assemble
+	./$(TARGET) run $(ASSEMBLER_DEMO_OUTPUT)
+
+test: assemble $(TEST_TARGETS)
 	./$(CPU_TEST_TARGET)
 	./$(CLI_TEST_TARGET)
 	./$(PROGRAM_TEST_TARGET)
+	./$(BINARY_READER_TEST_TARGET)
+	./$(ASSEMBLED_PROGRAM_TEST_TARGET)
 	./$(SOURCE_LINE_TEST_TARGET)
 	./$(SOURCE_READER_TEST_TARGET)
 	./$(SYMBOL_TABLE_TEST_TARGET)

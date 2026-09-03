@@ -28,7 +28,7 @@ A CPU nunca lê palavras como `LDI`, `start` ou `memory_demo`. Essas palavras ex
 
 ## Limite atual da implementação
 
-O simulador da CPU está funcional e atualmente executa um programa de demonstração de 18 bytes armazenado em `src/program.c`.
+O simulador da CPU está funcional. Ele pode executar tanto a demonstração embutida de 18 bytes armazenada em `src/program.c` quanto um binário bruto compatível selecionado pela linha de comando.
 
 O montador atualmente implementa:
 
@@ -45,7 +45,7 @@ O montador atualmente implementa:
 - uma segunda passagem que resolve símbolos e acumula a sequência completa de bytes do programa;
 - um gravador de binário que armazena os bytes brutos no arquivo de saída solicitado.
 
-`make assemble` agora traduz `programs/demo.asm` para o arquivo de 18 bytes `build/demo.bin`. `make inspect` realiza essa montagem e depois exibe o tamanho e os bytes brutos gerados. Carregar esse binário externo no simulador é o próximo marco de integração; `make run` ainda executa o bytecode embutido equivalente de `src/program.c`.
+`make assemble` traduz `programs/demo.asm` para o arquivo de 18 bytes `build/demo.bin`. `make inspect` realiza essa montagem e depois exibe o tamanho e os bytes brutos gerados. `make run` executa o bytecode embutido equivalente de `src/program.c`, enquanto `make run-bin` monta, carrega e executa `build/demo.bin`.
 
 ## O que “8 bits” significa
 
@@ -451,14 +451,43 @@ Cycle count: 9
 
 Um opcode inválido também para a CPU para que a execução não continue silenciosamente sobre dados desconhecidos.
 
+## Leitura e execução de um binário externo
+
+O leitor binário do simulador abre o arquivo selecionado em modo binário e lê seu conteúdo para um buffer fornecido pelo chamador. `main.c` fornece um buffer cuja capacidade é exatamente `CPU_MEMORY_SIZE`, portanto o leitor não consegue gravar além da capacidade de programa de 256 bytes da máquina virtual.
+
+Depois de preencher o buffer, o leitor tenta buscar mais um byte. Essa leitura adicional diferencia dois casos que, sem ela, produziriam igualmente um buffer cheio:
+
+- se a leitura adicional alcançar o fim do arquivo, o programa possui exatamente 256 bytes e é válido;
+- se existir outro byte, o arquivo é grande demais e será rejeitado.
+
+O leitor informa a quantidade de bytes realmente lida somente depois que tanto a leitura quanto o fechamento do arquivo terminam corretamente. Um arquivo vazio é um arquivo binário válido do ponto de vista estrito de entrada e saída do leitor, mas `main.c` o rejeita como programa executável. Essa separação mantém o transporte do arquivo separado da política do simulador.
+
+A CLI oferece dois caminhos de execução:
+
+```text
+make run
+  -> vetor de bytes embutido de src/program.c
+
+make run-bin
+  -> programs/demo.asm
+  -> vm8asm
+  -> build/demo.bin
+  -> binary_reader_read
+  -> cpu_load_program
+  -> cpu_run
+```
+
+A forma direta `./build/vm8 run <program.bin>` utiliza o mesmo caminho de binário externo sem executar primeiro o montador. O simulador não sabe se esse arquivo veio de `vm8asm`, de outra ferramenta ou da inserção manual de bytes; ele enxerga somente os bytes.
+
 ## Responsabilidades atuais dos módulos
 
 | Módulo | Responsabilidade |
 | --- | --- |
 | `include/cpu.h`, `src/cpu.c` | Estado da CPU, operações de memória, busca, decodificação, execução, carregamento do programa e execução limitada. |
 | `include/program.h`, `src/program.c` | Descritor imutável e bytecode atual da demonstração embutida. |
-| `include/cli.h`, `src/cli.c` | Interpretação dos comandos do simulador e apresentação da ajuda. |
-| `src/main.c` | Orquestração geral do simulador e apresentação do estado final. |
+| `include/binary_reader.h`, `src/binary_reader.c` | Entrada limitada de binário bruto com validação de abertura, leitura, tamanho e fechamento. |
+| `include/cli.h`, `src/cli.c` | Seleção dos comandos de demonstração embutida, binário externo e ajuda, além da apresentação da ajuda. |
+| `src/main.c` | Seleção da origem do programa, orquestração geral do simulador e apresentação do estado final. |
 | `assembler/source_line.*` | Remoção de comentários e normalização de espaços. |
 | `assembler/source_reader.*` | Leitura limitada do arquivo e entrega por callback com localização no código-fonte. |
 | `assembler/symbol_table.*` | Associação dos nomes dos símbolos a endereços de 8 bits. |
@@ -470,7 +499,7 @@ Um opcode inválido também para a CPU para que a execução não continue silen
 | `assembler/second_pass.*` | Ignorar labels, codificar instruções, acumular bytes com limite e emitir diagnósticos com localização no código-fonte. |
 | `assembler/binary_writer.*` | Saída exata dos bytes brutos com verificação de abertura, gravação e fechamento. |
 | `assembler/main.c` | Tratamento de argumentos, orquestração das duas passagens, verificação da concordância entre elas e coordenação da saída binária. |
-| `tests/` | Testes comportamentais independentes para a CPU, CLI, programa e componentes do montador. |
+| `tests/` | Testes unitários e de integração independentes, incluindo a execução do binário gerado pelo montador. |
 
 Manter `main.c` concentrado na orquestração torna o comportamento reutilizável testável de forma independente.
 
@@ -491,6 +520,18 @@ make run
 Compila e executa o simulador com a demonstração de bytecode embutida.
 
 ```bash
+make run-bin
+```
+
+Compila o simulador e o montador, traduz `programs/demo.asm` para `build/demo.bin`, carrega esse binário e o executa.
+
+Um binário compatível já existente pode ser executado diretamente:
+
+```bash
+./build/vm8 run path/to/program.bin
+```
+
+```bash
 make help
 ```
 
@@ -500,7 +541,7 @@ Exibe os comandos do simulador e a referência das instruções.
 make test
 ```
 
-Compila e executa todos os testes automatizados.
+Monta a demonstração e executa todos os testes unitários e de integração automatizados. O teste do programa montado lê `build/demo.bin`, carrega-o na memória da CPU, executa-o e verifica os registradores, as flags, o contador de programa, o contador de ciclos e o dado armazenado esperados.
 
 ```bash
 make assembler
@@ -569,7 +610,9 @@ make inspect
 - Um label não consome memória do programa; ele nomeia o endereço de byte atual.
 - A primeira passagem descobre os endereços, e a segunda substitui referências simbólicas por bytes numéricos.
 - O gravador binário armazena os valores gerados como bytes brutos, e não como texto hexadecimal.
+- O leitor binário utiliza uma capacidade fornecida pelo chamador e verifica um byte adicional para rejeitar entradas grandes demais com segurança.
 - `wc -c` verifica a quantidade de bytes, enquanto `od -An -tx1 -v` revela os valores exatos.
-- A CPU finalmente executa somente a sequência de bytes gerada.
+- Programas embutidos e carregados de arquivo utilizam as mesmas funções de carregamento e execução da CPU.
+- A CPU finalmente executa somente uma sequência de bytes, independentemente da origem desses bytes.
 - `PC` mede endereços de bytes, enquanto o contador simplificado de ciclos mede instruções tentadas.
 - A memória unificada permite acesso tanto ao código quanto aos dados, portanto as instruções de armazenamento devem usar endereços com cuidado.

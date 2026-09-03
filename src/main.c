@@ -1,23 +1,26 @@
 #include <inttypes.h>
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "binary_reader.h"
 #include "cli.h"
 #include "cpu.h"
 #include "program.h"
 
 int main(int argument_count, char *arguments[])
 {
-  const CliCommand command = cli_parse_command(
+  const CliOptions options = cli_parse_arguments(
     argument_count,
     arguments
   );
 
-  switch (command)
+  switch (options.command)
   {
-    case CLI_COMMAND_RUN:
+    case CLI_COMMAND_RUN_DEMO:
+    case CLI_COMMAND_RUN_BINARY:
       break;
 
     case CLI_COMMAND_HELP:
@@ -29,7 +32,41 @@ int main(int argument_count, char *arguments[])
       return EXIT_FAILURE;
   }
 
-  const Program program = program_get_demo();
+  uint8_t binary_bytes[CPU_MEMORY_SIZE] = {0};
+  size_t binary_size = 0;
+  Program program = program_get_demo();
+
+  if (options.command == CLI_COMMAND_RUN_BINARY)
+  {
+    const bool binary_read_succeeded =
+      binary_reader_read(
+        options.binary_path,
+        binary_bytes,
+        sizeof binary_bytes,
+        &binary_size
+      );
+
+    if (!binary_read_succeeded)
+    {
+      return EXIT_FAILURE;
+    }
+
+    if (binary_size == 0)
+    {
+      fprintf(
+        stderr,
+        "%s: binary program is empty\n",
+        options.binary_path
+      );
+
+      return EXIT_FAILURE;
+    }
+
+    program = (Program){
+      .bytes = binary_bytes,
+      .size = binary_size
+    };
+  }
 
   const uint64_t instruction_limit = CPU_MEMORY_SIZE;
   Cpu cpu = {0};
@@ -71,12 +108,35 @@ int main(int argument_count, char *arguments[])
       return EXIT_FAILURE;
   }
 
-  printf("Register A: 0x%02X\n", (unsigned int)cpu.register_a);
-  printf("Register B: 0x%02X\n", (unsigned int)cpu.register_b);
-  printf("Zero flag: %s\n", cpu.zero_flag ? "set" : "clear");
-  printf("Carry flag: %s\n", cpu.carry_flag ? "set" : "clear");
-  printf("Program counter: %" PRIu8 "\n", cpu.program_counter);
-  printf("Cycle count: %" PRIu64 "\n", cpu.cycle_count);
+  printf(
+    "Register A: 0x%02X\n",
+    (unsigned int)cpu.register_a
+  );
+
+  printf(
+    "Register B: 0x%02X\n",
+    (unsigned int)cpu.register_b
+  );
+
+  printf(
+    "Zero flag: %s\n",
+    cpu.zero_flag ? "set" : "clear"
+  );
+
+  printf(
+    "Carry flag: %s\n",
+    cpu.carry_flag ? "set" : "clear"
+  );
+
+  printf(
+    "Program counter: %" PRIu8 "\n",
+    cpu.program_counter
+  );
+
+  printf(
+    "Cycle count: %" PRIu64 "\n",
+    cpu.cycle_count
+  );
 
   return EXIT_SUCCESS;
 }

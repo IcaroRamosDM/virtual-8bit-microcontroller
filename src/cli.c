@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <string.h>
+#include <stddef.h>
 
 #include "cli.h"
 #include "cpu.h"
@@ -8,33 +9,64 @@ enum
 {
   CLI_ARGUMENT_COUNT_WITHOUT_COMMAND = 1,
   CLI_ARGUMENT_COUNT_WITH_COMMAND = 2,
-  CLI_COMMAND_ARGUMENT_INDEX = 1
+  CLI_ARGUMENT_COUNT_WITH_BINARY_PATH = 3,
+  CLI_COMMAND_ARGUMENT_INDEX = 1,
+  CLI_BINARY_PATH_ARGUMENT_INDEX = 2
 };
 
-CliCommand cli_parse_command(
+CliOptions cli_parse_arguments(
     int argument_count,
     char *arguments[]
 )
 {
   if (argument_count == CLI_ARGUMENT_COUNT_WITHOUT_COMMAND)
   {
-    return CLI_COMMAND_RUN;
+    return (CliOptions){
+      .command = CLI_COMMAND_RUN_DEMO,
+      .binary_path = NULL
+    };
   }
 
-  if (argument_count != CLI_ARGUMENT_COUNT_WITH_COMMAND)
+  if (argument_count == CLI_ARGUMENT_COUNT_WITH_COMMAND)
   {
-    return CLI_COMMAND_INVALID;
+    const char *command =
+      arguments[CLI_COMMAND_ARGUMENT_INDEX];
+
+    if ((strcmp(command, "help") == 0) ||
+        (strcmp(command, "--help") == 0))
+    {
+      return (CliOptions){
+        .command = CLI_COMMAND_HELP,
+        .binary_path = NULL
+      };
+    }
+
+    return (CliOptions){
+      .command = CLI_COMMAND_INVALID,
+      .binary_path = NULL
+    };
   }
 
-  const char *command = arguments[CLI_COMMAND_ARGUMENT_INDEX];
-
-  if ((strcmp(command, "help") == 0) ||
-      (strcmp(command, "--help") == 0))
+  if (
+    (argument_count ==
+      CLI_ARGUMENT_COUNT_WITH_BINARY_PATH) &&
+    (strcmp(
+      arguments[CLI_COMMAND_ARGUMENT_INDEX],
+      "run"
+    ) == 0)
+  )
   {
-    return CLI_COMMAND_HELP;
+    return (CliOptions){
+      .command = CLI_COMMAND_RUN_BINARY,
+      .binary_path =
+        arguments[CLI_BINARY_PATH_ARGUMENT_INDEX]
+    };
   }
 
-  return CLI_COMMAND_INVALID;
+  return (CliOptions){
+    .command = CLI_COMMAND_INVALID,
+    .binary_path = NULL
+  };
 }
 
 void cli_print_help(void)
@@ -43,7 +75,8 @@ void cli_print_help(void)
   puts("");
 
   puts("Commands:");
-  puts("  make run        Build and run the demonstration program.");
+  puts("  make run        Build and run the built-in demonstration.");
+  puts("  make run-bin    Assemble and run programs/demo.asm.");
   puts("  make test       Build and run the test suite.");
   puts("  make assembler  Build the assembler executable.");
   puts("  make assemble   Run the assembler on programs/demo.asm.");
@@ -53,9 +86,10 @@ void cli_print_help(void)
   puts("");
 
   puts("Direct executable commands:");
-  puts("  ./build/vm8          Run the demonstration program.");
-  puts("  ./build/vm8 help     Display this help.");
-  puts("  ./build/vm8 --help   Display this help.");
+  puts("  ./build/vm8             Run the built-in demonstration.");
+  puts("  ./build/vm8 run <program.bin> Run a binary program.");
+  puts("  ./build/vm8 help        Display this help.");
+  puts("  ./build/vm8 --help      Display this help.");
   puts(
     "  ./build/vm8asm <input.asm> <output.bin>  "
     "Assemble source into raw binary."
@@ -201,12 +235,13 @@ void cli_print_help(void)
     (unsigned int)OPCODE_STORE_A_TO_MEMORY
   );
   puts("");
-  puts("Current simulator workflow:");
-  puts("  The demonstration bytecode is defined in src/program.c.");
-  puts("  Build and execute it with: make run");
+  puts("Simulator workflow:");
+  puts("  Run the built-in demonstration with: make run");
+  puts("  Assemble and run programs/demo.asm with: make run-bin");
+  puts("  Run another binary with: ./build/vm8 run <program.bin>");
   puts("");
 
-  puts("Current assembler workflow:");
+  puts("Assembler workflow:");
   puts("  Write assembly source in programs/demo.asm.");
   puts("  Build the assembler with: make assembler");
   puts("  Generate build/demo.bin with: make assemble");
