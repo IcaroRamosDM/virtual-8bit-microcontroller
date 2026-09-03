@@ -73,20 +73,6 @@ bool source_reader_read(
       return false;
     }
 
-    if (source_line_is_too_long(source, line))
-    {
-      fprintf(
-        stderr,
-        "%s:%zu: source line exceeds %d characters\n",
-        input_path,
-        *line_count,
-        SOURCE_READER_MAX_LINE_LENGTH
-      );
-      
-      (void)fclose(source);
-      return false;
-    }
-
     source_line_normalize(line);
 
     if (

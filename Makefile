@@ -17,6 +17,8 @@ SOURCE_LINE_TEST_TARGET := build/test_source_line
 SOURCE_READER_TEST_TARGET := build/test_source_reader
 SYMBOL_TABLE_TEST_TARGET := build/test_symbol_table
 FIRST_PASS_TEST_TARGET := build/test_first_pass
+BYTE_LITERAL_TEST_TARGET := build/test_byte_literal
+BYTE_OPERAND_TEST_TARGET := build/test_byte_operand
 TEST_TARGETS := \
 	$(CPU_TEST_TARGET) \
 	$(CLI_TEST_TARGET) \
@@ -24,7 +26,9 @@ TEST_TARGETS := \
 	$(SOURCE_LINE_TEST_TARGET) \
 	$(SOURCE_READER_TEST_TARGET) \
 	$(SYMBOL_TABLE_TEST_TARGET) \
-	$(FIRST_PASS_TEST_TARGET)
+	$(FIRST_PASS_TEST_TARGET) \
+	$(BYTE_LITERAL_TEST_TARGET) \
+	$(BYTE_OPERAND_TEST_TARGET)
 
 SOURCES := $(wildcard src/*.c)
 HEADERS := $(wildcard include/*.h)
@@ -37,6 +41,8 @@ SOURCE_LINE_TEST_SOURCES := assembler/source_line.c tests/test_source_line.c
 SOURCE_READER_TEST_SOURCES := assembler/source_line.c assembler/source_reader.c tests/test_source_reader.c
 SYMBOL_TABLE_TEST_SOURCES := assembler/symbol_table.c tests/test_symbol_table.c
 FIRST_PASS_TEST_SOURCES := assembler/first_pass.c assembler/symbol_table.c tests/test_first_pass.c
+BYTE_LITERAL_TEST_SOURCES := assembler/byte_literal.c tests/test_byte_literal.c
+BYTE_OPERAND_TEST_SOURCES := assembler/byte_literal.c assembler/byte_operand.c assembler/symbol_table.c tests/test_byte_operand.c
 
 .PHONY: all assembler assemble run test help clean
 
@@ -83,6 +89,14 @@ $(FIRST_PASS_TEST_TARGET): $(FIRST_PASS_TEST_SOURCES) $(ASSEMBLER_HEADERS) $(HEA
 	mkdir -p build
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(FIRST_PASS_TEST_SOURCES) -o $(FIRST_PASS_TEST_TARGET)
 
+$(BYTE_LITERAL_TEST_TARGET): $(BYTE_LITERAL_TEST_SOURCES) $(ASSEMBLER_HEADERS)
+	mkdir -p build
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(BYTE_LITERAL_TEST_SOURCES) -o $(BYTE_LITERAL_TEST_TARGET)
+
+$(BYTE_OPERAND_TEST_TARGET): $(BYTE_OPERAND_TEST_SOURCES) $(ASSEMBLER_HEADERS)
+	mkdir -p build
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(BYTE_OPERAND_TEST_SOURCES) -o $(BYTE_OPERAND_TEST_TARGET)
+
 run: $(TARGET)
 	./$(TARGET)
 
@@ -94,6 +108,8 @@ test: $(TEST_TARGETS)
 	./$(SOURCE_READER_TEST_TARGET)
 	./$(SYMBOL_TABLE_TEST_TARGET)
 	./$(FIRST_PASS_TEST_TARGET)
+	./$(BYTE_LITERAL_TEST_TARGET)
+	./$(BYTE_OPERAND_TEST_TARGET)
 
 help: $(TARGET)
 	./$(TARGET) help

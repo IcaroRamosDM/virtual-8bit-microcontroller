@@ -2,6 +2,11 @@
 
 A learning project that implements an 8-bit virtual microcontroller in C and executes programs written in a custom Assembly language.
 
+## Detailed documentation
+
+- [How the system works (English)](docs/HOW_IT_WORKS.md)
+- [How the system works (Brazilian Portuguese)](docs/HOW_IT_WORKS.pt-BR.md)
+
 ## Development rules
 
 - All repository content must be written in English.
@@ -27,7 +32,7 @@ The initial CPU model contains:
 - bounded program execution with explicit termination results;
 - an immutable bytecode-program descriptor that keeps its byte pointer and size together;
 - a dedicated module for the built-in demonstration bytecode;
-- an initial standalone assembler executable with validated arguments and bounded source-line reading;
+- a standalone assembler with normalized source reading, a symbol table, a first pass, and 8-bit literal and symbol resolution;
 - command-line parsing and built-in help for simulator commands and CPU instructions.
 
 Public headers use `#pragma once`. The memory size is derived from the complete 8-bit address space, and the implementation starts from a fully zero-initialized CPU state.
@@ -112,19 +117,19 @@ Display simulator and instruction help:
 make help
 ```
 
-Build the current assembler scaffold:
+Build the current assembler:
 
 ```bash
 make assembler
 ```
 
-Read an Assembly source file through the current interface:
+Build the assembler when necessary and analyze the demonstration source:
 
 ```bash
-./build/vm8asm programs/demo.asm build/demo.bin
+make assemble
 ```
 
-At the current milestone, `vm8asm` validates its arguments and reads bounded source lines. Instruction parsing and binary-output generation are not implemented yet, so this command does not create `build/demo.bin`.
+At the current milestone, `vm8asm` normalizes source statements, builds a symbol table, calculates instruction addresses and program size in its first pass, parses 8-bit literals, and resolves literal or symbolic byte operands. Second-pass instruction encoding and binary-output generation are not implemented yet, so this command does not create `build/demo.bin`.
 
 Remove generated files:
 
