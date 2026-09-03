@@ -25,6 +25,16 @@ uint8_t cpu_fetch_byte(Cpu *cpu)
   return value;
 }
 
+static void cpu_store_alu_flags(
+    Cpu *cpu,
+    uint8_t result,
+    bool carry_flag
+)
+{
+  cpu->zero_flag = (result == 0);
+  cpu->carry_flag = carry_flag;
+}
+
 static void cpu_store_alu_result(
     Cpu *cpu,
     uint8_t result,
@@ -32,8 +42,25 @@ static void cpu_store_alu_result(
 )
 {
   cpu->register_a = result;
-  cpu->zero_flag = (result == 0);
-  cpu->carry_flag = carry_flag;
+
+  cpu_store_alu_flags(
+    cpu,
+    result,
+    carry_flag
+  );
+}
+
+static void cpu_jump_if(
+    Cpu *cpu,
+    bool condition
+)
+{
+  const uint8_t target_address = cpu_fetch_byte(cpu);
+
+  if (condition)
+  {
+    cpu->program_counter = target_address;
+  }
 }
 
 CpuStepResult cpu_step(Cpu *cpu)
@@ -158,17 +185,43 @@ CpuStepResult cpu_step(Cpu *cpu)
       return CPU_STEP_OK;
     }
 
-    case OPCODE_JUMP_IF_ZERO:
+    case OPCODE_COMPARE_A_B:
     {
-      const uint8_t target_address = cpu_fetch_byte(cpu);
+      const uint8_t difference =
+        (uint8_t)(cpu->register_a - cpu->register_b);
 
-      if (cpu->zero_flag)
-      {
-        cpu->program_counter = target_address;
-      }
+      const bool borrow =
+        cpu->register_a < cpu->register_b;
+
+      cpu_store_alu_flags(
+        cpu,
+        difference,
+        borrow
+      );
 
       return CPU_STEP_OK;
     }
+
+    case OPCODE_JUMP_IF_ZERO:
+      cpu_jump_if(
+        cpu,
+        cpu->zero_flag
+      );
+      return CPU_STEP_OK;
+
+    case OPCODE_JUMP_IF_NOT_ZERO:
+      cpu_jump_if(
+        cpu,
+        !cpu->zero_flag
+      );
+      return CPU_STEP_OK;
+
+    case OPCODE_JUMP_IF_CARRY:
+      cpu_jump_if(
+        cpu,
+        cpu->carry_flag
+      );
+      return CPU_STEP_OK;
 
     case OPCODE_JUMP:
     {

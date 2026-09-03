@@ -173,7 +173,10 @@ The CPU does not need a 16-bit register to execute this instruction. It first fe
 | `NOT A` | `25` | 1 | Inverts every bit in `A`; updates `Z`; clears `C`. |
 | `SHL A` | `26` | 1 | Shifts `A` left with zero fill; updates `Z`; stores the original bit 7 in `C`. |
 | `SHR A` | `27` | 1 | Shifts `A` right with zero fill; updates `Z`; stores the original bit 0 in `C`. |
+| `CMP A, B` | `28` | 1 | Compares unsigned `A` with `B`; updates `Z` and borrow; preserves both registers. |
 | `JZ addr8` | `30 addr8` | 2 | Loads `PC` with the absolute address when `Z` is set. |
+| `JNZ addr8` | `32 addr8` | 2 | Loads `PC` with the absolute address when `Z` is clear. |
+| `JC addr8` | `33 addr8` | 2 | Loads `PC` with the absolute address when `C` is set. |
 | `JMP addr8` | `31 addr8` | 2 | Always loads `PC` with the absolute address. |
 | `LDA addr8` | `40 addr8` | 2 | Loads `A` from the given memory address; updates `Z`; preserves `C`. |
 | `STA addr8` | `41 addr8` | 2 | Stores `A` at the given memory address; preserves the registers and flags. |
@@ -231,9 +234,10 @@ The zero flag is set when a flag-updating instruction produces zero. It is curre
 - `NOT A`;
 - `SHL A`;
 - `SHR A`;
+- `CMP A, B`;
 - `LDA addr8`.
 
-`JZ` reads the zero flag but does not modify it.
+`JZ` and `JNZ` read the zero flag but do not modify it.
 
 ### Carry flag
 
@@ -241,6 +245,7 @@ The carry flag records information that does not fit in the 8-bit result:
 
 - after `ADD`, it reports carry-out beyond `0xFF`;
 - after `SUB`, it reports that a borrow was required because the original `A` was smaller than `B`;
+- after `CMP`, it reports that the unsigned value in `A` is smaller than the value in `B`;
 - after `SHL`, it receives the original bit 7;
 - after `SHR`, it receives the original bit 0;
 - after `AND`, `OR`, `XOR`, or `NOT`, it is cleared.
@@ -261,6 +266,59 @@ For subtraction:
 zero         = clear
 carry/borrow = set
 ```
+
+`JC` reads the carry flag but does not modify it.
+
+## Comparison and conditional branches
+
+`CMP A, B` behaves like an unsigned subtraction used only for decision-making. Internally, the CPU calculates the wrapped 8-bit value of `A - B` and the associated borrow, uses them to update `Z` and `C`, and then discards the subtraction result. Registers `A` and `B` remain unchanged.
+
+| Relationship | `Z` after `CMP` | `C` after `CMP` | Meaning |
+| --- | ---: | ---: | --- |
+| `A == B` | 1 | 0 | The values are equal. |
+| `A > B` | 0 | 0 | Unsigned `A` is greater than `B`. |
+| `A < B` | 0 | 1 | The subtraction would need a borrow. |
+
+This makes the conditional branches useful immediately after a comparison:
+
+- `JZ` branches when the compared values are equal;
+- `JNZ` branches when the compared values are different;
+- `JC` branches when unsigned `A` is less than `B`.
+
+For example, equality can be tested without destroying either operand:
+
+```asm
+LDI A, 0x2A
+LDI B, 0x2A
+CMP A, B
+JZ equal_values
+```
+
+`JNZ` can also repeat a loop while an arithmetic result remains nonzero:
+
+```asm
+LDI A, 3
+LDI B, 1
+
+loop:
+  SUB A, B
+  JNZ loop
+
+HALT
+```
+
+The loop executes `SUB` three times. The first two results leave `Z` clear, so `JNZ` returns to `loop`. The third result is zero, so execution continues to `HALT`.
+
+An unsigned less-than decision uses the borrow recorded in `C`:
+
+```asm
+LDI A, 0x10
+LDI B, 0x20
+CMP A, B
+JC a_is_lower
+```
+
+Every conditional jump occupies two bytes and always fetches its address operand. If the condition is true, the target replaces `PC`; otherwise `PC` already points to the following instruction. The jump itself preserves both registers and both flags. Because several instructions can update carry, the meaning of `JC` depends on the most recent flag-producing instruction; its less-than interpretation specifically follows `CMP`.
 
 ## Program counter and cycle counter
 
@@ -398,7 +456,7 @@ missing     -> undefined-symbol error
 
 The instruction parser separates each normalized statement into a mnemonic and as many as two operands. It validates structural syntax such as whitespace, commas, missing operands, and excessive operands, but does not decide whether a mnemonic or register is supported.
 
-The instruction encoder then validates the meaning of the parsed fields. It recognizes the current instruction set, checks operand counts and register order, resolves byte literals or symbols, and emits a one-byte or two-byte encoded instruction. `AND`, `OR`, and `XOR` require the exact register pair `A, B`, while `NOT`, `SHL`, and `SHR` require the single register `A`. Failed encoding leaves the caller's output object unchanged.
+The instruction encoder then validates the meaning of the parsed fields. It recognizes the current instruction set, checks operand counts and register order, resolves byte literals or symbols, and emits a one-byte or two-byte encoded instruction. `AND`, `OR`, `XOR`, and `CMP` require the exact register pair `A, B`, while `NOT`, `SHL`, and `SHR` require the single register `A`. `JZ`, `JNZ`, and `JC` accept one literal or symbolic byte address. Failed encoding leaves the caller's output object unchanged.
 
 The second pass reads the normalized statements again, ignores label declarations, runs the parser and encoder, and appends each successful encoding to a bounded program buffer. It reports diagnostics with the original file path and line number, counts encoded instructions, and rejects any write that would exceed the supplied output capacity.
 
@@ -728,6 +786,7 @@ make inspect
 - Opcode definitions belong to the instruction-set module rather than to the complete CPU interface.
 - The metadata lookup accepts a raw byte and returns null when that byte is not a supported opcode.
 - Logical operations process corresponding bits independently, while shifts preserve the discarded bit in the carry flag.
+- `CMP` updates zero and borrow without changing its operands; conditional jumps inspect flags without changing them.
 - Labels and mnemonics belong to the assembler, not to the CPU.
 - A label consumes no program memory; it names the current byte address.
 - The first pass discovers addresses, and the second pass replaces symbolic references with numeric bytes.

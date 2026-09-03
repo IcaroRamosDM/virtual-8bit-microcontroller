@@ -340,12 +340,38 @@ InstructionEncodeResult instruction_encode(
       &candidate
     );
   }
+  else if (strcmp(instruction->mnemonic, "CMP") == 0)
+  {
+    result = encode_register_pair(
+      instruction,
+      OPCODE_COMPARE_A_B,
+      &candidate
+    );
+  }
   else if (strcmp(instruction->mnemonic, "JZ") == 0)
   {
     result = encode_byte_operand_instruction(
       instruction,
       symbols,
       OPCODE_JUMP_IF_ZERO,
+      &candidate
+    );
+  }
+  else if (strcmp(instruction->mnemonic, "JNZ") == 0)
+  {
+    result = encode_byte_operand_instruction(
+      instruction,
+      symbols,
+      OPCODE_JUMP_IF_NOT_ZERO,
+      &candidate
+    );
+  }
+  else if (strcmp(instruction->mnemonic, "JC") == 0)
+  {
+    result = encode_byte_operand_instruction(
+      instruction,
+      symbols,
+      OPCODE_JUMP_IF_CARRY,
       &candidate
     );
   }

@@ -173,7 +173,10 @@ A CPU não precisa de um registrador de 16 bits para executar essa instrução. 
 | `NOT A` | `25` | 1 | Inverte todos os bits de `A`; atualiza `Z`; limpa `C`. |
 | `SHL A` | `26` | 1 | Desloca `A` para a esquerda preenchendo com zero; atualiza `Z`; armazena o bit 7 original em `C`. |
 | `SHR A` | `27` | 1 | Desloca `A` para a direita preenchendo com zero; atualiza `Z`; armazena o bit 0 original em `C`. |
+| `CMP A, B` | `28` | 1 | Compara `A` e `B` sem sinal; atualiza `Z` e o empréstimo; preserva ambos os registradores. |
 | `JZ addr8` | `30 addr8` | 2 | Carrega `PC` com o endereço absoluto quando `Z` está ativa. |
+| `JNZ addr8` | `32 addr8` | 2 | Carrega `PC` com o endereço absoluto quando `Z` está inativa. |
+| `JC addr8` | `33 addr8` | 2 | Carrega `PC` com o endereço absoluto quando `C` está ativa. |
 | `JMP addr8` | `31 addr8` | 2 | Sempre carrega `PC` com o endereço absoluto. |
 | `LDA addr8` | `40 addr8` | 2 | Carrega `A` a partir do endereço de memória; atualiza `Z`; preserva `C`. |
 | `STA addr8` | `41 addr8` | 2 | Armazena `A` no endereço de memória; preserva registradores e flags. |
@@ -231,9 +234,10 @@ A flag zero é ativada quando uma instrução que atualiza flags produz zero. At
 - `NOT A`;
 - `SHL A`;
 - `SHR A`;
+- `CMP A, B`;
 - `LDA addr8`.
 
-`JZ` lê a flag zero, mas não a modifica.
+`JZ` e `JNZ` leem a flag zero, mas não a modificam.
 
 ### Flag carry
 
@@ -241,6 +245,7 @@ A flag carry registra informações que não cabem no resultado de 8 bits:
 
 - após `ADD`, indica carry de saída além de `0xFF`;
 - após `SUB`, indica que foi necessário um empréstimo porque o valor original de `A` era menor que `B`;
+- após `CMP`, indica que o valor sem sinal em `A` é menor que o valor em `B`;
 - após `SHL`, recebe o bit 7 original;
 - após `SHR`, recebe o bit 0 original;
 - após `AND`, `OR`, `XOR` ou `NOT`, é limpa.
@@ -261,6 +266,59 @@ Na subtração:
 zero          = inativa
 carry/borrow  = ativa
 ```
+
+`JC` lê a flag carry, mas não a modifica.
+
+## Comparação e saltos condicionais
+
+`CMP A, B` se comporta como uma subtração sem sinal usada somente para tomar decisões. Internamente, a CPU calcula o valor de 8 bits com retorno circular de `A - B` e o empréstimo correspondente, utiliza-os para atualizar `Z` e `C` e então descarta o resultado da subtração. Os registradores `A` e `B` permanecem inalterados.
+
+| Relação | `Z` após `CMP` | `C` após `CMP` | Significado |
+| --- | ---: | ---: | --- |
+| `A == B` | 1 | 0 | Os valores são iguais. |
+| `A > B` | 0 | 0 | `A` sem sinal é maior que `B`. |
+| `A < B` | 0 | 1 | A subtração exigiria um empréstimo. |
+
+Isso torna os saltos condicionais imediatamente úteis depois de uma comparação:
+
+- `JZ` salta quando os valores comparados são iguais;
+- `JNZ` salta quando os valores comparados são diferentes;
+- `JC` salta quando `A` sem sinal é menor que `B`.
+
+Por exemplo, a igualdade pode ser testada sem destruir nenhum dos operandos:
+
+```asm
+LDI A, 0x2A
+LDI B, 0x2A
+CMP A, B
+JZ equal_values
+```
+
+`JNZ` também pode repetir um laço enquanto um resultado aritmético permanecer diferente de zero:
+
+```asm
+LDI A, 3
+LDI B, 1
+
+loop:
+  SUB A, B
+  JNZ loop
+
+HALT
+```
+
+O laço executa `SUB` três vezes. Os dois primeiros resultados mantêm `Z` inativa, portanto `JNZ` retorna para `loop`. O terceiro resultado é zero, então a execução continua até `HALT`.
+
+Uma decisão de menor que sem sinal utiliza o empréstimo registrado em `C`:
+
+```asm
+LDI A, 0x10
+LDI B, 0x20
+CMP A, B
+JC a_is_lower
+```
+
+Todo salto condicional ocupa dois bytes e sempre busca seu operando de endereço. Se a condição for verdadeira, o destino substitui `PC`; caso contrário, `PC` já aponta para a instrução seguinte. O próprio salto preserva ambos os registradores e ambas as flags. Como várias instruções podem atualizar carry, o significado de `JC` depende da instrução mais recente que produziu flags; sua interpretação de menor que ocorre especificamente após `CMP`.
 
 ## Contador de programa e contador de ciclos
 
@@ -398,7 +456,7 @@ missing     -> erro de símbolo indefinido
 
 O parser de instruções separa cada statement normalizado em um mnemônico e até dois operandos. Ele valida a estrutura sintática, como espaços, vírgulas, operandos ausentes e operandos em excesso, mas não decide se um mnemônico ou registrador é suportado.
 
-O codificador de instruções então valida o significado dos campos interpretados. Ele reconhece o conjunto atual de instruções, verifica a quantidade de operandos e a ordem dos registradores, resolve literais de byte ou símbolos e emite uma instrução codificada de um ou dois bytes. `AND`, `OR` e `XOR` exigem o par de registradores exato `A, B`, enquanto `NOT`, `SHL` e `SHR` exigem somente o registrador `A`. Uma falha de codificação deixa inalterado o objeto de saída fornecido pelo chamador.
+O codificador de instruções então valida o significado dos campos interpretados. Ele reconhece o conjunto atual de instruções, verifica a quantidade de operandos e a ordem dos registradores, resolve literais de byte ou símbolos e emite uma instrução codificada de um ou dois bytes. `AND`, `OR`, `XOR` e `CMP` exigem o par de registradores exato `A, B`, enquanto `NOT`, `SHL` e `SHR` exigem somente o registrador `A`. `JZ`, `JNZ` e `JC` aceitam um endereço de byte literal ou simbólico. Uma falha de codificação deixa inalterado o objeto de saída fornecido pelo chamador.
 
 A segunda passagem lê novamente os statements normalizados, ignora as declarações de labels, executa o parser e o codificador e acrescenta cada codificação bem-sucedida a um buffer limitado do programa. Ela informa diagnósticos com o caminho original do arquivo e o número da linha, conta as instruções codificadas e rejeita qualquer gravação que ultrapassaria a capacidade de saída fornecida.
 
@@ -728,6 +786,7 @@ make inspect
 - As definições dos opcodes pertencem ao módulo do conjunto de instruções, e não à interface completa da CPU.
 - A busca nos metadados recebe um byte bruto e retorna nulo quando esse byte não é um opcode suportado.
 - Operações lógicas processam independentemente os bits correspondentes, enquanto os deslocamentos preservam na flag carry o bit descartado.
+- `CMP` atualiza zero e empréstimo sem alterar seus operandos; saltos condicionais consultam as flags sem modificá-las.
 - Labels e mnemônicos pertencem ao montador, e não à CPU.
 - Um label não consome memória do programa; ele nomeia o endereço de byte atual.
 - A primeira passagem descobre os endereços, e a segunda substitui referências simbólicas por bytes numéricos.

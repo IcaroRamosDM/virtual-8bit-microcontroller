@@ -127,8 +127,23 @@ static void test_encodes_supported_instructions(
       ONE_BYTE_INSTRUCTION_SIZE
     },
     {
+      "CMP A, B",
+      {(uint8_t)OPCODE_COMPARE_A_B, UNUSED_BYTE},
+      ONE_BYTE_INSTRUCTION_SIZE
+    },
+    {
       "JZ memory_demo",
       {(uint8_t)OPCODE_JUMP_IF_ZERO, MEMORY_DEMO_ADDRESS},
+      TWO_BYTE_INSTRUCTION_SIZE
+    },
+    {
+      "JNZ start",
+      {(uint8_t)OPCODE_JUMP_IF_NOT_ZERO, START_ADDRESS},
+      TWO_BYTE_INSTRUCTION_SIZE
+    },
+    {
+      "JC memory_demo",
+      {(uint8_t)OPCODE_JUMP_IF_CARRY, MEMORY_DEMO_ADDRESS},
       TWO_BYTE_INSTRUCTION_SIZE
     },
     {
@@ -233,6 +248,18 @@ static void test_reports_semantic_errors(
     {
       "NOT",
       INSTRUCTION_ENCODE_WRONG_OPERAND_COUNT
+    },
+    {
+      "CMP A, A",
+      INSTRUCTION_ENCODE_INVALID_REGISTER
+    },
+    {
+      "JNZ",
+      INSTRUCTION_ENCODE_WRONG_OPERAND_COUNT
+    },
+    {
+      "JC missing",
+      INSTRUCTION_ENCODE_UNDEFINED_SYMBOL
     },
     {
       "JMP 256",

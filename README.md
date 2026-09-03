@@ -61,15 +61,18 @@ The `instruction_set` module owns the opcode definitions and their mnemonic look
 | `NOT A` | `0x25` | Inverts every bit in `A`, updates zero, and clears carry. |
 | `SHL A` | `0x26` | Shifts `A` left with zero fill, updates zero, and moves the original bit 7 into carry. |
 | `SHR A` | `0x27` | Shifts `A` right with zero fill, updates zero, and moves the original bit 0 into carry. |
+| `CMP A, B` | `0x28` | Compares unsigned `A` with `B`, updates zero and borrow, and leaves both registers unchanged. |
 | `JZ addr8` | `0x30` | Jumps to an absolute 8-bit address when the zero flag is set; otherwise execution continues after its operand. |
+| `JNZ addr8` | `0x32` | Jumps to an absolute 8-bit address when the zero flag is clear. |
+| `JC addr8` | `0x33` | Jumps to an absolute 8-bit address when the carry flag is set. |
 | `JMP addr8` | `0x31` | Jumps unconditionally to an absolute 8-bit address without changing registers or flags. |
 | `LDA addr8` | `0x40` | Loads register `A` from an absolute memory address, updates the zero flag, and preserves the carry flag. |
 | `STA addr8` | `0x41` | Stores register `A` at an absolute memory address without changing registers or flags. |
 
 An invalid opcode halts execution and produces a distinct step result.
-The two `LDI` instructions, `JZ`, `JMP`, `LDA`, and `STA` occupy two bytes each: the opcode followed by an immediate value, target address, or data address. Arithmetic, logical, and shift instructions occupy one byte because their required register operands are implied by the opcode.
+The two `LDI` instructions, `JZ`, `JNZ`, `JC`, `JMP`, `LDA`, and `STA` occupy two bytes each: the opcode followed by an immediate value, target address, or data address. Arithmetic, comparison, logical, and shift instructions occupy one byte because their required register operands are implied by the opcode.
 
-The carry flag reports unsigned carry for addition, unsigned borrow for subtraction, and the bit shifted out by `SHL` or `SHR`. The four non-shift logical instructions clear carry. `JZ` always fetches its address operand; a taken branch replaces the program counter with that address, while a non-taken branch continues at the following byte. `JMP` always replaces the program counter with its absolute address operand. `LDA` reads memory into `A` and updates zero, while `STA` writes `A` to memory without changing flags.
+The carry flag reports unsigned carry for addition, unsigned borrow for subtraction and comparison, and the bit shifted out by `SHL` or `SHR`. The four non-shift logical instructions clear carry. `CMP` sets zero when `A == B` and carry when unsigned `A < B`, without changing either register. `JZ`, `JNZ`, and `JC` test the corresponding flag while preserving CPU state other than the program counter and cycle count. `JMP` always replaces the program counter with its absolute address operand. `LDA` reads memory into `A` and updates zero, while `STA` writes `A` to memory without changing flags.
 
 ## Current execution flow
 
@@ -162,7 +165,7 @@ make test
 ```
 
 The test target assembles `programs/demo.asm` and then builds and runs independent tests for the CPU, CPU observer, instruction-set lookup, trace formatter, CLI, built-in program, binary reader, assembled-program execution, source normalization and reading, symbol table, first pass, byte parsing and resolution, instruction parser and encoder, second pass, and binary writer.
-The CPU tests cover arithmetic, logical operations, unary bit inversion, shifted-out carry bits, zero results, and a `JMP`-to-zero loop that verifies bounded execution stops at the configured instruction limit.
+The CPU tests cover arithmetic, logical operations, unary bit inversion, shifted-out carry bits, nondestructive comparison, every taken and non-taken conditional branch, zero results, and a `JMP`-to-zero loop that verifies bounded execution stops at the configured instruction limit.
 The program-integration test loads and executes the built-in demonstration, then verifies its complete final CPU state and the value stored at data address `0x80`.
 The assembled-program integration test reads `build/demo.bin`, loads it into CPU memory, executes it, and verifies the same final state. This confirms that the human-readable Assembly source and built-in byte array describe equivalent programs.
 The Bash process test launches `build/vm8` exactly as a user would and verifies normal external-binary execution, both trace modes, and the expected failure behavior for a missing file, an empty file, an oversized file, and an invalid opcode.

@@ -29,7 +29,10 @@ static void test_finds_every_instruction(void)
     {OPCODE_NOT_A, "NOT"},
     {OPCODE_SHIFT_LEFT_A, "SHL"},
     {OPCODE_SHIFT_RIGHT_A, "SHR"},
+    {OPCODE_COMPARE_A_B, "CMP"},
     {OPCODE_JUMP_IF_ZERO, "JZ"},
+    {OPCODE_JUMP_IF_NOT_ZERO, "JNZ"},
+    {OPCODE_JUMP_IF_CARRY, "JC"},
     {OPCODE_JUMP, "JMP"},
     {OPCODE_LOAD_A_FROM_MEMORY, "LDA"},
     {OPCODE_STORE_A_TO_MEMORY, "STA"}

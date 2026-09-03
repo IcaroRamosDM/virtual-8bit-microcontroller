@@ -792,68 +792,160 @@ static void test_cpu_step_executes_bitwise_operations(void)
   }
 }
 
-static void test_cpu_step_executes_jump_if_zero(void)
+static void test_cpu_step_executes_compare_a_b(void)
 {
+  typedef struct CompareTestCase
+  {
+    uint8_t register_a;
+    uint8_t register_b;
+    bool expected_zero_flag;
+    bool expected_carry_flag;
+  } CompareTestCase;
+
+  static const CompareTestCase test_cases[] =
+  {
+    {
+      UINT8_C(0x5A),
+      UINT8_C(0x5A),
+      true,
+      false
+    },
+    {
+      UINT8_C(0x20),
+      UINT8_C(0x10),
+      false,
+      false
+    },
+    {
+      UINT8_C(0x10),
+      UINT8_C(0x20),
+      false,
+      true
+    }
+  };
+
+  const size_t test_case_count =
+    sizeof test_cases / sizeof test_cases[0];
+  const uint8_t instruction_address = 0;
+  const uint8_t expected_program_counter =
+    instruction_address + 1;
+  const uint64_t expected_cycle_count = UINT64_C(1);
+
+  for (
+    size_t index = 0;
+    index < test_case_count;
+    ++index
+  )
+  {
+    const CompareTestCase *const test_case =
+      &test_cases[index];
+
+    Cpu cpu =
+    {
+      .register_a = test_case->register_a,
+      .register_b = test_case->register_b,
+      .zero_flag = !test_case->expected_zero_flag,
+      .carry_flag = !test_case->expected_carry_flag
+    };
+
+    cpu_write_memory(
+      &cpu,
+      instruction_address,
+      (uint8_t)OPCODE_COMPARE_A_B
+    );
+
+    const CpuStepResult result = cpu_step(&cpu);
+
+    assert(result == CPU_STEP_OK);
+    assert(cpu.register_a == test_case->register_a);
+    assert(cpu.register_b == test_case->register_b);
+    assert(cpu.zero_flag == test_case->expected_zero_flag);
+    assert(
+      cpu.carry_flag ==
+      test_case->expected_carry_flag
+    );
+    assert(cpu.program_counter == expected_program_counter);
+    assert(cpu.cycle_count == expected_cycle_count);
+    assert(!cpu.halted);
+  }
+}
+
+static void test_cpu_step_executes_conditional_branches(void)
+{
+  typedef struct ConditionalBranchTestCase
+  {
+    Opcode opcode;
+    bool zero_flag;
+    bool carry_flag;
+    bool expected_taken;
+  } ConditionalBranchTestCase;
+
+  static const ConditionalBranchTestCase test_cases[] =
+  {
+    {OPCODE_JUMP_IF_ZERO, true, false, true},
+    {OPCODE_JUMP_IF_ZERO, false, true, false},
+    {OPCODE_JUMP_IF_NOT_ZERO, false, false, true},
+    {OPCODE_JUMP_IF_NOT_ZERO, true, true, false},
+    {OPCODE_JUMP_IF_CARRY, true, true, true},
+    {OPCODE_JUMP_IF_CARRY, false, true, true},
+    {OPCODE_JUMP_IF_CARRY, true, false, false},
+    {OPCODE_JUMP_IF_CARRY, false, false, false}
+  };
+
+  const size_t test_case_count =
+    sizeof test_cases / sizeof test_cases[0];
   const uint8_t target_address = UINT8_C(0x80);
   const uint8_t expected_register_a = UINT8_C(0xA5);
   const uint8_t expected_register_b = UINT8_C(0x5A);
-  const uint8_t program[] = {
-    OPCODE_JUMP_IF_ZERO,
-    target_address
-  };
-  const size_t program_size =
-    sizeof program / sizeof program[0];
   const uint64_t expected_cycle_count = UINT64_C(1);
 
-  Cpu taken_cpu = {
-    .register_a = expected_register_a,
-    .register_b = expected_register_b,
-    .zero_flag = true,
-    .carry_flag = true
-  };
-  Cpu not_taken_cpu = {
-    .register_a = expected_register_a,
-    .register_b = expected_register_b,
-    .zero_flag = false,
-    .carry_flag = true
-  };
+  for (
+    size_t index = 0;
+    index < test_case_count;
+    ++index
+  )
+  {
+    const ConditionalBranchTestCase *const test_case =
+      &test_cases[index];
+    const uint8_t program[] =
+    {
+      (uint8_t)test_case->opcode,
+      target_address
+    };
+    const size_t program_size =
+      sizeof program / sizeof program[0];
+    const uint8_t expected_program_counter =
+      test_case->expected_taken
+        ? target_address
+        : (uint8_t)program_size;
 
-  const bool taken_program_loaded = cpu_load_program(
-    &taken_cpu,
-    program,
-    program_size
-  );
-  const bool not_taken_program_loaded = cpu_load_program(
-    &not_taken_cpu,
-    program,
-    program_size
-  );
+    Cpu cpu =
+    {
+      .register_a = expected_register_a,
+      .register_b = expected_register_b,
+      .zero_flag = test_case->zero_flag,
+      .carry_flag = test_case->carry_flag
+    };
 
-  assert(taken_program_loaded);
-  assert(not_taken_program_loaded);
+    const bool program_loaded = cpu_load_program(
+      &cpu,
+      program,
+      program_size
+    );
 
-  const CpuStepResult taken_result = cpu_step(&taken_cpu);
-  const CpuStepResult not_taken_result = cpu_step(&not_taken_cpu);
+    assert(program_loaded);
 
-  assert(taken_result == CPU_STEP_OK);
-  assert(taken_cpu.program_counter == target_address);
-  assert(taken_cpu.cycle_count == expected_cycle_count);
-  assert(taken_cpu.register_a == expected_register_a);
-  assert(taken_cpu.register_b == expected_register_b);
-  assert(taken_cpu.zero_flag);
-  assert(taken_cpu.carry_flag);
-  assert(!taken_cpu.halted);
+    const CpuStepResult result = cpu_step(&cpu);
 
-  assert(not_taken_result == CPU_STEP_OK);
-  assert(
-    not_taken_cpu.program_counter == (uint8_t)program_size
-  );
-  assert(not_taken_cpu.cycle_count == expected_cycle_count);
-  assert(not_taken_cpu.register_a == expected_register_a);
-  assert(not_taken_cpu.register_b == expected_register_b);
-  assert(!not_taken_cpu.zero_flag);
-  assert(not_taken_cpu.carry_flag);
-  assert(!not_taken_cpu.halted);
+    assert(result == CPU_STEP_OK);
+    assert(cpu.program_counter == expected_program_counter);
+    assert(cpu.cycle_count == expected_cycle_count);
+    assert(cpu.register_a == expected_register_a);
+    assert(cpu.register_b == expected_register_b);
+    assert(cpu.zero_flag == test_case->zero_flag);
+    assert(cpu.carry_flag == test_case->carry_flag);
+    assert(!cpu.halted);
+  }
 }
 
 static void test_cpu_step_executes_jump(void)
@@ -1040,7 +1132,8 @@ int main(void)
   test_cpu_step_executes_add_a_b();
   test_cpu_step_executes_sub_a_b();
   test_cpu_step_executes_bitwise_operations();
-  test_cpu_step_executes_jump_if_zero();
+  test_cpu_step_executes_compare_a_b();
+  test_cpu_step_executes_conditional_branches();
   test_cpu_step_executes_jump();
   test_cpu_step_executes_load_a_from_memory();
   test_cpu_step_executes_store_a_to_memory();

@@ -287,6 +287,21 @@ void cli_print_help(void)
   puts("");
 
   printf(
+    "  CMP A, B        Opcode: 0x%02X | Size: 1 byte\n",
+    (unsigned int)OPCODE_COMPARE_A_B
+  );
+  puts("    Effect: Z <- (A == B); C <- (A < B); A and B unchanged.");
+  puts("    Explanation: Compares unsigned A with B as if calculating A - B.");
+  puts("    The subtraction result is discarded.");
+  puts("    Flags: Z reports equality; C reports an unsigned borrow.");
+  puts("    Assembly example: CMP A, B");
+  printf(
+    "    Encoding: 0x%02X\n",
+    (unsigned int)OPCODE_COMPARE_A_B
+  );
+  puts("");
+
+  printf(
     "  JZ addr8        Opcode: 0x%02X | Size: 2 bytes\n",
     (unsigned int)OPCODE_JUMP_IF_ZERO
   );
@@ -297,6 +312,35 @@ void cli_print_help(void)
   printf(
     "    Encoding example: 0x%02X 0x80\n",
     (unsigned int)OPCODE_JUMP_IF_ZERO
+  );
+  puts("");
+
+  printf(
+    "  JNZ addr8       Opcode: 0x%02X | Size: 2 bytes\n",
+    (unsigned int)OPCODE_JUMP_IF_NOT_ZERO
+  );
+  puts("    Effect: PC <- addr8 if Z == 0; otherwise execution continues.");
+  puts("    Explanation: Jumps to an absolute address when Z is clear.");
+  puts("    Registers and flags are unchanged.");
+  puts("    Assembly example: JNZ 0x80");
+  printf(
+    "    Encoding example: 0x%02X 0x80\n",
+    (unsigned int)OPCODE_JUMP_IF_NOT_ZERO
+  );
+  puts("");
+
+  printf(
+    "  JC addr8        Opcode: 0x%02X | Size: 2 bytes\n",
+    (unsigned int)OPCODE_JUMP_IF_CARRY
+  );
+  puts("    Effect: PC <- addr8 if C == 1; otherwise execution continues.");
+  puts("    Explanation: Jumps to an absolute address when C is set.");
+  puts("    After CMP, this means that unsigned A is less than B.");
+  puts("    Registers and flags are unchanged.");
+  puts("    Assembly example: JC 0x80");
+  printf(
+    "    Encoding example: 0x%02X 0x80\n",
+    (unsigned int)OPCODE_JUMP_IF_CARRY
   );
   puts("");
 
