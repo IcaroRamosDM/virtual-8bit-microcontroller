@@ -12,6 +12,8 @@ ASSEMBLER_DEMO_SOURCE := programs/demo.asm
 ASSEMBLER_DEMO_OUTPUT := build/demo.bin
 PROCESS_TEST_SCRIPT := tests/test_vm8_process.sh
 CPU_TEST_TARGET := build/test_cpu
+CPU_OBSERVER_TEST_TARGET := build/test_cpu_observer
+CPU_TRACE_TEST_TARGET := build/test_cpu_trace
 CLI_TEST_TARGET := build/test_cli
 PROGRAM_TEST_TARGET := build/test_program
 BINARY_READER_TEST_TARGET := build/test_binary_reader
@@ -28,6 +30,8 @@ SECOND_PASS_TEST_TARGET := build/test_second_pass
 BINARY_WRITER_TEST_TARGET := build/test_binary_writer
 TEST_TARGETS := \
 	$(CPU_TEST_TARGET) \
+	$(CPU_OBSERVER_TEST_TARGET) \
+	$(CPU_TRACE_TEST_TARGET) \
 	$(CLI_TEST_TARGET) \
 	$(PROGRAM_TEST_TARGET) \
 	$(BINARY_READER_TEST_TARGET) \
@@ -48,6 +52,8 @@ HEADERS := $(wildcard include/*.h)
 ASSEMBLER_SOURCES := $(wildcard assembler/*.c)
 ASSEMBLER_HEADERS := $(wildcard assembler/*.h)
 CPU_TEST_SOURCES := src/cpu.c tests/test_cpu.c
+CPU_OBSERVER_TEST_SOURCES := src/cpu.c tests/test_cpu_observer.c
+CPU_TRACE_TEST_SOURCES := src/cpu_trace.c tests/test_cpu_trace.c
 CLI_TEST_SOURCES := src/cli.c tests/test_cli.c
 PROGRAM_TEST_SOURCES := src/cpu.c src/program.c tests/test_program.c
 BINARY_READER_TEST_SOURCES := src/binary_reader.c tests/test_binary_reader.c
@@ -63,7 +69,7 @@ INSTRUCTION_ENCODER_TEST_SOURCES := assembler/byte_literal.c assembler/byte_oper
 SECOND_PASS_TEST_SOURCES := assembler/byte_literal.c assembler/byte_operand.c assembler/instruction_encoder.c assembler/instruction_parser.c assembler/second_pass.c assembler/symbol_table.c tests/test_second_pass.c
 BINARY_WRITER_TEST_SOURCES := assembler/binary_writer.c tests/test_binary_writer.c
 
-.PHONY: all assembler assemble inspect run run-bin test help clean
+.PHONY: all assembler assemble inspect run run-bin trace trace-bin test help clean
 
 all: $(TARGET)
 
@@ -87,6 +93,14 @@ $(ASSEMBLER_TARGET): $(ASSEMBLER_SOURCES) $(ASSEMBLER_HEADERS) $(HEADERS)
 $(CPU_TEST_TARGET): $(CPU_TEST_SOURCES) $(HEADERS)
 	mkdir -p build
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(CPU_TEST_SOURCES) -o $(CPU_TEST_TARGET)
+
+$(CPU_OBSERVER_TEST_TARGET): $(CPU_OBSERVER_TEST_SOURCES) $(HEADERS)
+	mkdir -p build
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(CPU_OBSERVER_TEST_SOURCES) -o $(CPU_OBSERVER_TEST_TARGET)
+
+$(CPU_TRACE_TEST_TARGET): $(CPU_TRACE_TEST_SOURCES) $(HEADERS)
+	mkdir -p build
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(CPU_TRACE_TEST_SOURCES) -o $(CPU_TRACE_TEST_TARGET)
 
 $(CLI_TEST_TARGET): $(CLI_TEST_SOURCES) $(HEADERS)
 	mkdir -p build
@@ -150,8 +164,16 @@ run: $(TARGET)
 run-bin: $(TARGET) assemble
 	./$(TARGET) run $(ASSEMBLER_DEMO_OUTPUT)
 
+trace: $(TARGET)
+	./$(TARGET) trace
+
+trace-bin: $(TARGET) assemble
+	./$(TARGET) trace $(ASSEMBLER_DEMO_OUTPUT)
+
 test: $(TARGET) assemble $(TEST_TARGETS) $(PROCESS_TEST_SCRIPT)
 	./$(CPU_TEST_TARGET)
+	./$(CPU_OBSERVER_TEST_TARGET)
+	./$(CPU_TRACE_TEST_TARGET)
 	./$(CLI_TEST_TARGET)
 	./$(PROGRAM_TEST_TARGET)
 	./$(BINARY_READER_TEST_TARGET)

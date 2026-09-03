@@ -28,7 +28,7 @@ The CPU never reads words such as `LDI`, `start`, or `memory_demo`. Those words 
 
 ## Current implementation boundary
 
-The CPU simulator is operational. It can run either the 18-byte built-in demonstration stored in `src/program.c` or a compatible raw binary selected on the command line.
+The CPU simulator is operational. It can run either the 18-byte built-in demonstration stored in `src/program.c` or a compatible raw binary selected on the command line. Either source can run normally or with a human-readable instruction trace.
 
 The assembler currently implements:
 
@@ -45,7 +45,7 @@ The assembler currently implements:
 - a second pass that resolves symbols and accumulates the complete program byte sequence;
 - a binary writer that stores the raw bytes in the requested output file.
 
-`make assemble` translates `programs/demo.asm` into the 18-byte `build/demo.bin` file. `make inspect` performs that assembly and then displays the generated size and raw bytes. `make run` executes the equivalent built-in bytecode from `src/program.c`, while `make run-bin` assembles, loads, and executes `build/demo.bin`.
+`make assemble` translates `programs/demo.asm` into the 18-byte `build/demo.bin` file. `make inspect` performs that assembly and then displays the generated size and raw bytes. `make run` executes the equivalent built-in bytecode from `src/program.c`, while `make run-bin` assembles, loads, and executes `build/demo.bin`. `make trace` and `make trace-bin` select the same two program sources while exposing every executed instruction and its resulting CPU state.
 
 ## What “8-bit” means
 
@@ -451,6 +451,42 @@ Cycle count: 9
 
 An invalid opcode also halts the CPU so that execution cannot silently continue through unknown data.
 
+## Instruction observer and execution trace
+
+`cpu_run_with_observer` separates instruction execution from anything that watches that execution. It accepts the same CPU and instruction limit as `cpu_run`, plus two optional values:
+
+- a `CpuStepObserver` callback;
+- an opaque context pointer passed unchanged to that callback.
+
+Before calling `cpu_step`, the run loop records the current program-counter value and reads the opcode stored there. After `cpu_step` finishes, the observer receives that original instruction address, the opcode, the updated CPU state, the step result, and the context pointer. This timing is important: `ADDR` and `OP` identify the instruction that just ran, while the registers, flags, `NEXT`, and `CYCLES` describe the state after it ran.
+
+The original `cpu_run` function remains as a convenience wrapper. It calls `cpu_run_with_observer` with null observer and context pointers, so existing callers retain the same behavior without producing trace output.
+
+The trace module supplies an observer that interprets its context as a `FILE *` and writes one line per attempted instruction. For example, the first instruction of the demonstration produces:
+
+```text
+Execution trace:
+  ADDR=0x00 OP=0x10 A=0x2A B=0x00 Z=0 C=0 NEXT=0x02 CYCLES=1 RESULT=ok
+```
+
+The fields mean:
+
+- `ADDR`: address from which the opcode was fetched;
+- `OP`: raw opcode byte;
+- `A` and `B`: register values after execution;
+- `Z` and `C`: zero and carry flags after execution;
+- `NEXT`: program counter after execution, including any taken jump;
+- `CYCLES`: total attempted-instruction count after this step;
+- `RESULT`: `ok`, `halted`, or `invalid-opcode`.
+
+The final demonstration instruction is therefore shown as:
+
+```text
+  ADDR=0x11 OP=0x01 A=0x5A B=0x2A Z=0 C=0 NEXT=0x12 CYCLES=9 RESULT=halted
+```
+
+This observer design keeps the CPU independent of presentation. A future debugger, logger, or graphical interface can supply a different callback without putting terminal-output code inside `cpu.c`.
+
 ## Reading and executing an external binary
 
 The simulator-side binary reader opens the selected file in binary mode and reads into a caller-provided buffer. `main.c` supplies a buffer whose capacity is exactly `CPU_MEMORY_SIZE`, so the file reader cannot write beyond the virtual machine's 256-byte program capacity.
@@ -462,11 +498,15 @@ After filling the buffer, the reader attempts to fetch one additional byte. This
 
 The reader reports the number of bytes actually read only after the read and file close both succeed. An empty file is a valid binary file from the reader's narrow I/O perspective, but `main.c` rejects it as an executable program. This separation keeps file-format transport separate from simulator policy.
 
-The CLI exposes two execution paths:
+The CLI exposes two program sources and an optional trace for either source:
 
 ```text
 make run
   -> built-in byte array from src/program.c
+
+make trace
+  -> built-in byte array from src/program.c
+  -> execution trace enabled
 
 make run-bin
   -> programs/demo.asm
@@ -474,22 +514,27 @@ make run-bin
   -> build/demo.bin
   -> binary_reader_read
   -> cpu_load_program
-  -> cpu_run
+  -> cpu_run_with_observer
+
+make trace-bin
+  -> same assembled binary path
+  -> execution trace enabled
 ```
 
-The direct form `./build/vm8 run <program.bin>` uses the same external-binary path without first invoking the assembler. The simulator does not know whether that file came from `vm8asm`, another tool, or manual byte entry; it sees only the bytes.
+The direct forms `./build/vm8 run <program.bin>` and `./build/vm8 trace <program.bin>` use the same external-binary path without first invoking the assembler. The simulator does not know whether that file came from `vm8asm`, another tool, or manual byte entry; it sees only the bytes. The difference is whether `main.c` gives the CPU run loop a trace observer.
 
-The process-level Bash test exercises this public interface instead of calling C functions directly. It verifies one successful binary and four expected failures: a missing file, an empty file, a 257-byte file, and a file containing the invalid opcode `0xFF`. Each failure must return a nonzero process status and place the expected diagnostic on `stderr`; successful execution must place the expected CPU state on `stdout`.
+The process-level Bash test exercises this public interface instead of calling C functions directly. It verifies normal external-binary execution, built-in tracing, external-binary tracing, and four expected failures: a missing file, an empty file, a 257-byte file, and a file containing the invalid opcode `0xFF`. Each failure must return a nonzero process status and place the expected diagnostic on `stderr`; successful execution must place the expected CPU state or trace entry on `stdout`.
 
 ## Current module responsibilities
 
 | Module | Responsibility |
 | --- | --- |
-| `include/cpu.h`, `src/cpu.c` | CPU state, memory operations, fetching, decoding, execution, program loading, and bounded running. |
+| `include/cpu.h`, `src/cpu.c` | CPU state, memory operations, fetching, decoding, execution, program loading, bounded running, and optional per-step observer delivery. |
+| `include/cpu_trace.h`, `src/cpu_trace.c` | Human-readable formatting of post-instruction CPU snapshots. |
 | `include/program.h`, `src/program.c` | Immutable descriptor and current built-in demonstration bytecode. |
 | `include/binary_reader.h`, `src/binary_reader.c` | Bounded raw-binary input with open, read, size, and close validation. |
-| `include/cli.h`, `src/cli.c` | Selection of built-in, external-binary, and help commands plus help presentation. |
-| `src/main.c` | Program-source selection, high-level simulator orchestration, and final state presentation. |
+| `include/cli.h`, `src/cli.c` | Selection of built-in or external-binary execution, optional tracing, and help presentation. |
+| `src/main.c` | Program-source selection, optional observer wiring, high-level simulator orchestration, and final state presentation. |
 | `assembler/source_line.*` | Comment removal and whitespace normalization. |
 | `assembler/source_reader.*` | Bounded file reading and callback delivery with source locations. |
 | `assembler/symbol_table.*` | Mapping symbol names to 8-bit addresses. |
@@ -527,10 +572,28 @@ make run-bin
 
 Builds the simulator and assembler, translates `programs/demo.asm` into `build/demo.bin`, loads that binary, and executes it.
 
+```bash
+make trace
+```
+
+Builds and executes the built-in demonstration while printing one trace entry after every attempted instruction.
+
+```bash
+make trace-bin
+```
+
+Assembles `programs/demo.asm`, loads `build/demo.bin`, and executes it with the same trace format.
+
 An already existing compatible binary can be executed directly:
 
 ```bash
 ./build/vm8 run path/to/program.bin
+```
+
+Trace an already existing compatible binary directly:
+
+```bash
+./build/vm8 trace path/to/program.bin
 ```
 
 ```bash
@@ -543,7 +606,7 @@ Displays simulator commands and the instruction reference.
 make test
 ```
 
-Assembles the demonstration and runs all automated unit, integration, and process-level tests. The assembled-program test reads `build/demo.bin`, loads it into CPU memory, executes it, and verifies the expected registers, flags, program counter, cycle count, and stored data. `tests/test_vm8_process.sh` then launches the real executable and checks its process status and output streams across successful and failing inputs.
+Assembles the demonstration and runs all automated unit, integration, and process-level tests. Dedicated tests verify observer delivery and exact trace formatting. The assembled-program test reads `build/demo.bin`, loads it into CPU memory, executes it, and verifies the expected registers, flags, program counter, cycle count, and stored data. `tests/test_vm8_process.sh` then launches the real executable and checks its process status and output streams across normal execution, both trace modes, and failing inputs.
 
 ```bash
 make assembler
@@ -615,6 +678,8 @@ make inspect
 - The binary reader uses a caller-provided capacity and checks one extra byte to reject oversized input safely.
 - `wc -c` verifies the byte count, while `od -An -tx1 -v` exposes the exact byte values.
 - Built-in and file-loaded programs use the same CPU loading and execution functions.
+- An observer receives the instruction address and opcode from before a step together with the CPU state from after that step.
+- The trace is presentation layered on top of CPU execution; the CPU core does not print anything itself.
 - The CPU ultimately executes only a byte sequence, regardless of where those bytes originated.
 - Unit tests validate functions in isolation, while the Bash process test validates the compiled program through its public command-line interface.
 - `PC` measures byte addresses, while the simplified cycle counter measures attempted instructions.

@@ -6,6 +6,48 @@
 
 #include "cli.h"
 
+static CliOptions parse_one_argument(char *argument)
+{
+  char program_name[] = "vm8";
+
+  char *arguments[] =
+  {
+    program_name,
+    argument
+  };
+
+  const int argument_count =
+    (int)(sizeof arguments / sizeof arguments[0]);
+
+  return cli_parse_arguments(
+    argument_count,
+    arguments
+  );
+}
+
+static CliOptions parse_two_arguments(
+    char *command,
+    char *value
+)
+{
+  char program_name[] = "vm8";
+
+  char *arguments[] =
+  {
+    program_name,
+    command,
+    value
+  };
+
+  const int argument_count =
+    (int)(sizeof arguments / sizeof arguments[0]);
+
+  return cli_parse_arguments(
+    argument_count,
+    arguments
+  );
+}
+
 static void test_runs_demo_without_command(void)
 {
   char program_name[] = "vm8";
@@ -24,6 +66,7 @@ static void test_runs_demo_without_command(void)
 
   assert(options.command == CLI_COMMAND_RUN_DEMO);
   assert(options.binary_path == NULL);
+  assert(!options.trace_enabled);
 }
 
 static void test_accepts_help_commands(void)
@@ -69,8 +112,10 @@ static void test_accepts_help_commands(void)
 
   assert(help_options.command == CLI_COMMAND_HELP);
   assert(help_options.binary_path == NULL);
+  assert(!help_options.trace_enabled);
   assert(long_help_options.command == CLI_COMMAND_HELP);
   assert(long_help_options.binary_path == NULL);
+  assert(!long_help_options.trace_enabled);
 }
 
 static void test_accepts_binary_program_path(void)
@@ -97,6 +142,44 @@ static void test_accepts_binary_program_path(void)
   assert(options.command == CLI_COMMAND_RUN_BINARY);
   assert(options.binary_path != NULL);
   assert(strcmp(options.binary_path, binary_path) == 0);
+  assert(!options.trace_enabled);
+}
+
+static void test_accepts_trace_modes(void)
+{
+  char trace_command[] = "trace";
+  char binary_path[] = "build/demo.bin";
+
+  const CliOptions built_in_options =
+    parse_one_argument(trace_command);
+
+  const CliOptions binary_options =
+    parse_two_arguments(
+      trace_command,
+      binary_path
+    );
+
+  assert(
+    built_in_options.command ==
+    CLI_COMMAND_RUN_DEMO
+  );
+
+  assert(built_in_options.binary_path == NULL);
+  assert(built_in_options.trace_enabled);
+
+  assert(
+    binary_options.command ==
+    CLI_COMMAND_RUN_BINARY
+  );
+
+  assert(binary_options.binary_path != NULL);
+
+  assert(
+    strcmp(binary_options.binary_path, binary_path) ==
+    0
+  );
+
+  assert(binary_options.trace_enabled);
 }
 
 static void test_rejects_invalid_arguments(void)
@@ -167,12 +250,17 @@ static void test_rejects_invalid_arguments(void)
     CLI_COMMAND_INVALID
   );
 
+  assert(!missing_path_options.trace_enabled);
+
   assert(
     unknown_command_options.command ==
     CLI_COMMAND_INVALID
   );
 
+  assert(!unknown_command_options.trace_enabled);
+
   assert(extra_options.command == CLI_COMMAND_INVALID);
+  assert(!extra_options.trace_enabled);
 }
 
 int main(void)
@@ -180,6 +268,7 @@ int main(void)
   test_runs_demo_without_command();
   test_accepts_help_commands();
   test_accepts_binary_program_path();
+  test_accepts_trace_modes();
   test_rejects_invalid_arguments();
 
   puts("All CLI tests passed.");

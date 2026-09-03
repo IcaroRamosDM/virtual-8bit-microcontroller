@@ -87,6 +87,16 @@ expect_success \
   "Register A: 0x5A" \
   "$VM8_EXECUTABLE" run "$VALID_BINARY_PATH"
 
+expect_success \
+  "built-in trace" \
+  "ADDR=0x11 OP=0x01 A=0x5A B=0x2A Z=0 C=0 NEXT=0x12 CYCLES=9 RESULT=halted" \
+  "$VM8_EXECUTABLE" trace
+
+expect_success \
+  "binary trace" \
+  "ADDR=0x11 OP=0x01 A=0x5A B=0x2A Z=0 C=0 NEXT=0x12 CYCLES=9 RESULT=halted" \
+  "$VM8_EXECUTABLE" trace "$VALID_BINARY_PATH"
+
 expect_failure \
   "missing binary" \
   "${MISSING_BINARY_PATH}: could not open binary input" \

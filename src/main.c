@@ -9,6 +9,7 @@
 #include "cli.h"
 #include "cpu.h"
 #include "program.h"
+#include "cpu_trace.h"
 
 int main(int argument_count, char *arguments[])
 {
@@ -83,10 +84,23 @@ int main(int argument_count, char *arguments[])
     return EXIT_FAILURE;
   }
 
-  const CpuRunResult result = cpu_run(
-    &cpu,
-    instruction_limit
-  );
+  CpuStepObserver observer = NULL;
+  void *observer_context = NULL;
+
+  if (options.trace_enabled)
+  {
+    cpu_trace_print_header(stdout);
+    observer = cpu_trace_observer;
+    observer_context = stdout;
+  }
+
+  const CpuRunResult result =
+    cpu_run_with_observer(
+      &cpu,
+      instruction_limit,
+      observer,
+      observer_context
+    );
 
   puts("Virtual 8-bit microcontroller simulator");
 

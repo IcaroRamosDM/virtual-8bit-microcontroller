@@ -42,6 +42,14 @@ typedef enum CpuStepResult
   CPU_STEP_INVALID_OPCODE
 } CpuStepResult;
 
+typedef void (*CpuStepObserver)(
+    uint8_t instruction_address,
+    uint8_t opcode,
+    const Cpu *cpu,
+    CpuStepResult step_result,
+    void *context
+);
+
 typedef enum CpuRunResult
 {
   CPU_RUN_HALTED,
@@ -62,4 +70,12 @@ void cpu_write_memory(Cpu *cpu, uint8_t address, uint8_t value);
 uint8_t cpu_fetch_byte(Cpu *cpu);
 
 CpuStepResult cpu_step(Cpu *cpu);
+
+CpuRunResult cpu_run_with_observer(
+    Cpu *cpu,
+    uint64_t instruction_limit,
+    CpuStepObserver observer,
+    void *observer_context
+);
+
 CpuRunResult cpu_run(Cpu *cpu, uint64_t instruction_limit);

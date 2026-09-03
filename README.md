@@ -30,11 +30,13 @@ The initial CPU model contains:
 - single-instruction execution with explicit status results;
 - validated program loading into unified memory;
 - bounded program execution with explicit termination results;
+- an optional per-instruction observer that receives post-execution CPU snapshots;
+- a human-readable execution trace for built-in and file-loaded programs;
 - an immutable bytecode-program descriptor that keeps its byte pointer and size together;
 - a dedicated module for the built-in demonstration bytecode;
 - a bounded binary-file reader that rejects input larger than the 256-byte memory capacity;
 - a standalone two-pass assembler with normalized source reading, a symbol table, strict instruction parsing, byte-operand resolution, instruction encoding, and raw binary output;
-- command-line selection between the built-in demonstration and an external binary program;
+- command-line selection between normal or traced execution of the built-in demonstration and an external binary program;
 - built-in help for simulator commands and CPU instructions;
 - process-level CLI tests for successful execution and expected failure paths.
 
@@ -63,7 +65,7 @@ The carry flag reports unsigned carry for addition and unsigned borrow for subtr
 
 ## Current execution flow
 
-The demonstration program loads `0x2A` into both registers, subtracts `B` from `A`, and uses the resulting zero flag to branch over an `LDI A, 0xFF` instruction. It then loads `0x5A`, stores it at memory address `0x80`, clears `A`, reloads the stored value, and halts. The program is loaded through `cpu_load_program` and executed through `cpu_run` with an instruction limit. The current output is:
+The demonstration program loads `0x2A` into both registers, subtracts `B` from `A`, and uses the resulting zero flag to branch over an `LDI A, 0xFF` instruction. It then loads `0x5A`, stores it at memory address `0x80`, clears `A`, reloads the stored value, and halts. The program is loaded through `cpu_load_program` and executed through `cpu_run_with_observer` with an instruction limit. Normal execution passes no observer; trace execution passes the trace callback and `stdout`. The current normal output is:
 
 ```text
 Virtual 8-bit microcontroller simulator
@@ -80,11 +82,11 @@ The demonstration bytecode is stored privately in `src/program.c` and exposed th
 
 The same demonstration is also written in `programs/demo.asm`. The standalone assembler resolves its labels in two passes and generates the equivalent 18-byte raw machine-code file at `build/demo.bin`. Running `make run-bin` assembles that source, reads the generated binary into a bounded 256-byte host buffer, copies the resulting program into CPU memory, and executes it.
 
-An arbitrary compatible binary can be selected with `./build/vm8 run <program.bin>`. The CLI distinguishes the built-in and external-binary execution modes while `main.c` remains responsible for orchestration, presentation, and process status. Reusable file reading, program copying, and CPU execution remain in independently tested modules. Run `make help` to see simulator commands, instruction encodings, effects, flag behavior, and usage examples.
+An arbitrary compatible binary can be selected with `./build/vm8 run <program.bin>`. The CLI distinguishes the built-in and external-binary execution modes and independently enables tracing when requested. `main.c` remains responsible for orchestration, presentation, and process status. Reusable file reading, program copying, CPU execution, and trace formatting remain in independently tested modules. Run `make help` to see simulator commands, instruction encodings, effects, flag behavior, and usage examples.
 
 ## Project structure
 
-- `src/`: CPU, CLI, binary reader, built-in program, and simulator-entry-point implementations.
+- `src/`: CPU, trace formatter, CLI, binary reader, built-in program, and simulator-entry-point implementations.
 - `include/`: public C headers.
 - `assembler/`: standalone assembler implementation.
 - `programs/`: programs written in the custom Assembly language, including the current demonstration source.
@@ -118,17 +120,44 @@ Run another compatible binary directly:
 ./build/vm8 run path/to/program.bin
 ```
 
+Trace the built-in demonstration instruction by instruction:
+
+```bash
+make trace
+```
+
+Assemble and trace `programs/demo.asm`:
+
+```bash
+make trace-bin
+```
+
+Trace another compatible binary directly:
+
+```bash
+./build/vm8 trace path/to/program.bin
+```
+
+Each trace entry identifies the executed instruction address and opcode, then shows the CPU state after that instruction:
+
+```text
+Execution trace:
+  ADDR=0x00 OP=0x10 A=0x2A B=0x00 Z=0 C=0 NEXT=0x02 CYCLES=1 RESULT=ok
+```
+
+`ADDR` is the address at which the instruction started, `OP` is its opcode, and `NEXT` is the post-execution program counter. The remaining fields show registers `A` and `B`, the zero and carry flags, the accumulated cycle count, and the step result.
+
 Run the automated tests:
 
 ```bash
 make test
 ```
 
-The test target assembles `programs/demo.asm` and then builds and runs independent tests for the CPU, CLI, built-in program, binary reader, assembled-program execution, source normalization and reading, symbol table, first pass, byte parsing and resolution, instruction parser and encoder, second pass, and binary writer.
+The test target assembles `programs/demo.asm` and then builds and runs independent tests for the CPU, CPU observer, trace formatter, CLI, built-in program, binary reader, assembled-program execution, source normalization and reading, symbol table, first pass, byte parsing and resolution, instruction parser and encoder, second pass, and binary writer.
 The CPU tests include a `JMP`-to-zero loop that verifies bounded execution stops at the configured instruction limit.
 The program-integration test loads and executes the built-in demonstration, then verifies its complete final CPU state and the value stored at data address `0x80`.
 The assembled-program integration test reads `build/demo.bin`, loads it into CPU memory, executes it, and verifies the same final state. This confirms that the human-readable Assembly source and built-in byte array describe equivalent programs.
-The Bash process test launches `build/vm8` exactly as a user would and verifies exit behavior plus `stdout` or `stderr` for a valid binary, a missing file, an empty file, an oversized file, and an invalid opcode.
+The Bash process test launches `build/vm8` exactly as a user would and verifies normal external-binary execution, both trace modes, and the expected failure behavior for a missing file, an empty file, an oversized file, and an invalid opcode.
 
 Display simulator and instruction help:
 

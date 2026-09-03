@@ -28,7 +28,7 @@ A CPU nunca lê palavras como `LDI`, `start` ou `memory_demo`. Essas palavras ex
 
 ## Limite atual da implementação
 
-O simulador da CPU está funcional. Ele pode executar tanto a demonstração embutida de 18 bytes armazenada em `src/program.c` quanto um binário bruto compatível selecionado pela linha de comando.
+O simulador da CPU está funcional. Ele pode executar tanto a demonstração embutida de 18 bytes armazenada em `src/program.c` quanto um binário bruto compatível selecionado pela linha de comando. Qualquer uma dessas origens pode ser executada normalmente ou com um rastreamento de instruções legível por pessoas.
 
 O montador atualmente implementa:
 
@@ -45,7 +45,7 @@ O montador atualmente implementa:
 - uma segunda passagem que resolve símbolos e acumula a sequência completa de bytes do programa;
 - um gravador de binário que armazena os bytes brutos no arquivo de saída solicitado.
 
-`make assemble` traduz `programs/demo.asm` para o arquivo de 18 bytes `build/demo.bin`. `make inspect` realiza essa montagem e depois exibe o tamanho e os bytes brutos gerados. `make run` executa o bytecode embutido equivalente de `src/program.c`, enquanto `make run-bin` monta, carrega e executa `build/demo.bin`.
+`make assemble` traduz `programs/demo.asm` para o arquivo de 18 bytes `build/demo.bin`. `make inspect` realiza essa montagem e depois exibe o tamanho e os bytes brutos gerados. `make run` executa o bytecode embutido equivalente de `src/program.c`, enquanto `make run-bin` monta, carrega e executa `build/demo.bin`. `make trace` e `make trace-bin` selecionam essas mesmas duas origens de programa enquanto expõem cada instrução executada e o estado resultante da CPU.
 
 ## O que “8 bits” significa
 
@@ -451,6 +451,42 @@ Cycle count: 9
 
 Um opcode inválido também para a CPU para que a execução não continue silenciosamente sobre dados desconhecidos.
 
+## Observador de instruções e rastreamento da execução
+
+`cpu_run_with_observer` separa a execução das instruções de qualquer recurso que observe essa execução. Ela recebe a mesma CPU e o mesmo limite de instruções de `cpu_run`, além de dois valores opcionais:
+
+- um callback do tipo `CpuStepObserver`;
+- um ponteiro de contexto opaco, repassado sem alteração ao callback.
+
+Antes de chamar `cpu_step`, o laço de execução registra o valor atual do contador de programa e lê o opcode armazenado nesse endereço. Depois que `cpu_step` termina, o observador recebe o endereço original da instrução, o opcode, o estado atualizado da CPU, o resultado do passo e o ponteiro de contexto. O momento dessa chamada é importante: `ADDR` e `OP` identificam a instrução que acabou de ser executada, enquanto os registradores, as flags, `NEXT` e `CYCLES` descrevem o estado depois de sua execução.
+
+A função original `cpu_run` permanece como um invólucro de conveniência. Ela chama `cpu_run_with_observer` com ponteiros nulos para o observador e o contexto, de modo que os chamadores existentes preservam o mesmo comportamento sem produzir uma saída de rastreamento.
+
+O módulo de rastreamento fornece um observador que interpreta seu contexto como `FILE *` e grava uma linha por instrução tentada. Por exemplo, a primeira instrução da demonstração produz:
+
+```text
+Execution trace:
+  ADDR=0x00 OP=0x10 A=0x2A B=0x00 Z=0 C=0 NEXT=0x02 CYCLES=1 RESULT=ok
+```
+
+Os campos significam:
+
+- `ADDR`: endereço do qual o opcode foi buscado;
+- `OP`: byte bruto do opcode;
+- `A` e `B`: valores dos registradores depois da execução;
+- `Z` e `C`: flags zero e carry depois da execução;
+- `NEXT`: contador de programa depois da execução, incluindo qualquer salto realizado;
+- `CYCLES`: total de instruções tentadas após esse passo;
+- `RESULT`: `ok`, `halted` ou `invalid-opcode`.
+
+A instrução final da demonstração, portanto, é exibida assim:
+
+```text
+  ADDR=0x11 OP=0x01 A=0x5A B=0x2A Z=0 C=0 NEXT=0x12 CYCLES=9 RESULT=halted
+```
+
+Esse projeto de observador mantém a CPU independente da apresentação. Um depurador, registrador ou interface gráfica futura poderá fornecer outro callback sem inserir código de saída para terminal dentro de `cpu.c`.
+
 ## Leitura e execução de um binário externo
 
 O leitor binário do simulador abre o arquivo selecionado em modo binário e lê seu conteúdo para um buffer fornecido pelo chamador. `main.c` fornece um buffer cuja capacidade é exatamente `CPU_MEMORY_SIZE`, portanto o leitor não consegue gravar além da capacidade de programa de 256 bytes da máquina virtual.
@@ -462,11 +498,15 @@ Depois de preencher o buffer, o leitor tenta buscar mais um byte. Essa leitura a
 
 O leitor informa a quantidade de bytes realmente lida somente depois que tanto a leitura quanto o fechamento do arquivo terminam corretamente. Um arquivo vazio é um arquivo binário válido do ponto de vista estrito de entrada e saída do leitor, mas `main.c` o rejeita como programa executável. Essa separação mantém o transporte do arquivo separado da política do simulador.
 
-A CLI oferece dois caminhos de execução:
+A CLI oferece duas origens de programa e um rastreamento opcional para qualquer uma delas:
 
 ```text
 make run
   -> vetor de bytes embutido de src/program.c
+
+make trace
+  -> vetor de bytes embutido de src/program.c
+  -> rastreamento da execução ativado
 
 make run-bin
   -> programs/demo.asm
@@ -474,22 +514,27 @@ make run-bin
   -> build/demo.bin
   -> binary_reader_read
   -> cpu_load_program
-  -> cpu_run
+  -> cpu_run_with_observer
+
+make trace-bin
+  -> mesmo caminho do binário montado
+  -> rastreamento da execução ativado
 ```
 
-A forma direta `./build/vm8 run <program.bin>` utiliza o mesmo caminho de binário externo sem executar primeiro o montador. O simulador não sabe se esse arquivo veio de `vm8asm`, de outra ferramenta ou da inserção manual de bytes; ele enxerga somente os bytes.
+As formas diretas `./build/vm8 run <program.bin>` e `./build/vm8 trace <program.bin>` utilizam o mesmo caminho de binário externo sem executar primeiro o montador. O simulador não sabe se esse arquivo veio de `vm8asm`, de outra ferramenta ou da inserção manual de bytes; ele enxerga somente os bytes. A diferença é se `main.c` fornece um observador de rastreamento ao laço de execução da CPU.
 
-O teste de processo em Bash exercita essa interface pública em vez de chamar diretamente as funções C. Ele verifica um binário válido e quatro falhas esperadas: arquivo inexistente, arquivo vazio, arquivo de 257 bytes e arquivo contendo o opcode inválido `0xFF`. Cada falha precisa retornar um status de processo diferente de zero e colocar o diagnóstico esperado em `stderr`; a execução bem-sucedida precisa colocar o estado esperado da CPU em `stdout`.
+O teste de processo em Bash exercita essa interface pública em vez de chamar diretamente as funções C. Ele verifica a execução normal de um binário externo, o rastreamento da demonstração embutida, o rastreamento do binário externo e quatro falhas esperadas: arquivo inexistente, arquivo vazio, arquivo de 257 bytes e arquivo contendo o opcode inválido `0xFF`. Cada falha precisa retornar um status de processo diferente de zero e colocar o diagnóstico esperado em `stderr`; a execução bem-sucedida precisa colocar o estado esperado da CPU ou a entrada esperada do rastreamento em `stdout`.
 
 ## Responsabilidades atuais dos módulos
 
 | Módulo | Responsabilidade |
 | --- | --- |
-| `include/cpu.h`, `src/cpu.c` | Estado da CPU, operações de memória, busca, decodificação, execução, carregamento do programa e execução limitada. |
+| `include/cpu.h`, `src/cpu.c` | Estado da CPU, operações de memória, busca, decodificação, execução, carregamento do programa, execução limitada e entrega opcional de cada passo a um observador. |
+| `include/cpu_trace.h`, `src/cpu_trace.c` | Formatação legível dos estados da CPU após cada instrução. |
 | `include/program.h`, `src/program.c` | Descritor imutável e bytecode atual da demonstração embutida. |
 | `include/binary_reader.h`, `src/binary_reader.c` | Entrada limitada de binário bruto com validação de abertura, leitura, tamanho e fechamento. |
-| `include/cli.h`, `src/cli.c` | Seleção dos comandos de demonstração embutida, binário externo e ajuda, além da apresentação da ajuda. |
-| `src/main.c` | Seleção da origem do programa, orquestração geral do simulador e apresentação do estado final. |
+| `include/cli.h`, `src/cli.c` | Seleção da execução embutida ou do binário externo, rastreamento opcional e apresentação da ajuda. |
+| `src/main.c` | Seleção da origem do programa, conexão opcional do observador, orquestração geral do simulador e apresentação do estado final. |
 | `assembler/source_line.*` | Remoção de comentários e normalização de espaços. |
 | `assembler/source_reader.*` | Leitura limitada do arquivo e entrega por callback com localização no código-fonte. |
 | `assembler/symbol_table.*` | Associação dos nomes dos símbolos a endereços de 8 bits. |
@@ -527,10 +572,28 @@ make run-bin
 
 Compila o simulador e o montador, traduz `programs/demo.asm` para `build/demo.bin`, carrega esse binário e o executa.
 
+```bash
+make trace
+```
+
+Compila e executa a demonstração embutida enquanto imprime uma entrada de rastreamento depois de cada instrução tentada.
+
+```bash
+make trace-bin
+```
+
+Monta `programs/demo.asm`, carrega `build/demo.bin` e o executa com o mesmo formato de rastreamento.
+
 Um binário compatível já existente pode ser executado diretamente:
 
 ```bash
 ./build/vm8 run path/to/program.bin
+```
+
+Rastreie diretamente um binário compatível já existente:
+
+```bash
+./build/vm8 trace path/to/program.bin
 ```
 
 ```bash
@@ -543,7 +606,7 @@ Exibe os comandos do simulador e a referência das instruções.
 make test
 ```
 
-Monta a demonstração e executa todos os testes unitários, de integração e de processo automatizados. O teste do programa montado lê `build/demo.bin`, carrega-o na memória da CPU, executa-o e verifica os registradores, as flags, o contador de programa, o contador de ciclos e o dado armazenado esperados. Em seguida, `tests/test_vm8_process.sh` inicia o executável real e verifica seu status de processo e seus fluxos de saída para entradas válidas e inválidas.
+Monta a demonstração e executa todos os testes unitários, de integração e de processo automatizados. Testes dedicados verificam a entrega ao observador e a formatação exata do rastreamento. O teste do programa montado lê `build/demo.bin`, carrega-o na memória da CPU, executa-o e verifica os registradores, as flags, o contador de programa, o contador de ciclos e o dado armazenado esperados. Em seguida, `tests/test_vm8_process.sh` inicia o executável real e verifica seu status de processo e seus fluxos de saída na execução normal, nos dois modos de rastreamento e nas entradas inválidas.
 
 ```bash
 make assembler
@@ -615,6 +678,8 @@ make inspect
 - O leitor binário utiliza uma capacidade fornecida pelo chamador e verifica um byte adicional para rejeitar entradas grandes demais com segurança.
 - `wc -c` verifica a quantidade de bytes, enquanto `od -An -tx1 -v` revela os valores exatos.
 - Programas embutidos e carregados de arquivo utilizam as mesmas funções de carregamento e execução da CPU.
+- Um observador recebe o endereço e o opcode anteriores a um passo junto com o estado da CPU posterior a esse passo.
+- O rastreamento é uma camada de apresentação sobre a execução da CPU; o núcleo da CPU não imprime nada por conta própria.
 - A CPU finalmente executa somente uma sequência de bytes, independentemente da origem desses bytes.
 - Testes unitários validam funções isoladamente, enquanto o teste de processo em Bash valida o programa compilado por meio de sua interface pública de linha de comando.
 - `PC` mede endereços de bytes, enquanto o contador simplificado de ciclos mede instruções tentadas.

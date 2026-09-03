@@ -1,0 +1,89 @@
+#include <assert.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include "cpu.h"
+#include "cpu_trace.h"
+
+enum
+{
+  TRACE_BUFFER_CAPACITY = 256,
+  TRACE_INSTRUCTION_ADDRESS = 0x04,
+  TRACE_NEXT_PROGRAM_COUNTER = 0x05,
+  TRACE_REGISTER_A = 0x30,
+  TRACE_REGISTER_B = 0x10,
+  TRACE_CYCLE_COUNT = 7
+};
+
+static void test_prints_trace_entry(void)
+{
+  static const char expected_output[] =
+    "Execution trace:\n"
+    "  ADDR=0x04 OP=0x20 "
+    "A=0x30 B=0x10 "
+    "Z=0 C=1 NEXT=0x05 "
+    "CYCLES=7 RESULT=ok\n";
+
+  Cpu cpu =
+  {
+    .register_a = TRACE_REGISTER_A,
+    .register_b = TRACE_REGISTER_B,
+    .program_counter = TRACE_NEXT_PROGRAM_COUNTER,
+    .zero_flag = false,
+    .carry_flag = true,
+    .halted = false,
+    .cycle_count = TRACE_CYCLE_COUNT,
+    .memory = {0}
+  };
+
+  FILE *const output = tmpfile();
+
+  assert(output != NULL);
+
+  cpu_trace_print_header(output);
+
+  cpu_trace_observer(
+    TRACE_INSTRUCTION_ADDRESS,
+    OPCODE_ADD_A_B,
+    &cpu,
+    CPU_STEP_OK,
+    output
+  );
+
+  const int flush_result = fflush(output);
+
+  assert(flush_result == 0);
+
+  rewind(output);
+
+  char actual_output[TRACE_BUFFER_CAPACITY] = {0};
+
+  const size_t read_byte_count = fread(
+    actual_output,
+    sizeof actual_output[0],
+    sizeof actual_output - 1,
+    output
+  );
+
+  const size_t expected_byte_count =
+    strlen(expected_output);
+
+  assert(read_byte_count == expected_byte_count);
+  assert(strcmp(actual_output, expected_output) == 0);
+
+  const int close_result = fclose(output);
+
+  assert(close_result == 0);
+}
+
+int main(void)
+{
+  test_prints_trace_entry();
+
+  puts("All CPU-trace tests passed.");
+
+  return EXIT_SUCCESS;
+}

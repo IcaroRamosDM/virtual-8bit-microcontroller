@@ -1,5 +1,7 @@
 #pragma once
 
+#include <stdbool.h>
+
 typedef enum CliCommand
 {
   CLI_COMMAND_RUN_DEMO,
@@ -12,6 +14,7 @@ typedef struct CliOptions
 {
   CliCommand command;
   const char *binary_path;
+  bool trace_enabled;
 } CliOptions;
 
 CliOptions cli_parse_arguments(

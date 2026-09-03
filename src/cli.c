@@ -23,7 +23,8 @@ CliOptions cli_parse_arguments(
   {
     return (CliOptions){
       .command = CLI_COMMAND_RUN_DEMO,
-      .binary_path = NULL
+      .binary_path = NULL,
+      .trace_enabled = false
     };
   }
 
@@ -37,35 +38,53 @@ CliOptions cli_parse_arguments(
     {
       return (CliOptions){
         .command = CLI_COMMAND_HELP,
-        .binary_path = NULL
+        .binary_path = NULL,
+        .trace_enabled = false
+      };
+    }
+
+    if (strcmp(command, "trace") == 0)
+    {
+      return (CliOptions){
+        .command = CLI_COMMAND_RUN_DEMO,
+        .binary_path = NULL,
+        .trace_enabled = true
       };
     }
 
     return (CliOptions){
       .command = CLI_COMMAND_INVALID,
-      .binary_path = NULL
+      .binary_path = NULL,
+      .trace_enabled = false
     };
   }
 
-  if (
-    (argument_count ==
-      CLI_ARGUMENT_COUNT_WITH_BINARY_PATH) &&
-    (strcmp(
-      arguments[CLI_COMMAND_ARGUMENT_INDEX],
-      "run"
-    ) == 0)
-  )
+  if (argument_count == CLI_ARGUMENT_COUNT_WITH_BINARY_PATH)
   {
-    return (CliOptions){
-      .command = CLI_COMMAND_RUN_BINARY,
-      .binary_path =
-        arguments[CLI_BINARY_PATH_ARGUMENT_INDEX]
-    };
+    const char *command =
+      arguments[CLI_COMMAND_ARGUMENT_INDEX];
+
+    const bool runs_binary =
+      strcmp(command, "run") == 0;
+
+    const bool traces_binary =
+      strcmp(command, "trace") == 0;
+
+    if (runs_binary || traces_binary)
+    {
+      return (CliOptions){
+        .command = CLI_COMMAND_RUN_BINARY,
+        .binary_path =
+          arguments[CLI_BINARY_PATH_ARGUMENT_INDEX],
+        .trace_enabled = traces_binary
+      };
+    }
   }
 
   return (CliOptions){
     .command = CLI_COMMAND_INVALID,
-    .binary_path = NULL
+    .binary_path = NULL,
+    .trace_enabled = false
   };
 }
 
@@ -77,6 +96,8 @@ void cli_print_help(void)
   puts("Commands:");
   puts("  make run        Build and run the built-in demonstration.");
   puts("  make run-bin    Assemble and run programs/demo.asm.");
+  puts("  make trace      Run the built-in demo with a trace.");
+  puts("  make trace-bin  Assemble and run the demo with a trace.");
   puts("  make test       Build and run the test suite.");
   puts("  make assembler  Build the assembler executable.");
   puts("  make assemble   Run the assembler on programs/demo.asm.");
@@ -90,6 +111,8 @@ void cli_print_help(void)
   puts("  ./build/vm8 run <program.bin> Run a binary program.");
   puts("  ./build/vm8 help        Display this help.");
   puts("  ./build/vm8 --help      Display this help.");
+  puts("  ./build/vm8 trace                Trace the built-in demo.");
+  puts("  ./build/vm8 trace <program.bin>  Trace a binary program.");
   puts(
     "  ./build/vm8asm <input.asm> <output.bin>  "
     "Assemble source into raw binary."
@@ -239,6 +262,8 @@ void cli_print_help(void)
   puts("  Run the built-in demonstration with: make run");
   puts("  Assemble and run programs/demo.asm with: make run-bin");
   puts("  Run another binary with: ./build/vm8 run <program.bin>");
+  puts("  Trace the built-in demonstration with: make trace");
+  puts("  Assemble and trace programs/demo.asm with make trace-bin");
   puts("");
 
   puts("Assembler workflow:");

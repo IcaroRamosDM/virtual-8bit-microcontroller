@@ -151,19 +151,44 @@ bool cpu_load_program(
 
   return true;
 }
-
-CpuRunResult cpu_run(Cpu *cpu, uint64_t instruction_limit)
+CpuRunResult cpu_run_with_observer(
+    Cpu *cpu,
+    uint64_t instruction_limit,
+    CpuStepObserver observer,
+    void *observer_context
+)
 {
   if (cpu->halted)
   {
     return CPU_RUN_HALTED;
   }
 
-  for (uint64_t executed_instructions = 0;
-      executed_instructions < instruction_limit;
-      ++executed_instructions)
+  for (
+    uint64_t executed_instructions = 0;
+    executed_instructions < instruction_limit;
+    ++executed_instructions
+  )
   {
+    const uint8_t instruction_address =
+      cpu->program_counter;
+
+    const uint8_t opcode = cpu_read_memory(
+      cpu,
+      instruction_address
+    );
+
     const CpuStepResult step_result = cpu_step(cpu);
+
+    if (observer != NULL)
+    {
+      observer(
+        instruction_address,
+        opcode,
+        cpu,
+        step_result,
+        observer_context
+      );
+    }
 
     switch (step_result)
     {
@@ -179,4 +204,17 @@ CpuRunResult cpu_run(Cpu *cpu, uint64_t instruction_limit)
   }
 
   return CPU_RUN_INSTRUCTION_LIMIT_REACHED;
+}
+
+CpuRunResult cpu_run(
+    Cpu *cpu,
+    uint64_t instruction_limit
+)
+{
+  return cpu_run_with_observer(
+    cpu,
+    instruction_limit,
+    NULL,
+    NULL
+  );
 }
