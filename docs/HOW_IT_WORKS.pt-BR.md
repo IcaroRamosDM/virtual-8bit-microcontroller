@@ -39,9 +39,13 @@ O montador atualmente implementa:
 - uma tabela de símbolos;
 - uma primeira passagem que registra labels e calcula o tamanho do programa;
 - interpretação de literais de 8 bits em decimal e hexadecimal;
-- resolução de um operando como literal ou símbolo.
+- resolução de um operando como literal ou símbolo;
+- um parser de instruções que separa mnemônicos e operandos;
+- um codificador que valida a semântica das instruções e emite opcodes e operandos;
+- uma segunda passagem que resolve símbolos e acumula a sequência completa de bytes do programa;
+- um gravador de binário que armazena os bytes brutos no arquivo de saída solicitado.
 
-O codificador de instruções da segunda passagem e o gravador do arquivo binário ainda estão em desenvolvimento. Portanto, `make assemble` atualmente analisa `programs/demo.asm`, mas ainda não cria `build/demo.bin`.
+`make assemble` agora traduz `programs/demo.asm` para o arquivo de 18 bytes `build/demo.bin`. `make inspect` realiza essa montagem e depois exibe o tamanho e os bytes brutos gerados. Carregar esse binário externo no simulador é o próximo marco de integração; `make run` ainda executa o bytecode embutido equivalente de `src/program.c`.
 
 ## O que “8 bits” significa
 
@@ -252,6 +256,21 @@ Os nomes podem conter vários caracteres porque são armazenados e processados p
 
 Os labels diferenciam letras maiúsculas e minúsculas, devem começar com uma letra ou sublinhado e podem continuar com letras, números ou sublinhados. Os mnemônicos das instruções e os nomes dos registradores são palavras reservadas e não podem ser usados como labels.
 
+## Montagem no hospedeiro e máquinas com pouca memória
+
+O `vm8asm` é executado no Ubuntu hospedeiro, portanto seu código executável, seus buffers de texto-fonte e sua tabela de símbolos não consomem nenhum dos 256 bytes de memória da CPU VM8. Somente os bytes de código de máquina gerados são copiados para a CPU virtual.
+
+Escrever esses bytes manualmente em hexadecimal não tornaria o programa final menor. Por exemplo, inserir manualmente `10 2A` produz os mesmos dois bytes que montar `LDI A, 0x2A`; hexadecimal é apenas uma notação legível para os padrões de bits.
+
+Em uma máquina histórica isolada, sem outro computador para o desenvolvimento, os programadores tinham várias opções:
+
+- traduzir as instruções manualmente e inserir os valores de código de máquina por interruptores, cartões ou fita;
+- inserir um carregador bootstrap muito pequeno que pudesse carregar uma ferramenta maior;
+- carregar temporariamente um montador na mesma memória que seria posteriormente usada pelo programa;
+- manter um monitor ou montador pequeno permanentemente em uma região separada de ROM.
+
+Quando um montador ocupava a própria memória limitada da máquina, o código-fonte e a saída podiam ser transmitidos por mídias externas. Depois da montagem, o montador podia ser sobrescrito e sua memória reutilizada pelo programa gerado. Um montador com várias passagens trocava passagens adicionais sobre a entrada e tempo por um conjunto de trabalho menor na memória.
+
 ## Por que o montador usa duas passagens
 
 Um salto pode referenciar um label que aparece mais adiante no código-fonte:
@@ -325,7 +344,11 @@ missing     -> erro de símbolo indefinido
 
 ### Segunda passagem
 
-A segunda passagem lerá novamente os statements normalizados, validará toda a sintaxe dos operandos, resolverá literais e labels e emitirá os bytes correspondentes de opcode e operando.
+O parser de instruções separa cada statement normalizado em um mnemônico e até dois operandos. Ele valida a estrutura sintática, como espaços, vírgulas, operandos ausentes e operandos em excesso, mas não decide se um mnemônico ou registrador é suportado.
+
+O codificador de instruções então valida o significado dos campos interpretados. Ele reconhece o conjunto atual de instruções, verifica a quantidade de operandos e a ordem dos registradores, resolve literais de byte ou símbolos e emite uma instrução codificada de um ou dois bytes. Uma falha de codificação deixa inalterado o objeto de saída fornecido pelo chamador.
+
+A segunda passagem lê novamente os statements normalizados, ignora as declarações de labels, executa o parser e o codificador e acrescenta cada codificação bem-sucedida a um buffer limitado do programa. Ela informa diagnósticos com o caminho original do arquivo e o número da linha, conta as instruções codificadas e rejeita qualquer gravação que ultrapassaria a capacidade de saída fornecida.
 
 Por exemplo:
 
@@ -333,13 +356,13 @@ Por exemplo:
 JZ memory_demo
 ```
 
-se tornará:
+torna-se:
 
 ```text
 30 09
 ```
 
-Depois da segunda passagem, o gravador de binário armazenará o vetor de bytes emitidos em `build/demo.bin`. Essa etapa é o próximo grande marco do montador e ainda não está implementada.
+Depois que as duas passagens concordam sobre o tamanho de 18 bytes do programa, o gravador de binário abre o caminho solicitado em modo binário, grava exatamente essa quantidade de bytes e verifica tanto a gravação quanto o fechamento final do arquivo. Portanto, `make assemble` cria `build/demo.bin` como código de máquina bruto.
 
 ## Codificação completa da demonstração
 
@@ -363,7 +386,7 @@ memory_demo:
   HALT
 ```
 
-O cálculo dos endereços e a codificação pretendida são:
+O cálculo dos endereços e a codificação gerada são:
 
 | Endereço | Statement do código-fonte | Bytes emitidos | Explicação |
 | ---: | --- | --- | --- |
@@ -380,7 +403,7 @@ O cálculo dos endereços e a codificação pretendida são:
 | `0x0F` | `LDA 0x80` | `40 80` | Recarrega o valor armazenado. |
 | `0x11` | `HALT` | `01` | Para após buscar o byte. |
 
-A sequência completa pretendida de 18 bytes é:
+A sequência completa gerada de 18 bytes é:
 
 ```text
 10 2A 11 2A 21 30 09 10 FF 10 5A 41 80 10 00 40 80 01
@@ -442,7 +465,11 @@ Um opcode inválido também para a CPU para que a execução não continue silen
 | `assembler/first_pass.*` | Coleta dos labels, cálculo do tamanho das instruções e validação da capacidade da memória. |
 | `assembler/byte_literal.*` | Conversão estrita de texto decimal e hexadecimal para `uint8_t`. |
 | `assembler/byte_operand.*` | Resolução de um literal ou símbolo para um byte. |
-| `assembler/main.c` | Tratamento dos argumentos do montador e orquestração da primeira passagem. |
+| `assembler/instruction_parser.*` | Separação e validação estrutural dos mnemônicos e operandos das instruções. |
+| `assembler/instruction_encoder.*` | Validação semântica e conversão das instruções interpretadas em bytes de opcode e operando. |
+| `assembler/second_pass.*` | Ignorar labels, codificar instruções, acumular bytes com limite e emitir diagnósticos com localização no código-fonte. |
+| `assembler/binary_writer.*` | Saída exata dos bytes brutos com verificação de abertura, gravação e fechamento. |
+| `assembler/main.c` | Tratamento de argumentos, orquestração das duas passagens, verificação da concordância entre elas e coordenação da saída binária. |
 | `tests/` | Testes comportamentais independentes para a CPU, CLI, programa e componentes do montador. |
 
 Manter `main.c` concentrado na orquestração torna o comportamento reutilizável testável de forma independente.
@@ -485,7 +512,54 @@ Compila o executável independente `build/vm8asm`.
 make assemble
 ```
 
-Compila `vm8asm` quando necessário e analisa `programs/demo.asm`. Até que a segunda passagem e o gravador de binário sejam concluídos, ele informa o resultado da primeira passagem sem criar `build/demo.bin`.
+Compila `vm8asm` quando necessário, executa as duas passagens sobre `programs/demo.asm` e grava os 18 bytes brutos resultantes em `build/demo.bin`.
+
+O mesmo montador pode ser chamado diretamente com caminhos explícitos:
+
+```bash
+./build/vm8asm programs/demo.asm build/demo.bin
+```
+
+Confira o tamanho exato da saída:
+
+```bash
+wc -c build/demo.bin
+```
+
+Saída esperada:
+
+```text
+18 build/demo.bin
+```
+
+`wc -c` conta bytes, e não linhas ou palavras. Isso confirma que o binário contém os 18 bytes calculados pelas duas passagens do montador.
+
+Exiba todos os bytes brutos em hexadecimal:
+
+```bash
+od -An -tx1 -v build/demo.bin
+```
+
+Saída esperada:
+
+```text
+ 10 2a 11 2a 21 30 09 10 ff 10 5a 41 80 10 00 40
+ 80 01
+```
+
+As opções de `od` significam:
+
+- `-An`: omite a coluna de endereços;
+- `-tx1`: formata cada unidade de um byte em hexadecimal;
+- `-v`: exibe todos os dados em vez de abreviar linhas repetidas.
+
+Isso lê o binário como bytes. Executar `cat build/demo.bin` não é útil porque muitos valores de byte do código de máquina não são caracteres imprimíveis.
+
+Monte a demonstração e execute as duas inspeções em uma etapa:
+
+```bash
+make inspect
+```
 
 ## Ideias principais a recordar
 
@@ -494,7 +568,8 @@ Compila `vm8asm` quando necessário e analisa `programs/demo.asm`. Até que a se
 - Labels e mnemônicos pertencem ao montador, e não à CPU.
 - Um label não consome memória do programa; ele nomeia o endereço de byte atual.
 - A primeira passagem descobre os endereços, e a segunda substitui referências simbólicas por bytes numéricos.
+- O gravador binário armazena os valores gerados como bytes brutos, e não como texto hexadecimal.
+- `wc -c` verifica a quantidade de bytes, enquanto `od -An -tx1 -v` revela os valores exatos.
 - A CPU finalmente executa somente a sequência de bytes gerada.
 - `PC` mede endereços de bytes, enquanto o contador simplificado de ciclos mede instruções tentadas.
 - A memória unificada permite acesso tanto ao código quanto aos dados, portanto as instruções de armazenamento devem usar endereços com cuidado.
-

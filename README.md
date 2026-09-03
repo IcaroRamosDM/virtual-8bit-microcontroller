@@ -32,7 +32,7 @@ The initial CPU model contains:
 - bounded program execution with explicit termination results;
 - an immutable bytecode-program descriptor that keeps its byte pointer and size together;
 - a dedicated module for the built-in demonstration bytecode;
-- a standalone assembler with normalized source reading, a symbol table, a first pass, and 8-bit literal and symbol resolution;
+- a standalone two-pass assembler with normalized source reading, a symbol table, strict instruction parsing, byte-operand resolution, instruction encoding, and raw binary output;
 - command-line parsing and built-in help for simulator commands and CPU instructions.
 
 Public headers use `#pragma once`. The memory size is derived from the complete 8-bit address space, and the implementation starts from a fully zero-initialized CPU state.
@@ -75,6 +75,8 @@ Cycle count: 9
 
 The demonstration bytecode is stored privately in `src/program.c` and exposed through a `Program` value containing a pointer to constant bytes and their size. `main.c` is limited to requesting that program, coordinating loading and execution, presenting the result, and returning the process exit status. Program copying and the execution loop remain in testable CPU functions.
 
+The same demonstration is also written in `programs/demo.asm`. The standalone assembler resolves its labels in two passes and generates the equivalent 18-byte raw machine-code file at `build/demo.bin`. The simulator still executes the built-in program descriptor; loading a generated `.bin` file is a future integration milestone.
+
 The CLI module keeps command parsing and help presentation separate from CPU execution. Run `make help` to see simulator commands, instruction encodings, effects, flag behavior, and usage examples.
 
 ## Project structure
@@ -107,7 +109,7 @@ Run the automated tests:
 make test
 ```
 
-The test target builds and runs separate CPU, CLI, and program-integration test executables.
+The test target builds and runs independent tests for the CPU, CLI, built-in program, source normalization and reading, symbol table, first pass, byte parsing and resolution, instruction parser and encoder, second pass, and binary writer.
 The CPU tests include a `JMP`-to-zero loop that verifies bounded execution stops at the configured instruction limit.
 The program-integration test loads and executes the built-in demonstration, then verifies its complete final CPU state and the value stored at data address `0x80`.
 
@@ -123,13 +125,52 @@ Build the current assembler:
 make assembler
 ```
 
-Build the assembler when necessary and analyze the demonstration source:
+Build the assembler when necessary and generate the demonstration binary:
 
 ```bash
 make assemble
 ```
 
-At the current milestone, `vm8asm` normalizes source statements, builds a symbol table, calculates instruction addresses and program size in its first pass, parses 8-bit literals, and resolves literal or symbolic byte operands. Second-pass instruction encoding and binary-output generation are not implemented yet, so this command does not create `build/demo.bin`.
+This runs both assembler passes and writes 18 raw bytes to `build/demo.bin`.
+
+The equivalent direct command is:
+
+```bash
+./build/vm8asm programs/demo.asm build/demo.bin
+```
+
+Inspect the generated file size:
+
+```bash
+wc -c build/demo.bin
+```
+
+Expected result:
+
+```text
+18 build/demo.bin
+```
+
+Inspect every byte in hexadecimal:
+
+```bash
+od -An -tx1 -v build/demo.bin
+```
+
+Expected result:
+
+```text
+ 10 2a 11 2a 21 30 09 10 ff 10 5a 41 80 10 00 40
+ 80 01
+```
+
+Here, `-An` suppresses the address column, `-tx1` selects hexadecimal one-byte units, and `-v` prevents repeated data from being abbreviated. These commands inspect the binary without interpreting it as text.
+
+Assemble and run both inspections with one target:
+
+```bash
+make inspect
+```
 
 Remove generated files:
 

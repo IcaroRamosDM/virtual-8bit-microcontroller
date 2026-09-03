@@ -1,6 +1,6 @@
 # How the Virtual 8-bit Microcontroller Works
 
-[Leia esta documentação em português do Brasil.](HOW_IT_WORKS.pt-BR.md)
+[Read this documentation in Brazilian Portuguese.](HOW_IT_WORKS.pt-BR.md)
 
 ## Purpose
 
@@ -39,9 +39,13 @@ The assembler currently implements:
 - a symbol table;
 - a first pass that records labels and calculates program size;
 - decimal and hexadecimal 8-bit literal parsing;
-- resolution of an operand as either a literal or a symbol.
+- resolution of an operand as either a literal or a symbol;
+- an instruction parser that separates mnemonics and operands;
+- an instruction encoder that validates instruction semantics and emits opcodes and operands;
+- a second pass that resolves symbols and accumulates the complete program byte sequence;
+- a binary writer that stores the raw bytes in the requested output file.
 
-The second-pass instruction encoder and binary-file writer are still under development. Therefore, `make assemble` currently analyzes `programs/demo.asm`, but does not yet create `build/demo.bin`.
+`make assemble` now translates `programs/demo.asm` into the 18-byte `build/demo.bin` file. `make inspect` performs that assembly and then displays the generated size and raw bytes. Loading this external binary into the simulator is the next integration milestone; `make run` still executes the equivalent built-in bytecode from `src/program.c`.
 
 ## What “8-bit” means
 
@@ -252,6 +256,21 @@ The names may contain several characters because they are stored and processed b
 
 Labels are case-sensitive, must begin with a letter or underscore, and may continue with letters, digits, or underscores. Instruction mnemonics and register names are reserved words and cannot be used as labels.
 
+## Host-side assembly and limited-memory machines
+
+`vm8asm` runs on the Ubuntu host, so its executable code, source-text buffers, and symbol table do not consume any of the VM8 CPU's 256-byte memory. Only the generated machine-code bytes are copied into the virtual CPU.
+
+Writing those bytes manually in hexadecimal would not make the final program smaller. For example, manually entering `10 2A` produces the same two bytes as assembling `LDI A, 0x2A`; hexadecimal is only a readable notation for the bit patterns.
+
+On an isolated historical machine without a separate development computer, programmers had several options:
+
+- translate instructions manually and enter machine-code values through switches, cards, or tape;
+- enter a very small bootstrap loader that could load a larger tool;
+- load an assembler temporarily into the same memory used later by the program;
+- keep a small monitor or assembler permanently in a separate ROM region.
+
+When an assembler occupied the machine's own limited memory, source and output could be streamed through external media. After assembly, the assembler could be overwritten and its memory reused by the generated program. A multi-pass assembler traded additional input passes and time for a smaller in-memory working set.
+
 ## Why the assembler uses two passes
 
 A jump may reference a label that appears later in the source:
@@ -325,7 +344,11 @@ missing     -> undefined-symbol error
 
 ### Second pass
 
-The second pass will read the normalized statements again, validate their complete operand syntax, resolve literals and labels, and emit the corresponding opcode and operand bytes.
+The instruction parser separates each normalized statement into a mnemonic and as many as two operands. It validates structural syntax such as whitespace, commas, missing operands, and excessive operands, but does not decide whether a mnemonic or register is supported.
+
+The instruction encoder then validates the meaning of the parsed fields. It recognizes the current instruction set, checks operand counts and register order, resolves byte literals or symbols, and emits a one-byte or two-byte encoded instruction. Failed encoding leaves the caller's output object unchanged.
+
+The second pass reads the normalized statements again, ignores label declarations, runs the parser and encoder, and appends each successful encoding to a bounded program buffer. It reports diagnostics with the original file path and line number, counts encoded instructions, and rejects any write that would exceed the supplied output capacity.
 
 For example:
 
@@ -333,13 +356,13 @@ For example:
 JZ memory_demo
 ```
 
-will become:
+becomes:
 
 ```text
 30 09
 ```
 
-After the second pass, the binary writer will store the emitted byte array in `build/demo.bin`. This stage is the next major assembler milestone and is not implemented yet.
+After both passes agree on the 18-byte program size, the binary writer opens the requested path in binary mode, writes exactly that byte count, and verifies both the write and final file close. `make assemble` therefore creates `build/demo.bin` as raw machine code.
 
 ## Complete demonstration encoding
 
@@ -363,7 +386,7 @@ memory_demo:
   HALT
 ```
 
-Its address calculation and intended encoding are:
+Its address calculation and generated encoding are:
 
 | Address | Source statement | Emitted bytes | Explanation |
 | ---: | --- | --- | --- |
@@ -380,7 +403,7 @@ Its address calculation and intended encoding are:
 | `0x0F` | `LDA 0x80` | `40 80` | Reloads the stored value. |
 | `0x11` | `HALT` | `01` | Halts after fetching the byte. |
 
-The complete intended 18-byte sequence is:
+The complete generated 18-byte sequence is:
 
 ```text
 10 2A 11 2A 21 30 09 10 FF 10 5A 41 80 10 00 40 80 01
@@ -442,7 +465,11 @@ An invalid opcode also halts the CPU so that execution cannot silently continue 
 | `assembler/first_pass.*` | Label collection, instruction-size calculation, and memory-capacity validation. |
 | `assembler/byte_literal.*` | Strict conversion of decimal and hexadecimal text to `uint8_t`. |
 | `assembler/byte_operand.*` | Resolution of a literal or symbol into one byte. |
-| `assembler/main.c` | Assembler argument handling and first-pass orchestration. |
+| `assembler/instruction_parser.*` | Separation and structural validation of instruction mnemonics and operands. |
+| `assembler/instruction_encoder.*` | Semantic validation and conversion of parsed instructions into opcode and operand bytes. |
+| `assembler/second_pass.*` | Label skipping, instruction encoding, bounded byte accumulation, and source-located diagnostics. |
+| `assembler/binary_writer.*` | Exact raw-byte output with open, write, and close validation. |
+| `assembler/main.c` | Argument handling, two-pass orchestration, pass-consistency checks, and binary-output coordination. |
 | `tests/` | Independent behavioral tests for the CPU, CLI, program, and assembler components. |
 
 Keeping `main.c` focused on orchestration makes reusable behavior independently testable.
@@ -485,7 +512,54 @@ Builds the standalone `build/vm8asm` executable.
 make assemble
 ```
 
-Builds `vm8asm` when necessary and analyzes `programs/demo.asm`. Until the second pass and binary writer are completed, it reports the first-pass result without creating `build/demo.bin`.
+Builds `vm8asm` when necessary, runs both passes on `programs/demo.asm`, and writes the resulting 18 raw bytes to `build/demo.bin`.
+
+The same assembler can be invoked directly with explicit paths:
+
+```bash
+./build/vm8asm programs/demo.asm build/demo.bin
+```
+
+Check the exact output size:
+
+```bash
+wc -c build/demo.bin
+```
+
+Expected output:
+
+```text
+18 build/demo.bin
+```
+
+`wc -c` counts bytes rather than lines or words. This confirms the binary contains the 18 bytes calculated by both assembler passes.
+
+Display every raw byte as hexadecimal:
+
+```bash
+od -An -tx1 -v build/demo.bin
+```
+
+Expected output:
+
+```text
+ 10 2a 11 2a 21 30 09 10 ff 10 5a 41 80 10 00 40
+ 80 01
+```
+
+The `od` options mean:
+
+- `-An`: omit the address column;
+- `-tx1`: format each one-byte unit in hexadecimal;
+- `-v`: display all data instead of abbreviating repeated lines.
+
+This reads the binary as bytes. Running `cat build/demo.bin` is not useful because many machine-code byte values are not printable characters.
+
+Assemble the demonstration and run both inspections in one step:
+
+```bash
+make inspect
+```
 
 ## Key ideas to retain
 
@@ -494,7 +568,8 @@ Builds `vm8asm` when necessary and analyzes `programs/demo.asm`. Until the secon
 - Labels and mnemonics belong to the assembler, not to the CPU.
 - A label consumes no program memory; it names the current byte address.
 - The first pass discovers addresses, and the second pass replaces symbolic references with numeric bytes.
+- The binary writer stores the generated values as raw bytes, not hexadecimal text.
+- `wc -c` verifies the byte count, while `od -An -tx1 -v` exposes the exact byte values.
 - The CPU ultimately executes only the generated byte sequence.
 - `PC` measures byte addresses, while the simplified cycle counter measures attempted instructions.
 - Unified memory permits both code and data access, so stores must use addresses carefully.
-

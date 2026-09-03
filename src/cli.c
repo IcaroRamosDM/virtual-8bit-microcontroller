@@ -43,15 +43,23 @@ void cli_print_help(void)
   puts("");
 
   puts("Commands:");
-  puts("  make run      Build and run the demonstration program.");
-  puts("  make test     Build and run the test suite.");
-  puts("  make help     Build and display this help.");
+  puts("  make run        Build and run the demonstration program.");
+  puts("  make test       Build and run the test suite.");
+  puts("  make assembler  Build the assembler executable.");
+  puts("  make assemble   Run the assembler on programs/demo.asm.");
+  puts("  make inspect    Assemble and inspect the demo binary.");
+  puts("  make help       Build and display this help.");
+  puts("  make clean      Remove generated build files.");
   puts("");
 
   puts("Direct executable commands:");
   puts("  ./build/vm8          Run the demonstration program.");
   puts("  ./build/vm8 help     Display this help.");
   puts("  ./build/vm8 --help   Display this help.");
+  puts(
+    "  ./build/vm8asm <input.asm> <output.bin>  "
+    "Assemble source into raw binary."
+  );
   puts("");
 
   puts("Supported instructions:");
@@ -193,13 +201,16 @@ void cli_print_help(void)
     (unsigned int)OPCODE_STORE_A_TO_MEMORY
   );
   puts("");
+  puts("Current simulator workflow:");
+  puts("  The demonstration bytecode is defined in src/program.c.");
+  puts("  Build and execute it with: make run");
+  puts("");
 
-
-  puts("Current program workflow:");
-  puts("  Define bytecode in the program array in src/main.c.");
-  puts(
-    "  Example: { OPCODE_LOAD_IMMEDIATE_A, "
-    "UINT8_C(0xA5), OPCODE_HALT }"
-  );
-  puts("  Execute it with: make run");
+  puts("Current assembler workflow:");
+  puts("  Write assembly source in programs/demo.asm.");
+  puts("  Build the assembler with: make assembler");
+  puts("  Generate build/demo.bin with: make assemble");
+  puts("  Display its size and raw bytes with: make inspect");
+  puts("  Size only: wc -c build/demo.bin");
+  puts("  Bytes only: od -An -tx1 -v build/demo.bin");
 }

@@ -19,6 +19,10 @@ SYMBOL_TABLE_TEST_TARGET := build/test_symbol_table
 FIRST_PASS_TEST_TARGET := build/test_first_pass
 BYTE_LITERAL_TEST_TARGET := build/test_byte_literal
 BYTE_OPERAND_TEST_TARGET := build/test_byte_operand
+INSTRUCTION_PARSER_TEST_TARGET := build/test_instruction_parser
+INSTRUCTION_ENCODER_TEST_TARGET := build/test_instruction_encoder
+SECOND_PASS_TEST_TARGET := build/test_second_pass
+BINARY_WRITER_TEST_TARGET := build/test_binary_writer
 TEST_TARGETS := \
 	$(CPU_TEST_TARGET) \
 	$(CLI_TEST_TARGET) \
@@ -28,7 +32,11 @@ TEST_TARGETS := \
 	$(SYMBOL_TABLE_TEST_TARGET) \
 	$(FIRST_PASS_TEST_TARGET) \
 	$(BYTE_LITERAL_TEST_TARGET) \
-	$(BYTE_OPERAND_TEST_TARGET)
+	$(BYTE_OPERAND_TEST_TARGET) \
+	$(INSTRUCTION_PARSER_TEST_TARGET) \
+	$(INSTRUCTION_ENCODER_TEST_TARGET) \
+	$(SECOND_PASS_TEST_TARGET) \
+	$(BINARY_WRITER_TEST_TARGET)
 
 SOURCES := $(wildcard src/*.c)
 HEADERS := $(wildcard include/*.h)
@@ -43,8 +51,12 @@ SYMBOL_TABLE_TEST_SOURCES := assembler/symbol_table.c tests/test_symbol_table.c
 FIRST_PASS_TEST_SOURCES := assembler/first_pass.c assembler/symbol_table.c tests/test_first_pass.c
 BYTE_LITERAL_TEST_SOURCES := assembler/byte_literal.c tests/test_byte_literal.c
 BYTE_OPERAND_TEST_SOURCES := assembler/byte_literal.c assembler/byte_operand.c assembler/symbol_table.c tests/test_byte_operand.c
+INSTRUCTION_PARSER_TEST_SOURCES := assembler/instruction_parser.c tests/test_instruction_parser.c
+INSTRUCTION_ENCODER_TEST_SOURCES := assembler/byte_literal.c assembler/byte_operand.c assembler/instruction_encoder.c assembler/instruction_parser.c assembler/symbol_table.c tests/test_instruction_encoder.c
+SECOND_PASS_TEST_SOURCES := assembler/byte_literal.c assembler/byte_operand.c assembler/instruction_encoder.c assembler/instruction_parser.c assembler/second_pass.c assembler/symbol_table.c tests/test_second_pass.c
+BINARY_WRITER_TEST_SOURCES := assembler/binary_writer.c tests/test_binary_writer.c
 
-.PHONY: all assembler assemble run test help clean
+.PHONY: all assembler assemble inspect run test help clean
 
 all: $(TARGET)
 
@@ -52,6 +64,10 @@ assembler: $(ASSEMBLER_TARGET)
 
 assemble: $(ASSEMBLER_TARGET) $(ASSEMBLER_DEMO_SOURCE)
 	./$(ASSEMBLER_TARGET) $(ASSEMBLER_DEMO_SOURCE) $(ASSEMBLER_DEMO_OUTPUT)
+
+inspect: assemble
+	wc -c $(ASSEMBLER_DEMO_OUTPUT)
+	od -An -tx1 -v $(ASSEMBLER_DEMO_OUTPUT)
 
 $(TARGET): $(SOURCES) $(HEADERS)
 	mkdir -p build
@@ -97,6 +113,22 @@ $(BYTE_OPERAND_TEST_TARGET): $(BYTE_OPERAND_TEST_SOURCES) $(ASSEMBLER_HEADERS)
 	mkdir -p build
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(BYTE_OPERAND_TEST_SOURCES) -o $(BYTE_OPERAND_TEST_TARGET)
 
+$(INSTRUCTION_PARSER_TEST_TARGET): $(INSTRUCTION_PARSER_TEST_SOURCES) $(ASSEMBLER_HEADERS)
+	mkdir -p build
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(INSTRUCTION_PARSER_TEST_SOURCES) -o $(INSTRUCTION_PARSER_TEST_TARGET)
+
+$(INSTRUCTION_ENCODER_TEST_TARGET): $(INSTRUCTION_ENCODER_TEST_SOURCES) $(ASSEMBLER_HEADERS) $(HEADERS)
+	mkdir -p build
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(INSTRUCTION_ENCODER_TEST_SOURCES) -o $(INSTRUCTION_ENCODER_TEST_TARGET)
+
+$(SECOND_PASS_TEST_TARGET): $(SECOND_PASS_TEST_SOURCES) $(ASSEMBLER_HEADERS) $(HEADERS)
+	mkdir -p build
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(SECOND_PASS_TEST_SOURCES) -o $(SECOND_PASS_TEST_TARGET)
+
+$(BINARY_WRITER_TEST_TARGET): $(BINARY_WRITER_TEST_SOURCES) $(ASSEMBLER_HEADERS)
+	mkdir -p build
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(BINARY_WRITER_TEST_SOURCES) -o $(BINARY_WRITER_TEST_TARGET)
+
 run: $(TARGET)
 	./$(TARGET)
 
@@ -110,6 +142,10 @@ test: $(TEST_TARGETS)
 	./$(FIRST_PASS_TEST_TARGET)
 	./$(BYTE_LITERAL_TEST_TARGET)
 	./$(BYTE_OPERAND_TEST_TARGET)
+	./$(INSTRUCTION_PARSER_TEST_TARGET)
+	./$(INSTRUCTION_ENCODER_TEST_TARGET)
+	./$(SECOND_PASS_TEST_TARGET)
+	./$(BINARY_WRITER_TEST_TARGET)
 
 help: $(TARGET)
 	./$(TARGET) help
