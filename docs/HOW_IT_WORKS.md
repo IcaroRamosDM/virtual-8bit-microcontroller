@@ -30,7 +30,7 @@ The CPU never reads words such as `LDI`, `start`, or `memory_demo`. Those words 
 
 The CPU simulator is operational. It can run the 18-byte built-in demonstration stored in `src/program.c` or a compatible raw binary selected on the command line. The current Assembly demonstration generates a 19-byte binary because it includes one embedded data byte after `HALT`. Either source can run normally or with a human-readable instruction trace.
 
-The CPU now has a 16-byte downward-growing stack and the one-byte instructions `PUSH A` and `POP A`. Stack overflow and underflow are explicit execution errors. `CALL` and `RET` are not implemented yet; they are the next operations planned to reuse the same stack mechanism.
+The CPU now has a 16-byte downward-growing stack. `PUSH A` and `POP A` transfer data through it, while `CALL addr8` and `RET` use it to save and restore 8-bit return addresses. Stack overflow and underflow are explicit execution errors shared by both kinds of operation.
 
 The shared `instruction_set` module owns the `Opcode` definitions and a read-only metadata table that maps every supported opcode byte to its Assembly mnemonic. A lookup receives a raw `uint8_t` because memory may contain any byte; it returns a metadata pointer for a recognized opcode or a null pointer for an unknown value.
 
@@ -151,6 +151,54 @@ After 16 pushes, every address from `0xFF` down through `0xF0` is occupied and `
 
 `PUSH A` preserves both registers and both flags. `POP A` replaces `A`, updates `Z` according to whether the popped byte is zero, preserves `B` and `C`, and does not erase the byte left in memory. Advancing `SP` is what makes that location no longer part of the active stack.
 
+## Subroutines, `CALL`, and `RET`
+
+A subroutine is a reusable block of instructions that temporarily receives control and then returns to its caller. A normal jump changes `PC` but does not remember where execution came from. `CALL addr8` performs both jobs: it saves the return address on the stack and then jumps to the subroutine. `RET` removes that address from the stack and places it back in `PC`.
+
+`CALL addr8` occupies two bytes: opcode `0x52` followed by one absolute address byte. Its execution order is important:
+
+1. The normal instruction fetch reads the `CALL` opcode and advances `PC`.
+2. A second fetch reads `addr8` and advances `PC` again.
+3. The already-advanced `PC`, which now identifies the instruction after `CALL`, is pushed as the return address.
+4. The target address replaces `PC`, transferring execution to the subroutine.
+
+The return address is therefore calculated at run time; it is not another byte encoded in the program. `RET` occupies one byte. After its opcode is fetched, it pops the newest stack byte directly into `PC`. Both instructions preserve registers `A` and `B` and flags `Z` and `C`.
+
+Consider this nested-call program, whose labels are annotated with their resulting byte addresses:
+
+```asm
+start:           ; address 0x00
+  CALL first     ; bytes: 52 03
+  HALT           ; address 0x02
+
+first:           ; address 0x03
+  CALL second    ; bytes: 52 06
+  RET            ; address 0x05
+
+second:          ; address 0x06
+  RET
+```
+
+The assembler resolves the labels and emits only these seven bytes:
+
+```text
+52 03 01 52 06 53 53
+```
+
+The execution sequence is:
+
+1. `CALL first` pushes `0x02` at `memory[0xFF]`, leaves `SP = 0xFF`, and sets `PC = 0x03`.
+2. `CALL second` pushes `0x05` at `memory[0xFE]`, leaves `SP = 0xFE`, and sets `PC = 0x06`.
+3. The `RET` at `0x06` pops `0x05`, leaves `SP = 0xFF`, and resumes the first subroutine at `0x05`.
+4. The `RET` at `0x05` pops `0x02`, restores the empty sentinel `SP = 0x00`, and resumes the caller at `0x02`.
+5. `HALT` executes at `0x02`. Five instructions were attempted, so the simplified cycle count is five.
+
+The last return address pushed is the first one recovered, which is exactly the last-in, first-out behavior required for nested calls.
+
+Return addresses and values pushed by `PUSH A` share the same 16-byte capacity. Sixteen calls can be nested only when no other stack entries are active. Each active `PUSH A` consumes one location that would otherwise be available to a call. Software must also keep operations balanced: an unexpected `POP A`, an extra `PUSH A`, or a `RET` in the wrong place can consume the wrong byte because the stack stores bytes without recording whether each byte represents data or a return address.
+
+A `CALL` on a full stack reports stack overflow after its opcode and target operand have been fetched, so `PC` already contains the would-be return address; the jump is not taken. A `RET` on an empty stack reports stack underflow after its opcode fetch. Either error halts execution, counts the attempted instruction, and preserves registers, flags, stack memory, and `SP`.
+
 ## Fetch, decode, and execute
 
 Each CPU step follows three conceptual stages:
@@ -223,9 +271,11 @@ The CPU does not need a 16-bit register to execute this instruction. It first fe
 | `STA addr8` | `41 addr8` | 2 | Stores `A` at the given memory address; preserves the registers and flags. |
 | `PUSH A` | `50` | 1 | Pushes `A` onto the stack; preserves registers and flags. |
 | `POP A` | `51` | 1 | Pops the newest stack byte into `A`; updates `Z`; preserves `C`. |
+| `CALL addr8` | `52 addr8` | 2 | Pushes the address after the operand, then loads `PC` with the absolute target; preserves registers and flags. |
+| `RET` | `53` | 1 | Pops the newest stack byte directly into `PC`; preserves registers and flags. |
 
 `imm8` and `addr8` are each one byte. They may therefore represent values from `0x00` through `0xFF`.
-`PUSH A` and `POP A` require no encoded operand byte because the opcode already identifies both the operation and register `A`.
+`PUSH A`, `POP A`, and `RET` require no encoded operand byte because their opcodes identify their complete operations. `CALL` requires one `addr8` operand that may be written as a literal, constant, or label.
 
 ## Logical and bit operations
 
@@ -530,7 +580,7 @@ missing          -> undefined-symbol error
 
 The parser separates each normalized statement into a leading name and as many as two operands. It validates structural syntax such as whitespace, commas, missing operands, and excessive operands, but does not decide whether an instruction, directive, or register is supported.
 
-The instruction encoder then validates the meaning of the parsed fields. It recognizes the current instruction set, checks operand counts and register order, resolves byte literals or symbols, and emits a one-byte or two-byte encoded instruction. `AND`, `OR`, `XOR`, and `CMP` require the exact register pair `A, B`, while `NOT`, `SHL`, and `SHR` require the single register `A`. `JZ`, `JNZ`, and `JC` accept one literal or symbolic byte address. Failed encoding leaves the caller's output object unchanged.
+The instruction encoder then validates the meaning of the parsed fields. It recognizes the current instruction set, checks operand counts and register order, resolves byte literals or symbols, and emits a one-byte or two-byte encoded instruction. `AND`, `OR`, `XOR`, and `CMP` require the exact register pair `A, B`; `NOT`, `SHL`, and `SHR` require the single register `A`; and `PUSH` and `POP` require `A`. `JZ`, `JNZ`, `JC`, `JMP`, `LDA`, `STA`, and `CALL` accept one literal or symbolic byte address. `NOP`, `HALT`, and `RET` accept no operands. Failed encoding leaves the caller's output object unchanged.
 
 The second pass reads the normalized statements again and handles each kind explicitly:
 
@@ -910,3 +960,5 @@ make inspect
 - Unified memory permits both code and data access, so stores must use addresses carefully.
 - The loaded program is limited to `0x00` through `0xEF`; the stack reserves `0xF0` through `0xFF` and grows downward.
 - `SP = 0x00` is an empty-stack sentinel; `PUSH` and `POP` move bytes in last-in, first-out order and report boundary errors explicitly.
+- `CALL` pushes the already-advanced `PC` as an 8-bit return address; `RET` pops that byte back into `PC`.
+- Data and return addresses share the same stack, so balanced operations and available stack depth are software responsibilities.

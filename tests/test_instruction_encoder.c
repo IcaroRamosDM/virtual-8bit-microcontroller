@@ -170,6 +170,16 @@ static void test_encodes_supported_instructions(
       "POP A",
       {(uint8_t)OPCODE_POP_A, UNUSED_BYTE},
       ONE_BYTE_INSTRUCTION_SIZE
+    },
+    {
+      "CALL memory_demo",
+      {(uint8_t)OPCODE_CALL, MEMORY_DEMO_ADDRESS},
+      TWO_BYTE_INSTRUCTION_SIZE
+    },
+    {
+      "RET",
+      {(uint8_t)OPCODE_RETURN, UNUSED_BYTE},
+      ONE_BYTE_INSTRUCTION_SIZE
     }
   };
 
@@ -289,6 +299,18 @@ static void test_reports_semantic_errors(
     },
     {
       "POP",
+      INSTRUCTION_ENCODE_WRONG_OPERAND_COUNT
+    },
+    {
+      "CALL",
+      INSTRUCTION_ENCODE_WRONG_OPERAND_COUNT
+    },
+    {
+      "CALL missing",
+      INSTRUCTION_ENCODE_UNDEFINED_SYMBOL
+    },
+    {
+      "RET A",
       INSTRUCTION_ENCODE_WRONG_OPERAND_COUNT
     }
   };

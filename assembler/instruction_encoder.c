@@ -402,21 +402,37 @@ InstructionEncodeResult instruction_encode(
       &candidate
     );
   }
-
   else if (strcmp(instruction->mnemonic, "PUSH") == 0)
   {
     result = encode_register_a(
-        instruction,
-        OPCODE_PUSH_A,
-        &candidate
+      instruction,
+      OPCODE_PUSH_A,
+      &candidate
     );
   }
   else if (strcmp(instruction->mnemonic, "POP") == 0)
   {
     result = encode_register_a(
-        instruction,
-        OPCODE_POP_A,
-        &candidate
+      instruction,
+      OPCODE_POP_A,
+      &candidate
+    );
+  }
+  else if (strcmp(instruction->mnemonic, "CALL") == 0)
+  {
+    result = encode_byte_operand_instruction(
+      instruction,
+      symbols,
+      OPCODE_CALL,
+      &candidate
+    );
+  }
+  else if (strcmp(instruction->mnemonic, "RET") == 0)
+  {
+    result = encode_without_operands(
+      instruction,
+      OPCODE_RETURN,
+      &candidate
     );
   }
 

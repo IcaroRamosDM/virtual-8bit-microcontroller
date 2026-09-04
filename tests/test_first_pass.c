@@ -64,12 +64,14 @@ static void test_recognizes_all_instruction_sizes(void)
     {17, "LDA 0x80"},
     {18, "STA 0x80"},
     {19, "PUSH A"},
-    {20, "POP A"}
+    {20, "POP A"},
+    {21, "CALL target"},
+    {22, "RET"}
   };
 
   enum
   {
-    EXPECTED_PROGRAM_SIZE = 27
+    EXPECTED_PROGRAM_SIZE = 30
   };
 
   const size_t statement_count =

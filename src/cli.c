@@ -430,6 +430,42 @@ void cli_print_help(void)
   );
   puts("");
 
+  printf(
+    "  CALL addr8      Opcode: 0x%02X | Size: 2 bytes\n",
+    (unsigned int)OPCODE_CALL
+  );
+  puts("    Effect: Push address after addr8; PC <- addr8.");
+  puts(
+    "    Explanation: Saves the return address, then jumps "
+    "to an absolute address."
+  );
+  puts("    Registers A and B and flags Z and C are unchanged.");
+  puts("    A full stack causes stack overflow.");
+  puts("    Assembly example: CALL subroutine");
+  printf(
+    "    Encoding example: 0x%02X 0x80\n",
+    (unsigned int)OPCODE_CALL
+  );
+  puts("");
+
+  printf(
+    "  RET             Opcode: 0x%02X | Size: 1 byte\n",
+    (unsigned int)OPCODE_RETURN
+  );
+  puts("    Effect: PC <- newest stack byte.");
+  puts(
+    "    Explanation: Pops the saved return address "
+    "and resumes execution there."
+  );
+  puts("    Registers A and B and flags Z and C are unchanged.");
+  puts("    An empty stack causes stack underflow.");
+  puts("    Assembly example: RET");
+  printf(
+    "    Encoding: 0x%02X\n",
+    (unsigned int)OPCODE_RETURN
+  );
+  puts("");
+
   puts("Program and stack memory:");
   puts("  Program binaries may use 0x00 through 0xEF (240 bytes).");
   puts("  The 16-byte stack uses addresses 0xF0 through 0xFF.");
