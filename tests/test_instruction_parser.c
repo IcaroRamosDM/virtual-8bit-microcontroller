@@ -115,6 +115,25 @@ static void test_accepts_comma_without_following_space(void)
   );
 }
 
+static void test_parses_assembler_directives(void)
+{
+  assert_successful_parse(
+    ".EQU DATA_ADDRESS, 0x80",
+    ".EQU",
+    2,
+    "DATA_ADDRESS",
+    "0x80"
+  );
+
+  assert_successful_parse(
+    ".BYTE 0xA5",
+    ".BYTE",
+    1,
+    "0xA5",
+    NULL
+  );
+}
+
 static void test_reports_invalid_syntax(void)
 {
   static const InvalidInstructionTestCase test_cases[] =
@@ -158,6 +177,7 @@ int main(void)
   test_parses_instruction_with_two_operands();
   test_accepts_whitespace_around_comma();
   test_accepts_comma_without_following_space();
+  test_parses_assembler_directives();
   test_reports_invalid_syntax();
 
   puts("All instruction-parser tests passed.");

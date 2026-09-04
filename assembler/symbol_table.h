@@ -24,7 +24,7 @@ typedef enum SymbolTableAddResult
 typedef struct Symbol
 {
   char name[SYMBOL_TABLE_NAME_BUFFER_SIZE];
-  uint8_t address;
+  uint8_t value;
 } Symbol;
 
 typedef struct SymbolTable
@@ -38,11 +38,11 @@ void symbol_table_initialize(SymbolTable *table);
 SymbolTableAddResult symbol_table_add(
     SymbolTable *table,
     const char *name,
-    uint8_t address
+    uint8_t value
 );
 
 bool symbol_table_find(
     const SymbolTable *table,
     const char *name,
-    uint8_t *address
+    uint8_t *value
 );

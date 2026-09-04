@@ -28,7 +28,7 @@ A CPU nunca lê palavras como `LDI`, `start` ou `memory_demo`. Essas palavras ex
 
 ## Limite atual da implementação
 
-O simulador da CPU está funcional. Ele pode executar tanto a demonstração embutida de 18 bytes armazenada em `src/program.c` quanto um binário bruto compatível selecionado pela linha de comando. Qualquer uma dessas origens pode ser executada normalmente ou com um rastreamento de instruções legível por pessoas.
+O simulador da CPU está funcional. Ele pode executar a demonstração embutida de 18 bytes armazenada em `src/program.c` ou um binário bruto compatível selecionado pela linha de comando. A demonstração Assembly atual gera um binário de 19 bytes porque inclui um byte de dado embutido depois de `HALT`. Qualquer uma dessas origens pode ser executada normalmente ou com um rastreamento de instruções legível por pessoas.
 
 O módulo compartilhado `instruction_set` é o responsável pelas definições de `Opcode` e por uma tabela de metadados somente para leitura que associa cada byte de opcode suportado ao seu mnemônico Assembly. A busca recebe um `uint8_t` bruto porque a memória pode conter qualquer byte; ela retorna um ponteiro para os metadados de um opcode reconhecido ou um ponteiro nulo para um valor desconhecido.
 
@@ -38,16 +38,16 @@ O montador atualmente implementa:
 - leitura limitada do arquivo-fonte;
 - remoção de comentários e espaços ao redor da linha;
 - entrega dos statements normalizados por meio de um callback;
-- uma tabela de símbolos;
-- uma primeira passagem que registra labels e calcula o tamanho do programa;
+- uma tabela de símbolos compartilhada por labels e constantes nomeadas;
+- uma primeira passagem que registra labels e constantes e calcula o tamanho das instruções e dos dados brutos;
 - interpretação de literais de 8 bits em decimal e hexadecimal;
 - resolução de um operando como literal ou símbolo;
-- um parser de instruções que separa mnemônicos e operandos;
+- um parser que separa nomes de instruções ou diretivas e operandos;
 - um codificador que valida a semântica das instruções e emite opcodes e operandos;
-- uma segunda passagem que resolve símbolos e acumula a sequência completa de bytes do programa;
+- uma segunda passagem que ignora `.EQU`, resolve operandos de `.BYTE`, codifica instruções e acumula a sequência completa de bytes do programa;
 - um gravador de binário que armazena os bytes brutos no arquivo de saída solicitado.
 
-`make assemble` traduz `programs/demo.asm` para o arquivo de 18 bytes `build/demo.bin`. `make inspect` realiza essa montagem e depois exibe o tamanho e os bytes brutos gerados. `make run` executa o bytecode embutido equivalente de `src/program.c`, enquanto `make run-bin` monta, carrega e executa `build/demo.bin`. `make trace` e `make trace-bin` selecionam essas mesmas duas origens de programa enquanto expõem cada instrução executada e o estado resultante da CPU.
+`make assemble` traduz `programs/demo.asm` para o arquivo de 19 bytes `build/demo.bin`. `make inspect` realiza essa montagem e depois exibe o tamanho e os bytes brutos gerados. `make run` executa o bytecode embutido de 18 bytes de `src/program.c`, enquanto `make run-bin` monta, carrega e executa `build/demo.bin`. As duas demonstrações são equivalentes no comportamento, mas não são idênticas byte por byte. `make trace` e `make trace-bin` selecionam essas mesmas duas origens de programa enquanto expõem cada instrução executada e o estado resultante da CPU.
 
 ## O que “8 bits” significa
 
@@ -330,7 +330,7 @@ O contador de programa conta **endereços de bytes**, e não instruções. Porta
 
 O contador de ciclos segue um modelo deliberadamente simplificado: toda instrução tentada conta como um ciclo, independentemente de a instrução ocupar um ou dois bytes.
 
-Assim, um programa de 18 bytes pode executar somente nove instruções e terminar com:
+Portanto, o tamanho do programa e a quantidade de instruções executadas são medidas diferentes. Tanto a demonstração embutida de 18 bytes quanto a demonstração montada de 19 bytes executam somente nove instruções e terminam com:
 
 ```text
 Program counter: 18
@@ -355,16 +355,41 @@ Os dois-pontos declaram o label, mas não fazem parte do nome armazenado. Uma in
 JMP start
 ```
 
-Um **símbolo** é um nome associado a uma informação conhecida pelo montador. Na linguagem atual, os símbolos são labels associados a endereços de bytes. A tabela de símbolos poderia conter:
+Um **símbolo** é um nome associado a um valor de 8 bits conhecido pelo montador. Na linguagem atual, um símbolo pode ser o endereço de um label ou uma constante nomeada. Os dois tipos compartilham uma tabela de símbolos e um mesmo espaço de nomes. A tabela criada para a demonstração atual inclui entradas como:
 
 ```text
-start       -> 0x00
-memory_demo -> 0x09
+start            -> 0x00  (endereço de label)
+memory_demo      -> 0x09  (endereço de label)
+initial_data     -> 0x12  (endereço de label)
+COMPARISON_VALUE -> 0x2A  (constante nomeada)
+DATA_ADDRESS     -> 0x80  (constante nomeada)
 ```
 
-Os nomes podem conter vários caracteres porque são armazenados e processados pelo montador executado no computador hospedeiro. Somente o endereço resolvido de 8 bits é gravado no código de máquina. O nome em si nunca entra na memória da CPU.
+Os nomes podem conter vários caracteres porque são armazenados e processados pelo montador executado no computador hospedeiro. Quando um símbolo é usado como operando, somente seu valor resolvido de 8 bits é gravado no código de máquina. O nome em si nunca entra na memória da CPU.
 
-Os labels diferenciam letras maiúsculas e minúsculas, devem começar com uma letra ou sublinhado e podem continuar com letras, números ou sublinhados. Os mnemônicos das instruções e os nomes dos registradores são palavras reservadas e não podem ser usados como labels.
+Labels e constantes diferenciam letras maiúsculas e minúsculas, devem começar com uma letra ou sublinhado e podem continuar com letras, números ou sublinhados. Mnemônicos de instruções e nomes de registradores são reservados e não podem ser usados como símbolos. Um label e uma constante também não podem reutilizar o mesmo nome porque compartilham um único espaço de nomes.
+
+### Constantes nomeadas e dados brutos
+
+`.EQU NAME, value` associa `NAME` a um literal decimal ou hexadecimal com prefixo `0x` entre 0 e 255. Ela não emite nenhum byte:
+
+```asm
+.EQU STORED_VALUE, 0x5A
+```
+
+`.BYTE value` emite exatamente um byte bruto. Seu operando pode ser um literal, uma constante nomeada ou um label. Isso permite que dados ocupem a mesma imagem de memória que as instruções executáveis:
+
+```asm
+.EQU STORED_VALUE, 0x5A
+
+  LDA initial_data
+  HALT
+
+initial_data:
+  .BYTE STORED_VALUE
+```
+
+Esse exemplo gera `40 03 01 5A`. O operando de `LDA` é `0x03`, o endereço registrado para `initial_data`; o byte nesse endereço é `0x5A`. Nenhum dos dois nomes simbólicos é armazenado no binário.
 
 ## Montagem no hospedeiro e máquinas com pouca memória
 
@@ -425,12 +450,14 @@ O número original da linha física é preservado para as mensagens de diagnóst
 A primeira passagem mantém o tamanho atual do programa, que também funciona como o endereço do próximo byte que seria emitido.
 
 - Um label é inserido na tabela de símbolos com o endereço atual e emite zero bytes.
+- `.EQU` insere seu nome e valor literal na mesma tabela de símbolos e emite zero bytes.
+- `.BYTE` avança o tamanho em um porque emitirá um byte durante a segunda passagem.
 - Uma instrução de um byte avança o tamanho em um.
 - Uma instrução de dois bytes avança o tamanho em dois.
-- Labels duplicados, malformados, reservados ou fora da memória são rejeitados.
-- Mnemônicos desconhecidos e programas maiores que a memória são rejeitados.
+- Nomes de símbolos duplicados são rejeitados mesmo quando uma declaração é um label e a outra é uma constante.
+- Nomes malformados ou reservados, diretivas inválidas, mnemônicos desconhecidos e programas maiores que a memória são rejeitados.
 
-A sintaxe dos operandos não é totalmente interpretada durante essa passagem. Apenas o mnemônico e o tamanho codificado da instrução são necessários para calcular os endereços.
+O literal de `.EQU` precisa ser validado durante essa passagem porque seu valor é armazenado imediatamente. Os operandos simbólicos das instruções e de `.BYTE` podem esperar pela segunda passagem; a primeira passagem precisa apenas dos respectivos tamanhos de saída para continuar calculando os endereços.
 
 ### Resolução de literais e símbolos
 
@@ -444,21 +471,30 @@ O interpretador de literais aceita valores estritos em decimal ou hexadecimal co
 
 Sinais, espaços internos, dígitos malformados e valores acima de 255 são rejeitados.
 
-O resolvedor de operandos de byte primeiro tenta interpretar o texto como literal. Se o texto não for um literal, mas for um nome de símbolo válido, ele consulta a tabela de símbolos:
+O resolvedor de operandos de byte primeiro tenta interpretar o texto como literal. Se o texto não for um literal, mas for um nome de símbolo válido, ele consulta a tabela de símbolos compartilhada. Portanto, o mesmo resolvedor pode retornar um literal, o valor de uma constante ou o endereço de um label:
 
 ```text
-0x80        -> byte literal 0x80
-memory_demo -> endereço de símbolo 0x09
-missing     -> erro de símbolo indefinido
+0x80             -> byte literal 0x80
+DATA_ADDRESS     -> valor de constante 0x80
+memory_demo      -> endereço de label 0x09
+initial_data     -> endereço de label 0x12
+missing          -> erro de símbolo indefinido
 ```
 
 ### Segunda passagem
 
-O parser de instruções separa cada statement normalizado em um mnemônico e até dois operandos. Ele valida a estrutura sintática, como espaços, vírgulas, operandos ausentes e operandos em excesso, mas não decide se um mnemônico ou registrador é suportado.
+O parser separa cada statement normalizado em um nome inicial e até dois operandos. Ele valida a estrutura sintática, como espaços, vírgulas, operandos ausentes e operandos em excesso, mas não decide se uma instrução, diretiva ou registrador é suportado.
 
 O codificador de instruções então valida o significado dos campos interpretados. Ele reconhece o conjunto atual de instruções, verifica a quantidade de operandos e a ordem dos registradores, resolve literais de byte ou símbolos e emite uma instrução codificada de um ou dois bytes. `AND`, `OR`, `XOR` e `CMP` exigem o par de registradores exato `A, B`, enquanto `NOT`, `SHL` e `SHR` exigem somente o registrador `A`. `JZ`, `JNZ` e `JC` aceitam um endereço de byte literal ou simbólico. Uma falha de codificação deixa inalterado o objeto de saída fornecido pelo chamador.
 
-A segunda passagem lê novamente os statements normalizados, ignora as declarações de labels, executa o parser e o codificador e acrescenta cada codificação bem-sucedida a um buffer limitado do programa. Ela informa diagnósticos com o caminho original do arquivo e o número da linha, conta as instruções codificadas e rejeita qualquer gravação que ultrapassaria a capacidade de saída fornecida.
+A segunda passagem lê novamente os statements normalizados e trata cada tipo explicitamente:
+
+- declarações de labels são ignoradas porque seus endereços já estão na tabela de símbolos;
+- `.EQU` é ignorada porque já definiu um valor e não emite bytes;
+- `.BYTE` resolve seu único operando e acrescenta exatamente um byte;
+- instruções comuns passam pela validação semântica e pela codificação.
+
+Cada byte emitido é acrescentado a um buffer limitado do programa. A passagem informa diagnósticos com o caminho original do arquivo e o número da linha e rejeita qualquer gravação que ultrapassaria a capacidade de saída fornecida. Somente instruções da CPU codificadas aumentam a contagem de instruções, portanto `.BYTE` muda a quantidade de bytes, mas não a quantidade de instruções.
 
 Por exemplo:
 
@@ -472,52 +508,70 @@ torna-se:
 30 09
 ```
 
-Depois que as duas passagens concordam sobre o tamanho de 18 bytes do programa, o gravador de binário abre o caminho solicitado em modo binário, grava exatamente essa quantidade de bytes e verifica tanto a gravação quanto o fechamento final do arquivo. Portanto, `make assemble` cria `build/demo.bin` como código de máquina bruto.
+Depois que as duas passagens concordam sobre o tamanho de 19 bytes do programa, o gravador de binário abre o caminho solicitado em modo binário, grava exatamente essa quantidade de bytes e verifica tanto a gravação quanto o fechamento final do arquivo. Portanto, `make assemble` cria `build/demo.bin` como código de máquina bruto.
 
 ## Codificação completa da demonstração
 
 A demonstração Assembly atual é:
 
 ```asm
-; Demonstrates arithmetic, branching, and memory transfer.
+; Demonstrates constants, embedded data, arithmetic, branching, and memory transfer.
+
+.EQU COMPARISON_VALUE, 0x2A
+.EQU FALLTHROUGH_VALUE, 0xFF
+.EQU STORED_VALUE, 0x5A
+.EQU CLEARED_VALUE, 0x00
+.EQU DATA_ADDRESS, 0x80
 
 start:
-  LDI A, 0x2A
-  LDI B, 0x2A
+  LDI A, COMPARISON_VALUE
+  LDI B, COMPARISON_VALUE
   SUB A, B
   JZ memory_demo
-  LDI A, 0xFF
+  LDI A, FALLTHROUGH_VALUE
 
 memory_demo:
-  LDI A, 0x5A
-  STA 0x80
-  LDI A, 0x00
-  LDA 0x80
+  LDA initial_data
+  STA DATA_ADDRESS
+  LDI A, CLEARED_VALUE
+  LDA DATA_ADDRESS
   HALT
+
+initial_data:
+  .BYTE STORED_VALUE
 ```
 
 O cálculo dos endereços e a codificação gerada são:
 
 | Endereço | Statement do código-fonte | Bytes emitidos | Explicação |
 | ---: | --- | --- | --- |
+| — | `.EQU COMPARISON_VALUE, 0x2A` | — | Define uma constante; não emite nada. |
+| — | `.EQU FALLTHROUGH_VALUE, 0xFF` | — | Define uma constante; não emite nada. |
+| — | `.EQU STORED_VALUE, 0x5A` | — | Define uma constante; não emite nada. |
+| — | `.EQU CLEARED_VALUE, 0x00` | — | Define uma constante; não emite nada. |
+| — | `.EQU DATA_ADDRESS, 0x80` | — | Define uma constante; não emite nada. |
 | `0x00` | `start:` | — | Registra `start = 0x00`; não emite nada. |
-| `0x00` | `LDI A, 0x2A` | `10 2A` | Ocupa `0x00` e `0x01`. |
-| `0x02` | `LDI B, 0x2A` | `11 2A` | Ocupa `0x02` e `0x03`. |
+| `0x00` | `LDI A, COMPARISON_VALUE` | `10 2A` | Resolve a constante e ocupa `0x00` e `0x01`. |
+| `0x02` | `LDI B, COMPARISON_VALUE` | `11 2A` | Resolve a mesma constante e ocupa `0x02` e `0x03`. |
 | `0x04` | `SUB A, B` | `21` | Instrução de um byte. |
 | `0x05` | `JZ memory_demo` | `30 09` | Resolve `memory_demo` como `0x09`. |
-| `0x07` | `LDI A, 0xFF` | `10 FF` | Ignorada quando o salto é realizado. |
+| `0x07` | `LDI A, FALLTHROUGH_VALUE` | `10 FF` | Resolve a constante; ignorada quando o salto é realizado. |
 | `0x09` | `memory_demo:` | — | Registra `memory_demo = 0x09`; não emite nada. |
-| `0x09` | `LDI A, 0x5A` | `10 5A` | Ocupa `0x09` e `0x0A`. |
-| `0x0B` | `STA 0x80` | `41 80` | Armazena `A` na memória de dados. |
-| `0x0D` | `LDI A, 0x00` | `10 00` | Limpa `A`. |
-| `0x0F` | `LDA 0x80` | `40 80` | Recarrega o valor armazenado. |
+| `0x09` | `LDA initial_data` | `40 12` | Resolve o label como `0x12` e carrega seu byte. |
+| `0x0B` | `STA DATA_ADDRESS` | `41 80` | Resolve a constante e armazena `A` em `0x80`. |
+| `0x0D` | `LDI A, CLEARED_VALUE` | `10 00` | Resolve a constante e limpa `A`. |
+| `0x0F` | `LDA DATA_ADDRESS` | `40 80` | Resolve a constante e recarrega o valor armazenado. |
 | `0x11` | `HALT` | `01` | Para após buscar o byte. |
+| `0x12` | `initial_data:` | — | Registra o endereço do dado embutido; não emite nada. |
+| `0x12` | `.BYTE STORED_VALUE` | `5A` | Resolve a constante e emite um byte de dado. |
 
-A sequência completa gerada de 18 bytes é:
+A sequência completa gerada de 19 bytes é:
 
 ```text
-10 2A 11 2A 21 30 09 10 FF 10 5A 41 80 10 00 40 80 01
+10 2A 11 2A 21 30 09 10 FF 40 12 41 80 10 00 40 80 01 5A
 ```
+
+Os primeiros 18 bytes contêm código executável até `HALT`. O último byte, no endereço `0x12`, é um dado. Ele faz parte da imagem carregada na memória, mas é lido por `LDA`, e não buscado como opcode.
 
 ## Passo a passo da execução da demonstração
 
@@ -529,13 +583,15 @@ A CPU começa com registradores zerados, flags inativas, `PC = 0x00` e contador 
 | 2 | `0x02` | `LDI B, 0x2A` | `B = 0x2A`, `Z = 0`, `PC = 0x04`, ciclos = 2. |
 | 3 | `0x04` | `SUB A, B` | `A = 0x00`, `Z = 1`, sem empréstimo, `PC = 0x05`, ciclos = 3. |
 | 4 | `0x05` | `JZ 0x09` | O operando de destino é buscado e a flag zero ativa muda `PC` para `0x09`; ciclos = 4. |
-| 5 | `0x09` | `LDI A, 0x5A` | `A = 0x5A`, `Z = 0`, `PC = 0x0B`, ciclos = 5. |
+| 5 | `0x09` | `LDA 0x12` | Lê o byte embutido, portanto `A = 0x5A`, `Z = 0`, `PC = 0x0B`, ciclos = 5. |
 | 6 | `0x0B` | `STA 0x80` | `memory[0x80] = 0x5A`, `PC = 0x0D`, ciclos = 6. |
 | 7 | `0x0D` | `LDI A, 0x00` | `A = 0x00`, `Z = 1`, `PC = 0x0F`, ciclos = 7. |
 | 8 | `0x0F` | `LDA 0x80` | `A = 0x5A`, `Z = 0`, `PC = 0x11`, ciclos = 8. |
 | 9 | `0x11` | `HALT` | CPU parada, `PC = 0x12` (decimal 18), ciclos = 9. |
 
 A instrução no endereço `0x07` nunca é executada porque `SUB A, B` produziu zero e `JZ` saltou diretamente para `0x09`.
+
+O byte de dado em `0x12` nunca é executado porque `HALT` para a CPU depois de avançar `PC` de `0x11` para `0x12`. Mesmo assim, seu endereço é válido para a instrução anterior `LDA 0x12`.
 
 O estado final visível é:
 
@@ -730,7 +786,7 @@ Compila o executável independente `build/vm8asm`.
 make assemble
 ```
 
-Compila `vm8asm` quando necessário, executa as duas passagens sobre `programs/demo.asm` e grava os 18 bytes brutos resultantes em `build/demo.bin`.
+Compila `vm8asm` quando necessário, executa as duas passagens sobre `programs/demo.asm` e grava os 19 bytes brutos resultantes em `build/demo.bin`.
 
 O mesmo montador pode ser chamado diretamente com caminhos explícitos:
 
@@ -747,10 +803,10 @@ wc -c build/demo.bin
 Saída esperada:
 
 ```text
-18 build/demo.bin
+19 build/demo.bin
 ```
 
-`wc -c` conta bytes, e não linhas ou palavras. Isso confirma que o binário contém os 18 bytes calculados pelas duas passagens do montador.
+`wc -c` conta bytes, e não linhas ou palavras. Isso confirma que o binário contém os 19 bytes calculados pelas duas passagens do montador.
 
 Exiba todos os bytes brutos em hexadecimal:
 
@@ -761,8 +817,8 @@ od -An -tx1 -v build/demo.bin
 Saída esperada:
 
 ```text
- 10 2a 11 2a 21 30 09 10 ff 10 5a 41 80 10 00 40
- 80 01
+ 10 2a 11 2a 21 30 09 10 ff 40 12 41 80 10 00 40
+ 80 01 5a
 ```
 
 As opções de `od` significam:
@@ -789,6 +845,9 @@ make inspect
 - `CMP` atualiza zero e empréstimo sem alterar seus operandos; saltos condicionais consultam as flags sem modificá-las.
 - Labels e mnemônicos pertencem ao montador, e não à CPU.
 - Um label não consome memória do programa; ele nomeia o endereço de byte atual.
+- `.EQU` dá a um literal de 8 bits um nome simbólico reutilizável e não emite nenhum byte.
+- `.BYTE` emite um byte bruto e pode colocar dados na mesma imagem de memória que o código.
+- Labels e constantes compartilham um único espaço de nomes que diferencia letras maiúsculas e minúsculas.
 - A primeira passagem descobre os endereços, e a segunda substitui referências simbólicas por bytes numéricos.
 - O gravador binário armazena os valores gerados como bytes brutos, e não como texto hexadecimal.
 - O leitor binário utiliza uma capacidade fornecida pelo chamador e verifica um byte adicional para rejeitar entradas grandes demais com segurança.

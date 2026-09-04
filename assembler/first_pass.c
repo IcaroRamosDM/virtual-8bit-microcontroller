@@ -5,13 +5,22 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "byte_literal.h"
 #include "cpu.h"
+#include "instruction_parser.h"
 
 enum
 {
   INSTRUCTION_SIZE_ONE_BYTE = 1,
-  INSTRUCTION_SIZE_TWO_BYTES = 2
+  INSTRUCTION_SIZE_TWO_BYTES = 2,
+  EQU_DIRECTIVE_OPERAND_COUNT = 2,
+  BYTE_DIRECTIVE_OPERAND_COUNT = 1,
+  EQU_NAME_OPERAND_INDEX = 0,
+  EQU_VALUE_OPERAND_INDEX = 1
 };
+
+static const char EQU_DIRECTIVE[] = ".EQU";
+static const char BYTE_DIRECTIVE[] = ".BYTE";
 
 typedef struct InstructionDefinition
 {
@@ -101,7 +110,7 @@ static bool find_instruction_size(
   return false;
 }
 
-static bool label_name_is_valid(const char *name)
+static bool symbol_name_is_valid(const char *name)
 {
   if (*name == '\0')
   {
@@ -140,7 +149,7 @@ static bool label_name_is_valid(const char *name)
   return true;
 }
 
-static bool label_name_is_reserved(const char *name)
+static bool symbol_name_is_reserved(const char *name)
 {
   const size_t definition_count =
     sizeof INSTRUCTION_DEFINITIONS /
@@ -209,7 +218,7 @@ static bool process_label(
 
   label_name[label_length] = '\0';
 
-  if (!label_name_is_valid(label_name))
+  if (!symbol_name_is_valid(label_name))
   {
     fprintf(
       stderr,
@@ -222,7 +231,7 @@ static bool process_label(
     return false;
   }
 
-  if (label_name_is_reserved(label_name))
+  if (symbol_name_is_reserved(label_name))
   {
     fprintf(
       stderr,
@@ -302,6 +311,166 @@ static bool process_label(
   return false;
 }
 
+static bool parse_directive(
+    const char *input_path,
+    size_t line_number,
+    const char *statement,
+    const char *directive_name,
+    size_t expected_operand_count,
+    ParsedInstruction *directive
+)
+{
+  const InstructionParseResult parse_result =
+    instruction_parse(statement, directive);
+
+  if (
+    (parse_result == INSTRUCTION_PARSE_SUCCESS) &&
+    (directive->operand_count == expected_operand_count)
+  )
+  {
+    return true;
+  }
+
+  fprintf(
+    stderr,
+    "%s:%zu: invalid %s directive: '%s'\n",
+    input_path,
+    line_number,
+    directive_name,
+    statement
+  );
+
+  return false;
+}
+
+static bool process_equ_directive(
+    const char *input_path,
+    size_t line_number,
+    const char *statement,
+    FirstPassResult *result
+)
+{
+  ParsedInstruction directive = {0};
+
+  if (
+    !parse_directive(
+      input_path,
+      line_number,
+      statement,
+      EQU_DIRECTIVE,
+      EQU_DIRECTIVE_OPERAND_COUNT,
+      &directive
+    )
+  )
+  {
+    return false;
+  }
+
+  const char *name =
+    directive.operands[EQU_NAME_OPERAND_INDEX];
+
+  if (
+    !symbol_name_is_valid(name) ||
+    symbol_name_is_reserved(name)
+  )
+  {
+    fprintf(
+      stderr,
+      "%s:%zu: invalid or reserved constant name '%s'\n",
+      input_path,
+      line_number,
+      name
+    );
+
+    return false;
+  }
+
+  uint8_t value = 0;
+
+  const ByteLiteralParseResult literal_result =
+    byte_literal_parse(
+      directive.operands[EQU_VALUE_OPERAND_INDEX],
+      &value
+    );
+
+  if (literal_result != BYTE_LITERAL_PARSE_SUCCESS)
+  {
+    fprintf(
+      stderr,
+      "%s:%zu: constant value must be "
+      "an 8-bit literal: '%s'\n",
+      input_path,
+      line_number,
+      directive.operands[EQU_VALUE_OPERAND_INDEX]
+    );
+
+    return false;
+  }
+
+  const SymbolTableAddResult add_result =
+    symbol_table_add(&result->symbols, name, value);
+
+  if (add_result != SYMBOL_TABLE_ADD_SUCCESS)
+  {
+    fprintf(
+      stderr,
+      "%s:%zu: could not define constant '%s'\n",
+      input_path,
+      line_number,
+      name
+    );
+
+    return false;
+  }
+
+  return true;
+}
+
+static bool process_byte_directive(
+    const char *input_path,
+    size_t line_number,
+    const char *statement,
+    FirstPassResult *result
+)
+{
+  ParsedInstruction directive = {0};
+
+  if (
+    !parse_directive(
+      input_path,
+      line_number,
+      statement,
+      BYTE_DIRECTIVE,
+      BYTE_DIRECTIVE_OPERAND_COUNT,
+      &directive
+    )
+  )
+  {
+    return false;
+  }
+
+  if (
+    result->program_size + INSTRUCTION_SIZE_ONE_BYTE >
+    CPU_MEMORY_SIZE
+  )
+  {
+    fprintf(
+      stderr,
+      "%s:%zu: program exceeds "
+      "%d-byte memory\n",
+      input_path,
+      line_number,
+      CPU_MEMORY_SIZE
+    );
+
+    return false;
+  }
+
+  result->program_size += INSTRUCTION_SIZE_ONE_BYTE;
+
+  return true;
+}
+
 static bool process_instruction(
     const char *input_path,
     size_t line_number,
@@ -373,6 +542,26 @@ bool first_pass_process_statement(
   if (statement_is_label(statement))
   {
     return process_label(
+      input_path,
+      line_number,
+      statement,
+      result
+    );
+  }
+
+  if (statement_has_mnemonic(statement, EQU_DIRECTIVE))
+  {
+    return process_equ_directive(
+      input_path,
+      line_number,
+      statement,
+      result
+    );
+  }
+
+  if (statement_has_mnemonic(statement, BYTE_DIRECTIVE))
+  {
+    return process_byte_directive(
       input_path,
       line_number,
       statement,

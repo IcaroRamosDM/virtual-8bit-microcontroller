@@ -393,6 +393,17 @@ void cli_print_help(void)
     (unsigned int)OPCODE_STORE_A_TO_MEMORY
   );
   puts("");
+
+  puts("Assembler directives:");
+  puts("  .EQU NAME, value  Define a named 8-bit constant; emits no bytes.");
+  puts("    NAME is case-sensitive and shares a namespace with labels.");
+  puts("    value must be a decimal or 0x hexadecimal literal from 0 to 255.");
+  puts("    Example: .EQU DATA_ADDRESS, 0x80");
+  puts("  .BYTE value       Emit exactly one raw byte.");
+  puts("    value may be a byte literal, a named constant, or a label.");
+  puts("    Examples: .BYTE 0xA5 and .BYTE DATA_ADDRESS");
+  puts("");
+
   puts("Simulator workflow:");
   puts("  Run the built-in demonstration with: make run");
   puts("  Assemble and run programs/demo.asm with: make run-bin");

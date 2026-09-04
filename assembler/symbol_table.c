@@ -10,7 +10,7 @@ void symbol_table_initialize(SymbolTable *table)
 bool symbol_table_find(
     const SymbolTable *table,
     const char *name,
-    uint8_t *address
+    uint8_t *value
 )
 {
   for (size_t index = 0; index < table->count; ++index)
@@ -19,9 +19,9 @@ bool symbol_table_find(
 
     if (strcmp(symbol->name, name) == 0)
     {
-      if (address != NULL)
+      if (value != NULL)
       {
-        *address = symbol->address;
+        *value = symbol->value;
       }
 
       return true;
@@ -34,7 +34,7 @@ bool symbol_table_find(
 SymbolTableAddResult symbol_table_add(
     SymbolTable *table,
     const char *name,
-    uint8_t address
+    uint8_t value
 )
 {
   if (*name == '\0')
@@ -67,7 +67,7 @@ SymbolTableAddResult symbol_table_add(
     name_length + 1
   );
 
-  symbol->address = address;
+  symbol->value = value;
 
   ++table->count;
 

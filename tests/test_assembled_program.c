@@ -10,7 +10,9 @@
 
 enum
 {
-  EXPECTED_PROGRAM_SIZE = 18
+  INITIAL_DATA_ADDRESS = 0x12,
+  EXPECTED_PROGRAM_COUNTER = INITIAL_DATA_ADDRESS,
+  EXPECTED_PROGRAM_SIZE = INITIAL_DATA_ADDRESS + 1
 };
 
 static const char ASSEMBLED_PROGRAM_PATH[] =
@@ -21,8 +23,10 @@ static void test_executes_assembled_program(void)
   const uint8_t expected_register_a = UINT8_C(0x5A);
   const uint8_t expected_register_b = UINT8_C(0x2A);
   const uint8_t expected_program_counter =
-    (uint8_t)EXPECTED_PROGRAM_SIZE;
+    (uint8_t)EXPECTED_PROGRAM_COUNTER;
   const uint8_t data_address = UINT8_C(0x80);
+  const uint8_t initial_data_address =
+    (uint8_t)INITIAL_DATA_ADDRESS;
   const uint64_t expected_cycle_count = UINT64_C(9);
   const uint64_t instruction_limit = CPU_MEMORY_SIZE;
 
@@ -63,6 +67,11 @@ static void test_executes_assembled_program(void)
 
   assert(
     cpu_read_memory(&cpu, data_address) ==
+    expected_register_a
+  );
+
+  assert(
+    cpu_read_memory(&cpu, initial_data_address) ==
     expected_register_a
   );
 

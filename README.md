@@ -36,7 +36,7 @@ The initial CPU model contains:
 - an immutable bytecode-program descriptor that keeps its byte pointer and size together;
 - a dedicated module for the built-in demonstration bytecode;
 - a bounded binary-file reader that rejects input larger than the 256-byte memory capacity;
-- a standalone two-pass assembler with normalized source reading, a symbol table, strict instruction parsing, byte-operand resolution, instruction encoding, and raw binary output;
+- a standalone two-pass assembler with normalized source reading, a shared label-and-constant symbol table, strict instruction and directive parsing, byte-operand resolution, instruction encoding, and raw binary output;
 - command-line selection between normal or traced execution of the built-in demonstration and an external binary program;
 - built-in help for simulator commands and CPU instructions;
 - process-level CLI tests for successful execution and expected failure paths.
@@ -74,9 +74,34 @@ The two `LDI` instructions, `JZ`, `JNZ`, `JC`, `JMP`, `LDA`, and `STA` occupy tw
 
 The carry flag reports unsigned carry for addition, unsigned borrow for subtraction and comparison, and the bit shifted out by `SHL` or `SHR`. The four non-shift logical instructions clear carry. `CMP` sets zero when `A == B` and carry when unsigned `A < B`, without changing either register. `JZ`, `JNZ`, and `JC` test the corresponding flag while preserving CPU state other than the program counter and cycle count. `JMP` always replaces the program counter with its absolute address operand. `LDA` reads memory into `A` and updates zero, while `STA` writes `A` to memory without changing flags.
 
+## Assembler symbols and directives
+
+Labels and named constants are both symbols and share one case-sensitive namespace. A label records the current output address, while `.EQU` associates a name with a literal 8-bit value. Neither one emits a byte by itself.
+
+`.BYTE` emits exactly one raw byte. Its operand may be a decimal or `0x` hexadecimal literal, a named constant, or a label:
+
+```asm
+.EQU DATA_ADDRESS, 0x80
+.EQU INITIAL_VALUE, 0x5A
+
+start:
+  LDA initial_data
+  STA DATA_ADDRESS
+  HALT
+
+initial_data:
+  .BYTE INITIAL_VALUE
+```
+
+The assembler resolves `initial_data` to its byte address, `DATA_ADDRESS` to `0x80`, and `INITIAL_VALUE` to `0x5A`. Only the resulting bytes enter VM8 memory; the symbol names remain host-side assembly text.
+
 ## Current execution flow
 
-The demonstration program loads `0x2A` into both registers, subtracts `B` from `A`, and uses the resulting zero flag to branch over an `LDI A, 0xFF` instruction. It then loads `0x5A`, stores it at memory address `0x80`, clears `A`, reloads the stored value, and halts. The program is loaded through `cpu_load_program` and executed through `cpu_run_with_observer` with an instruction limit. Normal execution passes no observer; trace execution passes the trace callback and `stdout`. The current normal output is:
+The built-in demonstration loads `0x2A` into both registers, subtracts `B` from `A`, and uses the resulting zero flag to branch over an `LDI A, 0xFF` instruction. It then loads `0x5A`, stores it at memory address `0x80`, clears `A`, reloads the stored value, and halts.
+
+The Assembly demonstration produces the same final CPU state but is intentionally not byte-for-byte identical. It names repeated values with `.EQU`, places `0x5A` after `HALT` with `.BYTE`, and obtains that value with `LDA initial_data`. Its generated binary therefore contains 19 bytes, while the built-in program contains 18. `HALT` remains at address `0x11`, so the final program counter is still `0x12` (decimal 18); the byte at `0x12` is data and is not executed.
+
+Both programs are loaded through `cpu_load_program` and executed through `cpu_run_with_observer` with an instruction limit. Normal execution passes no observer; trace execution passes the trace callback and `stdout`. The current normal output is:
 
 ```text
 Virtual 8-bit microcontroller simulator
@@ -91,7 +116,7 @@ Cycle count: 9
 
 The demonstration bytecode is stored privately in `src/program.c` and exposed through a `Program` value containing a pointer to constant bytes and their size. Running `make run` selects this built-in program.
 
-The same demonstration is also written in `programs/demo.asm`. The standalone assembler resolves its labels in two passes and generates the equivalent 18-byte raw machine-code file at `build/demo.bin`. Running `make run-bin` assembles that source, reads the generated binary into a bounded 256-byte host buffer, copies the resulting program into CPU memory, and executes it.
+The Assembly demonstration is stored in `programs/demo.asm`. The standalone assembler resolves its labels, constants, instructions, and data directives in two passes and generates the behaviorally equivalent 19-byte raw machine-code file at `build/demo.bin`. Running `make run-bin` assembles that source, reads the generated binary into a bounded 256-byte host buffer, copies the resulting program into CPU memory, and executes it.
 
 An arbitrary compatible binary can be selected with `./build/vm8 run <program.bin>`. The CLI distinguishes the built-in and external-binary execution modes and independently enables tracing when requested. `main.c` remains responsible for orchestration, presentation, and process status. Reusable file reading, program copying, CPU execution, and trace formatting remain in independently tested modules. Run `make help` to see simulator commands, instruction encodings, effects, flag behavior, and usage examples.
 
@@ -167,7 +192,7 @@ make test
 The test target assembles `programs/demo.asm` and then builds and runs independent tests for the CPU, CPU observer, instruction-set lookup, trace formatter, CLI, built-in program, binary reader, assembled-program execution, source normalization and reading, symbol table, first pass, byte parsing and resolution, instruction parser and encoder, second pass, and binary writer.
 The CPU tests cover arithmetic, logical operations, unary bit inversion, shifted-out carry bits, nondestructive comparison, every taken and non-taken conditional branch, zero results, and a `JMP`-to-zero loop that verifies bounded execution stops at the configured instruction limit.
 The program-integration test loads and executes the built-in demonstration, then verifies its complete final CPU state and the value stored at data address `0x80`.
-The assembled-program integration test reads `build/demo.bin`, loads it into CPU memory, executes it, and verifies the same final state. This confirms that the human-readable Assembly source and built-in byte array describe equivalent programs.
+The assembled-program integration test reads `build/demo.bin`, loads it into CPU memory, executes it, verifies the same final CPU state, and checks both the embedded byte at `0x12` and the copied value at `0x80`. This confirms that the human-readable Assembly source and built-in byte array describe behaviorally equivalent programs even though their byte sequences differ.
 The Bash process test launches `build/vm8` exactly as a user would and verifies normal external-binary execution, both trace modes, and the expected failure behavior for a missing file, an empty file, an oversized file, and an invalid opcode.
 
 Display simulator and instruction help:
@@ -188,7 +213,7 @@ Build the assembler when necessary and generate the demonstration binary:
 make assemble
 ```
 
-This runs both assembler passes and writes 18 raw bytes to `build/demo.bin`.
+This runs both assembler passes and writes 19 raw bytes to `build/demo.bin`: 18 bytes through the `HALT` instruction followed by one embedded data byte.
 
 The equivalent direct command is:
 
@@ -205,7 +230,7 @@ wc -c build/demo.bin
 Expected result:
 
 ```text
-18 build/demo.bin
+19 build/demo.bin
 ```
 
 Inspect every byte in hexadecimal:
@@ -217,8 +242,8 @@ od -An -tx1 -v build/demo.bin
 Expected result:
 
 ```text
- 10 2a 11 2a 21 30 09 10 ff 10 5a 41 80 10 00 40
- 80 01
+ 10 2a 11 2a 21 30 09 10 ff 40 12 41 80 10 00 40
+ 80 01 5a
 ```
 
 Here, `-An` suppresses the address column, `-tx1` selects hexadecimal one-byte units, and `-v` prevents repeated data from being abbreviated. These commands inspect the binary without interpreting it as text.

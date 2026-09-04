@@ -5,8 +5,21 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "byte_operand.h"
 #include "instruction_encoder.h"
 #include "instruction_parser.h"
+
+enum
+{
+  EQU_DIRECTIVE_OPERAND_COUNT = 2,
+  BYTE_DIRECTIVE_OPERAND_COUNT = 1,
+  BYTE_VALUE_OPERAND_INDEX = 0,
+  BYTE_DIRECTIVE_ENCODED_SIZE = 1,
+  FIRST_ENCODED_BYTE_INDEX = 0
+};
+
+static const char EQU_DIRECTIVE[] = ".EQU";
+static const char BYTE_DIRECTIVE[] = ".BYTE";
 
 static bool statement_is_label(const char *statement)
 {
@@ -82,6 +95,31 @@ static const char *encode_result_message(
   return "unknown instruction encoding error";
 }
 
+static const char *byte_operand_result_message(
+    ByteOperandResolveResult result
+)
+{
+  switch (result)
+  {
+    case BYTE_OPERAND_RESOLVE_SUCCESS:
+      return "no operand error";
+
+    case BYTE_OPERAND_RESOLVE_EMPTY:
+      return "empty byte operand";
+
+    case BYTE_OPERAND_RESOLVE_INVALID:
+      return "invalid byte operand";
+
+    case BYTE_OPERAND_RESOLVE_OUT_OF_RANGE:
+      return "byte operand is outside the 8-bit range";
+
+    case BYTE_OPERAND_RESOLVE_UNDEFINED_SYMBOL:
+      return "undefined symbol";
+  }
+
+  return "unknown byte operand error";
+}
+
 void second_pass_initialize(
     SecondPassResult *result,
     const SymbolTable *symbols,
@@ -132,27 +170,101 @@ bool second_pass_process_statement(
     return false;
   }
 
+  if (strcmp(instruction.mnemonic, EQU_DIRECTIVE) == 0)
+  {
+    if (
+      instruction.operand_count !=
+      EQU_DIRECTIVE_OPERAND_COUNT
+    )
+    {
+      fprintf(
+        stderr,
+        "%s:%zu: invalid %s directive: '%s'\n",
+        input_path,
+        line_number,
+        EQU_DIRECTIVE,
+        statement
+      );
+
+      return false;
+    }
+
+    return true;
+  }
+
+  bool counts_as_instruction = true;
   EncodedInstruction encoded_instruction = {0};
 
-  const InstructionEncodeResult encode_result =
-    instruction_encode(
-      &instruction,
-      result->symbols,
-      &encoded_instruction
-    );
-
-  if (encode_result != INSTRUCTION_ENCODE_SUCCESS)
+  if (strcmp(instruction.mnemonic, BYTE_DIRECTIVE) == 0)
   {
-    fprintf(
-      stderr,
-      "%s:%zu: %s: '%s'\n",
-      input_path,
-      line_number,
-      encode_result_message(encode_result),
-      statement
-    );
+    if (
+      instruction.operand_count !=
+      BYTE_DIRECTIVE_OPERAND_COUNT
+    )
+    {
+      fprintf(
+        stderr,
+        "%s:%zu: invalid %s directive: '%s'\n",
+        input_path,
+        line_number,
+        BYTE_DIRECTIVE,
+        statement
+      );
 
-    return false;
+      return false;
+    }
+
+    uint8_t value = 0;
+
+    const ByteOperandResolveResult resolve_result =
+      byte_operand_resolve(
+        instruction.operands[BYTE_VALUE_OPERAND_INDEX],
+        result->symbols,
+        &value
+      );
+
+    if (resolve_result != BYTE_OPERAND_RESOLVE_SUCCESS)
+    {
+      fprintf(
+        stderr,
+        "%s:%zu: %s: '%s'\n",
+        input_path,
+        line_number,
+        byte_operand_result_message(resolve_result),
+        instruction.operands[BYTE_VALUE_OPERAND_INDEX]
+      );
+
+      return false;
+    }
+
+    encoded_instruction.bytes[FIRST_ENCODED_BYTE_INDEX] =
+      value;
+    encoded_instruction.size =
+      BYTE_DIRECTIVE_ENCODED_SIZE;
+    counts_as_instruction = false;
+  }
+  else
+  {
+    const InstructionEncodeResult encode_result =
+      instruction_encode(
+        &instruction,
+        result->symbols,
+        &encoded_instruction
+      );
+
+    if (encode_result != INSTRUCTION_ENCODE_SUCCESS)
+    {
+      fprintf(
+        stderr,
+        "%s:%zu: %s: '%s'\n",
+        input_path,
+        line_number,
+        encode_result_message(encode_result),
+        statement
+      );
+
+      return false;
+    }
   }
 
   if (
@@ -182,7 +294,10 @@ bool second_pass_process_statement(
   );
 
   result->program_size += encoded_instruction.size;
-  ++result->instruction_count;
+  if (counts_as_instruction)
+  {
+    ++result->instruction_count;
+  }
 
   return true;
 }

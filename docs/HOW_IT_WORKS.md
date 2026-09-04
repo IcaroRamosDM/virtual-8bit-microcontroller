@@ -28,7 +28,7 @@ The CPU never reads words such as `LDI`, `start`, or `memory_demo`. Those words 
 
 ## Current implementation boundary
 
-The CPU simulator is operational. It can run either the 18-byte built-in demonstration stored in `src/program.c` or a compatible raw binary selected on the command line. Either source can run normally or with a human-readable instruction trace.
+The CPU simulator is operational. It can run the 18-byte built-in demonstration stored in `src/program.c` or a compatible raw binary selected on the command line. The current Assembly demonstration generates a 19-byte binary because it includes one embedded data byte after `HALT`. Either source can run normally or with a human-readable instruction trace.
 
 The shared `instruction_set` module owns the `Opcode` definitions and a read-only metadata table that maps every supported opcode byte to its Assembly mnemonic. A lookup receives a raw `uint8_t` because memory may contain any byte; it returns a metadata pointer for a recognized opcode or a null pointer for an unknown value.
 
@@ -38,16 +38,16 @@ The assembler currently implements:
 - bounded source-file reading;
 - comment and surrounding-whitespace removal;
 - delivery of normalized statements through a callback;
-- a symbol table;
-- a first pass that records labels and calculates program size;
+- a symbol table shared by labels and named constants;
+- a first pass that records labels and constants and calculates the size of instructions and raw data;
 - decimal and hexadecimal 8-bit literal parsing;
 - resolution of an operand as either a literal or a symbol;
-- an instruction parser that separates mnemonics and operands;
+- a parser that separates instruction or directive names and operands;
 - an instruction encoder that validates instruction semantics and emits opcodes and operands;
-- a second pass that resolves symbols and accumulates the complete program byte sequence;
+- a second pass that skips `.EQU`, resolves `.BYTE` operands, encodes instructions, and accumulates the complete program byte sequence;
 - a binary writer that stores the raw bytes in the requested output file.
 
-`make assemble` translates `programs/demo.asm` into the 18-byte `build/demo.bin` file. `make inspect` performs that assembly and then displays the generated size and raw bytes. `make run` executes the equivalent built-in bytecode from `src/program.c`, while `make run-bin` assembles, loads, and executes `build/demo.bin`. `make trace` and `make trace-bin` select the same two program sources while exposing every executed instruction and its resulting CPU state.
+`make assemble` translates `programs/demo.asm` into the 19-byte `build/demo.bin` file. `make inspect` performs that assembly and then displays the generated size and raw bytes. `make run` executes the 18-byte built-in bytecode from `src/program.c`, while `make run-bin` assembles, loads, and executes `build/demo.bin`. The two demonstrations are behaviorally equivalent rather than byte-for-byte identical. `make trace` and `make trace-bin` select the same two program sources while exposing every executed instruction and its resulting CPU state.
 
 ## What “8-bit” means
 
@@ -330,7 +330,7 @@ The program counter counts **byte addresses**, not instructions. Therefore:
 
 The cycle counter follows a deliberately simplified model: every attempted instruction counts as one cycle, regardless of whether that instruction occupies one or two bytes.
 
-Thus, an 18-byte program may execute only nine instructions and finish with:
+Thus, program size and executed instruction count are different measurements. The current 18-byte built-in demonstration and 19-byte assembled demonstration both execute only nine instructions and finish with:
 
 ```text
 Program counter: 18
@@ -355,16 +355,41 @@ The colon declares the label but is not part of the stored name. A later instruc
 JMP start
 ```
 
-A **symbol** is a name associated with information known by the assembler. In the current language, symbols are labels associated with byte addresses. The symbol table might contain:
+A **symbol** is a name associated with an 8-bit value known by the assembler. In the current language, a symbol may be either a label address or a named constant. Both kinds share one symbol table and one namespace. The table built for the current demonstration includes entries such as:
 
 ```text
-start       -> 0x00
-memory_demo -> 0x09
+start            -> 0x00  (label address)
+memory_demo      -> 0x09  (label address)
+initial_data     -> 0x12  (label address)
+COMPARISON_VALUE -> 0x2A  (named constant)
+DATA_ADDRESS     -> 0x80  (named constant)
 ```
 
-The names may contain several characters because they are stored and processed by the host-side assembler. Only the resolved 8-bit address is written to machine code. The name itself never enters CPU memory.
+The names may contain several characters because they are stored and processed by the host-side assembler. When a symbol is used as an operand, only its resolved 8-bit value is written to machine code. The name itself never enters CPU memory.
 
-Labels are case-sensitive, must begin with a letter or underscore, and may continue with letters, digits, or underscores. Instruction mnemonics and register names are reserved words and cannot be used as labels.
+Labels and constants are case-sensitive, must begin with a letter or underscore, and may continue with letters, digits, or underscores. Instruction mnemonics and register names are reserved and cannot be used as symbols. A label and a constant also cannot reuse the same name because they share one namespace.
+
+### Named constants and raw data
+
+`.EQU NAME, value` associates `NAME` with a decimal or `0x` hexadecimal literal from 0 through 255. It emits no byte:
+
+```asm
+.EQU STORED_VALUE, 0x5A
+```
+
+`.BYTE value` emits exactly one raw byte. Its operand may be a literal, a named constant, or a label. This allows data to live next to executable instructions:
+
+```asm
+.EQU STORED_VALUE, 0x5A
+
+  LDA initial_data
+  HALT
+
+initial_data:
+  .BYTE STORED_VALUE
+```
+
+This example generates `40 03 01 5A`. The `LDA` operand is `0x03`, the address recorded for `initial_data`; the byte at that address is `0x5A`. Neither symbolic name is stored in the binary.
 
 ## Host-side assembly and limited-memory machines
 
@@ -425,12 +450,14 @@ The original physical line number is preserved for diagnostics.
 The first pass maintains a current program size that also acts as the address of the next emitted byte.
 
 - A label is entered into the symbol table with the current address and emits zero bytes.
+- `.EQU` enters its name and literal value into the same symbol table and emits zero bytes.
+- `.BYTE` advances the size by one because it will emit one byte during the second pass.
 - A one-byte instruction advances the size by one.
 - A two-byte instruction advances the size by two.
-- Duplicate, malformed, reserved, or out-of-memory labels are rejected.
-- Unknown instruction mnemonics and programs larger than memory are rejected.
+- Duplicate symbol names are rejected even when one declaration is a label and the other is a constant.
+- Malformed or reserved names, invalid directives, unknown instruction mnemonics, and programs larger than memory are rejected.
 
-Operand syntax is not fully interpreted during this pass. Only the mnemonic and encoded instruction length are required to calculate addresses.
+The `.EQU` literal must be validated during this pass because its value is stored immediately. Instruction and `.BYTE` symbolic operands can wait for the second pass; the first pass needs only their output sizes to continue calculating addresses.
 
 ### Literal and symbol resolution
 
@@ -444,21 +471,30 @@ The byte-literal parser accepts strict decimal or `0x`-prefixed hexadecimal valu
 
 Signs, embedded whitespace, malformed digits, and values above 255 are rejected.
 
-The byte-operand resolver first attempts literal parsing. If the text is not a literal but is a valid symbol name, it searches the symbol table:
+The byte-operand resolver first attempts literal parsing. If the text is not a literal but is a valid symbol name, it searches the shared symbol table. The same resolver can therefore return a literal, a constant value, or a label address:
 
 ```text
-0x80        -> literal byte 0x80
-memory_demo -> symbol address 0x09
-missing     -> undefined-symbol error
+0x80             -> literal byte 0x80
+DATA_ADDRESS     -> constant value 0x80
+memory_demo      -> label address 0x09
+initial_data     -> label address 0x12
+missing          -> undefined-symbol error
 ```
 
 ### Second pass
 
-The instruction parser separates each normalized statement into a mnemonic and as many as two operands. It validates structural syntax such as whitespace, commas, missing operands, and excessive operands, but does not decide whether a mnemonic or register is supported.
+The parser separates each normalized statement into a leading name and as many as two operands. It validates structural syntax such as whitespace, commas, missing operands, and excessive operands, but does not decide whether an instruction, directive, or register is supported.
 
 The instruction encoder then validates the meaning of the parsed fields. It recognizes the current instruction set, checks operand counts and register order, resolves byte literals or symbols, and emits a one-byte or two-byte encoded instruction. `AND`, `OR`, `XOR`, and `CMP` require the exact register pair `A, B`, while `NOT`, `SHL`, and `SHR` require the single register `A`. `JZ`, `JNZ`, and `JC` accept one literal or symbolic byte address. Failed encoding leaves the caller's output object unchanged.
 
-The second pass reads the normalized statements again, ignores label declarations, runs the parser and encoder, and appends each successful encoding to a bounded program buffer. It reports diagnostics with the original file path and line number, counts encoded instructions, and rejects any write that would exceed the supplied output capacity.
+The second pass reads the normalized statements again and handles each kind explicitly:
+
+- label declarations are ignored because their addresses are already in the symbol table;
+- `.EQU` is skipped because it has already defined a value and emits no bytes;
+- `.BYTE` resolves its one operand and appends exactly one byte;
+- ordinary instructions pass through semantic validation and encoding.
+
+Every emitted byte is appended to a bounded program buffer. The pass reports diagnostics with the original file path and line number and rejects any write that would exceed the supplied output capacity. Only encoded CPU instructions increment the instruction count, so `.BYTE` changes the byte count but not the instruction count.
 
 For example:
 
@@ -472,52 +508,70 @@ becomes:
 30 09
 ```
 
-After both passes agree on the 18-byte program size, the binary writer opens the requested path in binary mode, writes exactly that byte count, and verifies both the write and final file close. `make assemble` therefore creates `build/demo.bin` as raw machine code.
+After both passes agree on the 19-byte program size, the binary writer opens the requested path in binary mode, writes exactly that byte count, and verifies both the write and final file close. `make assemble` therefore creates `build/demo.bin` as raw machine code.
 
 ## Complete demonstration encoding
 
 The current Assembly demonstration is:
 
 ```asm
-; Demonstrates arithmetic, branching, and memory transfer.
+; Demonstrates constants, embedded data, arithmetic, branching, and memory transfer.
+
+.EQU COMPARISON_VALUE, 0x2A
+.EQU FALLTHROUGH_VALUE, 0xFF
+.EQU STORED_VALUE, 0x5A
+.EQU CLEARED_VALUE, 0x00
+.EQU DATA_ADDRESS, 0x80
 
 start:
-  LDI A, 0x2A
-  LDI B, 0x2A
+  LDI A, COMPARISON_VALUE
+  LDI B, COMPARISON_VALUE
   SUB A, B
   JZ memory_demo
-  LDI A, 0xFF
+  LDI A, FALLTHROUGH_VALUE
 
 memory_demo:
-  LDI A, 0x5A
-  STA 0x80
-  LDI A, 0x00
-  LDA 0x80
+  LDA initial_data
+  STA DATA_ADDRESS
+  LDI A, CLEARED_VALUE
+  LDA DATA_ADDRESS
   HALT
+
+initial_data:
+  .BYTE STORED_VALUE
 ```
 
 Its address calculation and generated encoding are:
 
 | Address | Source statement | Emitted bytes | Explanation |
 | ---: | --- | --- | --- |
+| — | `.EQU COMPARISON_VALUE, 0x2A` | — | Defines a constant; emits nothing. |
+| — | `.EQU FALLTHROUGH_VALUE, 0xFF` | — | Defines a constant; emits nothing. |
+| — | `.EQU STORED_VALUE, 0x5A` | — | Defines a constant; emits nothing. |
+| — | `.EQU CLEARED_VALUE, 0x00` | — | Defines a constant; emits nothing. |
+| — | `.EQU DATA_ADDRESS, 0x80` | — | Defines a constant; emits nothing. |
 | `0x00` | `start:` | — | Records `start = 0x00`; emits nothing. |
-| `0x00` | `LDI A, 0x2A` | `10 2A` | Occupies `0x00` and `0x01`. |
-| `0x02` | `LDI B, 0x2A` | `11 2A` | Occupies `0x02` and `0x03`. |
+| `0x00` | `LDI A, COMPARISON_VALUE` | `10 2A` | Resolves the constant and occupies `0x00` and `0x01`. |
+| `0x02` | `LDI B, COMPARISON_VALUE` | `11 2A` | Resolves the same constant and occupies `0x02` and `0x03`. |
 | `0x04` | `SUB A, B` | `21` | One-byte instruction. |
 | `0x05` | `JZ memory_demo` | `30 09` | Resolves `memory_demo` to `0x09`. |
-| `0x07` | `LDI A, 0xFF` | `10 FF` | Skipped when the branch is taken. |
+| `0x07` | `LDI A, FALLTHROUGH_VALUE` | `10 FF` | Resolves the constant; skipped when the branch is taken. |
 | `0x09` | `memory_demo:` | — | Records `memory_demo = 0x09`; emits nothing. |
-| `0x09` | `LDI A, 0x5A` | `10 5A` | Occupies `0x09` and `0x0A`. |
-| `0x0B` | `STA 0x80` | `41 80` | Stores `A` in data memory. |
-| `0x0D` | `LDI A, 0x00` | `10 00` | Clears `A`. |
-| `0x0F` | `LDA 0x80` | `40 80` | Reloads the stored value. |
+| `0x09` | `LDA initial_data` | `40 12` | Resolves the label to `0x12` and loads its byte. |
+| `0x0B` | `STA DATA_ADDRESS` | `41 80` | Resolves the constant and stores `A` at `0x80`. |
+| `0x0D` | `LDI A, CLEARED_VALUE` | `10 00` | Resolves the constant and clears `A`. |
+| `0x0F` | `LDA DATA_ADDRESS` | `40 80` | Resolves the constant and reloads the stored value. |
 | `0x11` | `HALT` | `01` | Halts after fetching the byte. |
+| `0x12` | `initial_data:` | — | Records the address of the embedded data; emits nothing. |
+| `0x12` | `.BYTE STORED_VALUE` | `5A` | Resolves the constant and emits one data byte. |
 
-The complete generated 18-byte sequence is:
+The complete generated 19-byte sequence is:
 
 ```text
-10 2A 11 2A 21 30 09 10 FF 10 5A 41 80 10 00 40 80 01
+10 2A 11 2A 21 30 09 10 FF 40 12 41 80 10 00 40 80 01 5A
 ```
+
+The first 18 bytes contain executable code through `HALT`. The final byte at address `0x12` is data. It belongs to the loaded program image but is read by `LDA`, not fetched as an opcode.
 
 ## Demonstration execution walkthrough
 
@@ -529,13 +583,15 @@ The CPU begins with zeroed registers, clear flags, `PC = 0x00`, and cycle count 
 | 2 | `0x02` | `LDI B, 0x2A` | `B = 0x2A`, `Z = 0`, `PC = 0x04`, cycles = 2. |
 | 3 | `0x04` | `SUB A, B` | `A = 0x00`, `Z = 1`, no borrow, `PC = 0x05`, cycles = 3. |
 | 4 | `0x05` | `JZ 0x09` | Target operand is fetched and the set zero flag changes `PC` to `0x09`; cycles = 4. |
-| 5 | `0x09` | `LDI A, 0x5A` | `A = 0x5A`, `Z = 0`, `PC = 0x0B`, cycles = 5. |
+| 5 | `0x09` | `LDA 0x12` | Reads the embedded byte, so `A = 0x5A`, `Z = 0`, `PC = 0x0B`, cycles = 5. |
 | 6 | `0x0B` | `STA 0x80` | `memory[0x80] = 0x5A`, `PC = 0x0D`, cycles = 6. |
 | 7 | `0x0D` | `LDI A, 0x00` | `A = 0x00`, `Z = 1`, `PC = 0x0F`, cycles = 7. |
 | 8 | `0x0F` | `LDA 0x80` | `A = 0x5A`, `Z = 0`, `PC = 0x11`, cycles = 8. |
 | 9 | `0x11` | `HALT` | CPU halted, `PC = 0x12` (decimal 18), cycles = 9. |
 
 The instruction at `0x07` is never executed because `SUB A, B` produced zero and `JZ` jumped directly to `0x09`.
+
+The data byte at `0x12` is never executed because `HALT` stops the CPU after advancing `PC` from `0x11` to `0x12`. Its address is nevertheless valid for the earlier `LDA 0x12` instruction.
 
 The final visible state is:
 
@@ -730,7 +786,7 @@ Builds the standalone `build/vm8asm` executable.
 make assemble
 ```
 
-Builds `vm8asm` when necessary, runs both passes on `programs/demo.asm`, and writes the resulting 18 raw bytes to `build/demo.bin`.
+Builds `vm8asm` when necessary, runs both passes on `programs/demo.asm`, and writes the resulting 19 raw bytes to `build/demo.bin`.
 
 The same assembler can be invoked directly with explicit paths:
 
@@ -747,10 +803,10 @@ wc -c build/demo.bin
 Expected output:
 
 ```text
-18 build/demo.bin
+19 build/demo.bin
 ```
 
-`wc -c` counts bytes rather than lines or words. This confirms the binary contains the 18 bytes calculated by both assembler passes.
+`wc -c` counts bytes rather than lines or words. This confirms the binary contains the 19 bytes calculated by both assembler passes.
 
 Display every raw byte as hexadecimal:
 
@@ -761,8 +817,8 @@ od -An -tx1 -v build/demo.bin
 Expected output:
 
 ```text
- 10 2a 11 2a 21 30 09 10 ff 10 5a 41 80 10 00 40
- 80 01
+ 10 2a 11 2a 21 30 09 10 ff 40 12 41 80 10 00 40
+ 80 01 5a
 ```
 
 The `od` options mean:
@@ -789,6 +845,9 @@ make inspect
 - `CMP` updates zero and borrow without changing its operands; conditional jumps inspect flags without changing them.
 - Labels and mnemonics belong to the assembler, not to the CPU.
 - A label consumes no program memory; it names the current byte address.
+- `.EQU` gives an 8-bit literal a reusable symbolic name and emits no byte.
+- `.BYTE` emits one raw byte and can place data in the same memory image as code.
+- Labels and constants share one case-sensitive symbol namespace.
 - The first pass discovers addresses, and the second pass replaces symbolic references with numeric bytes.
 - The binary writer stores the generated values as raw bytes, not hexadecimal text.
 - The binary reader uses a caller-provided capacity and checks one extra byte to reject oversized input safely.
