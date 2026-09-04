@@ -948,6 +948,153 @@ As duas instruções `LDI` foram executadas, então `PC` chegou ao valor decimal
 
 O monitor mantém a mesma garantia de execução limitada do executor que encerra após uma tarefa. Um programa que nunca para e nunca alcança um breakpoint devolve o controle depois de, no máximo, `CPU_MEMORY_SIZE` instruções tentadas, em vez de prender o usuário em um comando infinito.
 
+## Firmware final de popcount
+
+`programs/popcount.asm` é o firmware final de demonstração não trivial. Ele lê um byte da porta de entrada `0xEE`, conta os bits cujo valor é um e grava essa contagem, de `0` até `8`, na porta de saída `0xEF`. Essa operação costuma ser chamada de contagem populacional, ou popcount.
+
+Por exemplo, `0xA5` é `10100101` em binário. Quatro posições contêm um, portanto o firmware produz `0x04`:
+
+```text
+entrada = 0xA5 = 10100101
+saída   = 0x04 = quatro bits ligados
+```
+
+O código-fonte completo combina constantes, memória, um laço, uma sub-rotina, dados explícitos na pilha, lógica bit a bit, um deslocamento e E/S mapeada em memória:
+
+```asm
+; Counts the set bits in the virtual input byte and writes the result to output.
+
+.EQU INPUT_PORT, 0xEE
+.EQU OUTPUT_PORT, 0xEF
+
+.EQU WORK_VALUE_ADDRESS, 0xD0
+.EQU BIT_COUNT_ADDRESS, 0xD1
+.EQU BITS_REMAINING_ADDRESS, 0xD2
+
+.EQU ZERO, 0x00
+.EQU ONE, 0x01
+.EQU BITS_IN_BYTE, 0x08
+
+start:
+  LDA INPUT_PORT
+  STA WORK_VALUE_ADDRESS
+
+  LDI A, ZERO
+  STA BIT_COUNT_ADDRESS
+
+  LDI A, BITS_IN_BYTE
+  STA BITS_REMAINING_ADDRESS
+
+  LDI B, ONE
+
+count_loop:
+  CALL count_low_bit_and_shift
+
+  LDA BITS_REMAINING_ADDRESS
+  SUB A, B
+  STA BITS_REMAINING_ADDRESS
+  JNZ count_loop
+
+  LDA BIT_COUNT_ADDRESS
+  STA OUTPUT_PORT
+  HALT
+
+count_low_bit_and_shift:
+  LDA WORK_VALUE_ADDRESS
+  PUSH A
+
+  AND A, B
+  JZ skip_increment
+
+  LDA BIT_COUNT_ADDRESS
+  ADD A, B
+  STA BIT_COUNT_ADDRESS
+
+skip_increment:
+  POP A
+  SHR A
+  STA WORK_VALUE_ADDRESS
+  RET
+```
+
+A imagem do programa ocupa os endereços de `0x00` até `0x2B`, totalizando 44 bytes. Seus três valores mutáveis são armazenados deliberadamente bem depois do programa e antes da E/S mapeada em memória:
+
+| Endereço | Símbolo | Finalidade |
+| --- | --- | --- |
+| `0xD0` | `WORK_VALUE_ADDRESS` | Cópia da entrada, deslocada uma posição para a direita a cada iteração. |
+| `0xD1` | `BIT_COUNT_ADDRESS` | Quantidade de bits um encontrados até o momento. |
+| `0xD2` | `BITS_REMAINING_ADDRESS` | Contador do laço, iniciado em oito e decrementado até zero. |
+
+A inicialização copia a entrada para `0xD0`, zera o resultado em `0xD1`, armazena oito em `0xD2` e mantém a constante um no registrador `B`. O laço não termina quando o valor de trabalho se torna zero; ele sempre realiza exatamente oito iterações, portanto os zeros à esquerda são tratados de maneira consistente.
+
+Cada iteração chama a sub-rotina em `0x1C`. Primeiro, `CALL` coloca o endereço de retorno `0x10` no endereço `0xFF` da pilha. A sub-rotina carrega o valor de trabalho e `PUSH A` armazena esse byte em `0xFE`, abaixo do endereço de retorno. Em seguida, `AND A, B` isola o bit 0 porque `B` contém `0x01`:
+
+```text
+valor de trabalho 10100101
+máscara            00000001
+resultado do AND   00000001
+```
+
+Quando o resultado é zero, `JZ` pula o incremento. Quando é um, as três instruções `LDA`, `ADD` e `STA` aumentam a contagem armazenada. `POP A` restaura o valor de trabalho sem a máscara, `SHR A` move seu próximo bit para a posição 0 e `STA` o salva para a iteração seguinte. Por fim, `RET` remove `0x10` da pilha e retoma o chamador. Assim, a pilha volta a ficar vazia depois de cada iteração.
+
+Após a sub-rotina, o laço principal subtrai um do contador de bits restantes. `JNZ` volta para `count_loop` enquanto esse contador não for zero. Depois da oitava iteração, o programa carrega a contagem concluída, armazena-a no latch de saída e executa `HALT` em `0x1B`. Buscar esse opcode final avança `PC` para `0x1C`, valor decimal 28.
+
+Os bytes gerados são:
+
+```text
+ 40 ee 41 d0 10 00 41 d1 10 08 41 d2 11 01 52 1c
+ 40 d2 21 41 d2 32 0e 40 d1 41 ef 01 40 d0 50 22
+ 30 27 40 d1 20 41 d1 51 27 41 d0 53
+```
+
+O contador simplificado de ciclos pode ser deduzido, em vez de decorado:
+
+- a inicialização usa 7 instruções;
+- cada uma das 8 iterações usa 13 instruções quando seu bit testado é zero;
+- cada bit um acrescenta as 3 instruções de incremento do contador;
+- a saída e `HALT` usam 3 instruções.
+
+Portanto:
+
+```text
+ciclos = 7 + (8 * 13) + (3 * quantidade de bits um) + 3
+ciclos = 114 + (3 * quantidade de bits um)
+```
+
+Os principais vetores de teste são:
+
+| Entrada | Forma binária | Saída | Ciclos | Flag zero final |
+| --- | --- | --- | ---: | --- |
+| `0x00` | `00000000` | `0x00` | 114 | ativada |
+| `0xA5` | `10100101` | `0x04` | 126 | desativada |
+| `0xFF` | `11111111` | `0x08` | 138 | desativada |
+
+As três execuções terminam com `B = 0x01`, `SP = 0x00`, carry desativada, `PC = 0x1C`, valor de trabalho igual a zero e contador de bits restantes igual a zero. O teste dedicado de integração também confere essas invariantes internas, em vez de conferir somente a saída visível.
+
+O mesmo código-fonte e o binário gerado estão disponíveis por meio de alvos específicos do Make:
+
+```bash
+make assemble-popcount
+make inspect-popcount
+make run-popcount INPUT_VALUE=0xA5
+make trace-popcount INPUT_VALUE=0xA5
+make monitor-popcount
+```
+
+O monitor oferece uma maneira prática de inspecionar a fronteira entre o chamador e a sub-rotina:
+
+```text
+vm8> input 0xA5
+vm8> breakpoint add 0x1C
+vm8> run
+Breakpoint reached at 0x1C.
+vm8> registers
+vm8> memory 0xD0 3
+vm8> memory 0xFF 1
+```
+
+Nesse breakpoint, a inicialização terminou, `CALL` foi executada, `SP` vale `0xFF` e a memória `0xFF` contém o endereço de retorno `0x10`. Avançar depois pelas instruções até `PUSH A` move `SP` para `0xFE`, ilustrando como endereços de retorno de sub-rotinas e dados inseridos explicitamente compartilham a mesma pilha limitada.
+
 ## Responsabilidades atuais dos módulos
 
 | Módulo | Responsabilidade |
@@ -1006,6 +1153,12 @@ make run-bin
 Compila o simulador e o montador, traduz `programs/demo.asm` para `build/demo.bin`, carrega esse binário e o executa.
 
 ```bash
+make run-popcount INPUT_VALUE=0xA5
+```
+
+Monta e executa `programs/popcount.asm` com uma entrada virtual selecionada. A quantidade resultante de bits um aparece na porta de saída.
+
+```bash
 make trace
 ```
 
@@ -1022,6 +1175,12 @@ make trace-bin
 ```
 
 Monta `programs/demo.asm`, carrega `build/demo.bin` e o executa com o mesmo formato de rastreamento.
+
+```bash
+make trace-popcount INPUT_VALUE=0xA5
+```
+
+Monta e rastreia o firmware de popcount, incluindo seu laço, chamadas de sub-rotina, operações de pilha e saída final.
 
 Um binário compatível já existente pode ser executado diretamente:
 
@@ -1057,6 +1216,14 @@ Monte a demonstração Assembly e abra-a no monitor:
 make monitor-bin
 ```
 
+Monte o firmware de popcount e abra-o no monitor:
+
+```bash
+make monitor-popcount
+```
+
+Esse alvo abre o firmware de popcount no monitor. Defina sua entrada com o comando `input <byte>` do monitor antes de executá-lo.
+
 Abra no monitor um binário compatível que já exista:
 
 ```bash
@@ -1075,7 +1242,7 @@ Exibe os comandos do simulador e a referência das instruções.
 make test
 ```
 
-Monta a demonstração e executa todos os testes unitários, de integração e de processo automatizados. Testes dedicados verificam todas as associações atuais entre opcode e mnemônico, a rejeição de um opcode desconhecido, a entrega ao observador, a formatação exata do rastreamento e do estado da CPU, os limites do mapa de memória, a direção das portas, a reinicialização das portas, a interpretação estrita de bytes do hospedeiro, a seleção pela CLI e o laço de comandos do monitor. Os testes do monitor cobrem execução passo a passo, execução limitada, reset, exibição da memória mapeada sem dar a volta nos endereços, substituição segura do binário, persistência dos breakpoints e do estado do rastreamento, argumentos inválidos, fim de arquivo e entrada longa demais. O teste do programa montado lê `build/demo.bin`, carrega-o na memória da CPU, executa-o e verifica os registradores, as flags, o contador de programa, o contador de ciclos e o dado armazenado esperados. Em seguida, `tests/test_vm8_process.sh` inicia o executável real e verifica a execução normal, os dois modos de rastreamento que encerram após uma tarefa, a transferência real da entrada para a saída, uma sessão interativa com breakpoint e execução passo a passo, uma entrada inválida e falhas de arquivos binários.
+Monta os dois programas de demonstração e executa todos os testes unitários, de integração e de processo automatizados. Testes dedicados verificam todas as associações atuais entre opcode e mnemônico, a rejeição de um opcode desconhecido, a entrega ao observador, a formatação exata do rastreamento e do estado da CPU, os limites do mapa de memória, a direção das portas, a reinicialização das portas, a interpretação estrita de bytes do hospedeiro, a seleção pela CLI e o laço de comandos do monitor. Os testes do monitor cobrem execução passo a passo, execução limitada, reset, exibição da memória mapeada sem dar a volta nos endereços, substituição segura do binário, persistência dos breakpoints e do estado do rastreamento, argumentos inválidos, fim de arquivo e entrada longa demais. O teste original do programa montado verifica `build/demo.bin`. O teste de integração do popcount executa `build/popcount.bin` com as entradas `0x00`, `0xA5` e `0xFF`, depois confere resultados visíveis e invariantes internas. `tests/test_vm8_process.sh` inicia o executável real e também confere a execução do popcount e sua entrada final de rastreamento.
 
 ```bash
 make assembler
@@ -1136,6 +1303,15 @@ Monte a demonstração e execute as duas inspeções em uma etapa:
 make inspect
 ```
 
+Em vez disso, gere e inspecione o firmware final de popcount:
+
+```bash
+make assemble-popcount
+make inspect-popcount
+```
+
+`build/popcount.bin` precisa conter 44 bytes. `make inspect-popcount` aplica as mesmas verificações com `wc -c` e `od -An -tx1 -v` mostradas acima, portanto confere tanto o tamanho quanto a codificação exata dos bytes sem tratar o binário como texto.
+
 ## Ideias principais a recordar
 
 - Valores de 8 bits são buscados e processados um byte por vez; uma instrução pode conter vários bytes.
@@ -1171,3 +1347,5 @@ make inspect
 - `SP = 0x00` é um sentinela de pilha vazia; `PUSH` e `POP` movimentam bytes na ordem último a entrar, primeiro a sair e informam explicitamente os erros de limite.
 - `CALL` insere o `PC` já avançado como endereço de retorno de 8 bits; `RET` retira esse byte novamente para `PC`.
 - Dados e endereços de retorno compartilham a mesma pilha, portanto operações equilibradas e profundidade disponível da pilha são responsabilidades do software.
+- O firmware de popcount reúne a arquitetura: lê a entrada mapeada, percorre oito bits em um laço, guarda estado mutável na memória, chama uma sub-rotina que usa a pilha e grava a saída mapeada.
+- Um laço fixo de oito iterações trata qualquer byte de entrada; seu tempo simplificado de execução é `114 + 3 * popcount(entrada)` ciclos.

@@ -43,6 +43,7 @@ The initial CPU model contains:
 - explicit stack-overflow and stack-underflow execution results;
 - a bounded binary-file reader that rejects input larger than the 238-byte program capacity;
 - a standalone two-pass assembler with normalized source reading, a shared label-and-constant symbol table, strict instruction and directive parsing, byte-operand resolution, instruction encoding, and raw binary output;
+- a nontrivial Assembly firmware that counts set bits while exercising loops, memory, subroutines, the stack, and virtual I/O;
 - command-line selection between normal or traced execution of the built-in demonstration and an external binary program;
 - strict decimal or hexadecimal virtual-input selection through `--input`;
 - built-in help for simulator commands and CPU instructions;
@@ -167,7 +168,7 @@ An arbitrary compatible binary can be selected with `./build/vm8 run <program.bi
 - `src/`: CPU, state and trace formatters, monitor, CLI, binary reader, built-in program, and simulator-entry-point implementations.
 - `include/`: public C headers.
 - `assembler/`: standalone assembler implementation.
-- `programs/`: programs written in the custom Assembly language, including the current demonstration source.
+- `programs/`: programs written in the custom Assembly language, including the introductory demonstration and final popcount firmware.
 - `tests/`: automated C unit and integration tests plus Bash process-level tests.
 - `build/`: ignored generated files.
 - `Makefile`: build automation.
@@ -235,6 +236,66 @@ Step result: ok
 
 The breakpoint stops `run` before `SUB` executes. The following `step` deliberately ignores that breakpoint, executes the instruction, and leaves the breakpoint installed. Trace state and breakpoints also survive `reset` and a successful `load`; they belong to the host-side monitor and consume no VM8 memory. A failed or empty `load` preserves the previous program image.
 
+## Final demonstration firmware
+
+`programs/popcount.asm` is the final nontrivial demonstration firmware. It reads one byte from the virtual input port at `0xEE`, counts how many of its eight bits are set to one, and writes the result from `0` through `8` to the output latch at `0xEF`.
+
+The program deliberately combines the principal VM8 features:
+
+- `.EQU` gives names to ports, scratch addresses, and fixed values;
+- `LDA` and `STA` access memory-mapped I/O and three scratch bytes;
+- `JNZ` implements an eight-iteration loop;
+- `CALL` and `RET` isolate one iteration in a subroutine;
+- `PUSH A` and `POP A` preserve the current work value while `AND A, B` tests its least-significant bit;
+- `SHR A` advances to the next bit;
+- `ADD A, B` increments the count only when the tested bit is one.
+
+The scratch bytes are intentionally outside the 44-byte program image and below the I/O region:
+
+| Address | Name | Final value |
+| --- | --- | --- |
+| `0xD0` | `WORK_VALUE_ADDRESS` | `0x00` after eight right shifts. |
+| `0xD1` | `BIT_COUNT_ADDRESS` | The number of set input bits. |
+| `0xD2` | `BITS_REMAINING_ADDRESS` | `0x00` after eight iterations. |
+
+Run it with input `0xA5`, whose binary representation `10100101` contains four set bits:
+
+```bash
+make run-popcount INPUT_VALUE=0xA5
+```
+
+The important result is:
+
+```text
+Register A: 0x04
+Register B: 0x01
+Stack pointer: 0x00
+Input port: 0xA5
+Output port: 0x04
+Program counter: 28
+Cycle count: 126
+```
+
+The final empty stack proves that every `CALL`/`RET` and `PUSH`/`POP` pair was balanced. Because the simplified cycle model charges one cycle per attempted instruction, execution takes `114 + 3 * popcount(input)` cycles: each set bit executes the three-instruction counter increment.
+
+Useful test vectors are:
+
+| Input | Set bits | Output | Cycles |
+| --- | ---: | --- | ---: |
+| `0x00` | 0 | `0x00` | 114 |
+| `0xA5` | 4 | `0x04` | 126 |
+| `0xFF` | 8 | `0x08` | 138 |
+
+The dedicated Make targets assemble, inspect, run, trace, or monitor this same firmware:
+
+```bash
+make assemble-popcount
+make inspect-popcount
+make run-popcount INPUT_VALUE=0xA5
+make trace-popcount INPUT_VALUE=0xA5
+make monitor-popcount
+```
+
 ## Build
 
 Compile the project:
@@ -261,6 +322,12 @@ Assemble `programs/demo.asm`, load the generated binary, and run it:
 
 ```bash
 make run-bin
+```
+
+Assemble and run the popcount firmware with a selected virtual input:
+
+```bash
+make run-popcount INPUT_VALUE=0xA5
 ```
 
 Run another compatible binary directly:
@@ -293,6 +360,12 @@ Assemble and trace `programs/demo.asm`:
 make trace-bin
 ```
 
+Assemble and trace the popcount firmware:
+
+```bash
+make trace-popcount INPUT_VALUE=0xA5
+```
+
 Trace another compatible binary directly:
 
 ```bash
@@ -314,10 +387,11 @@ Run the automated tests:
 make test
 ```
 
-The test target assembles `programs/demo.asm` and then builds and runs independent tests for the CPU, CPU observer, instruction-set lookup, trace formatter, CPU-state formatter, monitor, shared byte-value parser, CLI, built-in program, binary reader, assembled-program execution, source normalization and reading, symbol table, first pass, byte parsing and resolution, instruction parser and encoder, second pass, and binary writer.
+The test target assembles `programs/demo.asm` and `programs/popcount.asm`, then builds and runs independent tests for the CPU, CPU observer, instruction-set lookup, trace formatter, CPU-state formatter, monitor, shared byte-value parser, CLI, built-in program, binary reader, assembled-program execution, popcount firmware, source normalization and reading, symbol table, first pass, byte parsing and resolution, instruction parser and encoder, second pass, and binary writer.
 The CPU tests cover arithmetic, logical operations, unary bit inversion, shifted-out carry bits, nondestructive comparison, every taken and non-taken conditional branch, stack ordering and boundaries, nested subroutine calls and returns, stack error propagation through `CALL` and `RET`, memory-mapped port direction and reset behavior, zero results, and a `JMP`-to-zero loop that verifies bounded execution stops at the configured instruction limit.
 The program-integration test loads and executes the built-in demonstration, then verifies its complete final CPU state and the value stored at data address `0x80`.
 The assembled-program integration test reads `build/demo.bin`, loads it into CPU memory, executes it, verifies the same final CPU state, and checks both the embedded byte at `0x12` and the copied value at `0x80`. This confirms that the human-readable Assembly source and built-in byte array describe behaviorally equivalent programs even though their byte sequences differ.
+The popcount integration test reads the generated 44-byte `build/popcount.bin` once and executes it with inputs `0x00`, `0xA5`, and `0xFF`. It verifies the output, registers, flags, stack balance, final scratch memory, program counter, and input-dependent cycle count for every case.
 The monitor tests verify its command loop, CPU control, memory inspection without address wraparound, program replacement and preservation, breakpoints, interactive tracing, invalid arguments, end-of-file handling, and overlong commands.
 The Bash process test launches `build/vm8` exactly as a user would and verifies normal external-binary execution, both one-shot trace modes, a five-byte input-to-output program, an interactive breakpoint-and-step session, decimal and hexadecimal host input, invalid input rejection, and the expected failure behavior for a missing file, an empty file, an oversized file, and an invalid opcode.
 
@@ -378,6 +452,21 @@ Assemble and run both inspections with one target:
 
 ```bash
 make inspect
+```
+
+The corresponding popcount commands generate and inspect `build/popcount.bin`:
+
+```bash
+make assemble-popcount
+make inspect-popcount
+```
+
+The expected popcount size is 44 bytes. Its raw bytes are:
+
+```text
+ 40 ee 41 d0 10 00 41 d1 10 08 41 d2 11 01 52 1c
+ 40 d2 21 41 d2 32 0e 40 d1 41 ef 01 40 d0 50 22
+ 30 27 40 d1 20 41 d1 51 27 41 d0 53
 ```
 
 Remove generated files:

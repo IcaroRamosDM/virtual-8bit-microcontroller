@@ -10,6 +10,8 @@ TARGET := build/vm8
 ASSEMBLER_TARGET := build/vm8asm
 ASSEMBLER_DEMO_SOURCE := programs/demo.asm
 ASSEMBLER_DEMO_OUTPUT := build/demo.bin
+POPCOUNT_SOURCE := programs/popcount.asm
+POPCOUNT_OUTPUT := build/popcount.bin
 PROCESS_TEST_SCRIPT := tests/test_vm8_process.sh
 INPUT_VALUE ?= 0x00
 CPU_TEST_TARGET := build/test_cpu
@@ -23,6 +25,7 @@ CLI_TEST_TARGET := build/test_cli
 PROGRAM_TEST_TARGET := build/test_program
 BINARY_READER_TEST_TARGET := build/test_binary_reader
 ASSEMBLED_PROGRAM_TEST_TARGET := build/test_assembled_program
+POPCOUNT_PROGRAM_TEST_TARGET := build/test_popcount_program
 SOURCE_LINE_TEST_TARGET := build/test_source_line
 SOURCE_READER_TEST_TARGET := build/test_source_reader
 SYMBOL_TABLE_TEST_TARGET := build/test_symbol_table
@@ -45,6 +48,7 @@ TEST_TARGETS := \
 	$(PROGRAM_TEST_TARGET) \
 	$(BINARY_READER_TEST_TARGET) \
 	$(ASSEMBLED_PROGRAM_TEST_TARGET) \
+	$(POPCOUNT_PROGRAM_TEST_TARGET) \
 	$(SOURCE_LINE_TEST_TARGET) \
 	$(SOURCE_READER_TEST_TARGET) \
 	$(SYMBOL_TABLE_TEST_TARGET) \
@@ -79,6 +83,7 @@ CLI_TEST_SOURCES := src/byte_value.c src/cli.c tests/test_cli.c
 PROGRAM_TEST_SOURCES := src/cpu.c src/program.c tests/test_program.c
 BINARY_READER_TEST_SOURCES := src/binary_reader.c tests/test_binary_reader.c
 ASSEMBLED_PROGRAM_TEST_SOURCES := src/binary_reader.c src/cpu.c tests/test_assembled_program.c
+POPCOUNT_PROGRAM_TEST_SOURCES := src/binary_reader.c src/cpu.c tests/test_popcount_program.c
 SOURCE_LINE_TEST_SOURCES := assembler/source_line.c tests/test_source_line.c
 SOURCE_READER_TEST_SOURCES := assembler/source_line.c assembler/source_reader.c tests/test_source_reader.c
 SYMBOL_TABLE_TEST_SOURCES := assembler/symbol_table.c tests/test_symbol_table.c
@@ -90,7 +95,7 @@ INSTRUCTION_ENCODER_TEST_SOURCES := assembler/byte_literal.c assembler/byte_oper
 SECOND_PASS_TEST_SOURCES := assembler/byte_literal.c assembler/byte_operand.c assembler/instruction_encoder.c assembler/instruction_parser.c assembler/second_pass.c assembler/symbol_table.c tests/test_second_pass.c
 BINARY_WRITER_TEST_SOURCES := assembler/binary_writer.c tests/test_binary_writer.c
 
-.PHONY: all assembler assemble inspect run run-bin trace trace-bin monitor monitor-bin test help clean
+.PHONY: all assembler assemble assemble-popcount inspect inspect-popcount run run-bin run-popcount trace trace-bin trace-popcount monitor monitor-bin monitor-popcount test help clean
 
 all: $(TARGET)
 
@@ -99,9 +104,16 @@ assembler: $(ASSEMBLER_TARGET)
 assemble: $(ASSEMBLER_TARGET) $(ASSEMBLER_DEMO_SOURCE)
 	./$(ASSEMBLER_TARGET) $(ASSEMBLER_DEMO_SOURCE) $(ASSEMBLER_DEMO_OUTPUT)
 
+assemble-popcount: $(ASSEMBLER_TARGET) $(POPCOUNT_SOURCE)
+	./$(ASSEMBLER_TARGET) $(POPCOUNT_SOURCE) $(POPCOUNT_OUTPUT)
+
 inspect: assemble
 	wc -c $(ASSEMBLER_DEMO_OUTPUT)
 	od -An -tx1 -v $(ASSEMBLER_DEMO_OUTPUT)
+
+inspect-popcount: assemble-popcount
+	wc -c $(POPCOUNT_OUTPUT)
+	od -An -tx1 -v $(POPCOUNT_OUTPUT)
 
 $(TARGET): $(SOURCES) $(HEADERS)
 	mkdir -p build
@@ -155,6 +167,10 @@ $(ASSEMBLED_PROGRAM_TEST_TARGET): $(ASSEMBLED_PROGRAM_TEST_SOURCES) $(HEADERS)
 	mkdir -p build
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(ASSEMBLED_PROGRAM_TEST_SOURCES) -o $(ASSEMBLED_PROGRAM_TEST_TARGET)
 
+$(POPCOUNT_PROGRAM_TEST_TARGET): $(POPCOUNT_PROGRAM_TEST_SOURCES) $(HEADERS)
+	mkdir -p build
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(POPCOUNT_PROGRAM_TEST_SOURCES) -o $(POPCOUNT_PROGRAM_TEST_TARGET)
+
 $(SOURCE_LINE_TEST_TARGET): $(SOURCE_LINE_TEST_SOURCES) $(ASSEMBLER_HEADERS)
 	mkdir -p build
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(SOURCE_LINE_TEST_SOURCES) -o $(SOURCE_LINE_TEST_TARGET)
@@ -201,11 +217,17 @@ run: $(TARGET)
 run-bin: $(TARGET) assemble
 	./$(TARGET) run $(ASSEMBLER_DEMO_OUTPUT) --input $(INPUT_VALUE)
 
+run-popcount: $(TARGET) assemble-popcount
+	./$(TARGET) run $(POPCOUNT_OUTPUT) --input $(INPUT_VALUE)
+
 trace: $(TARGET)
 	./$(TARGET) trace --input $(INPUT_VALUE)
 
 trace-bin: $(TARGET) assemble
 	./$(TARGET) trace $(ASSEMBLER_DEMO_OUTPUT) --input $(INPUT_VALUE)
+
+trace-popcount: $(TARGET) assemble-popcount
+	./$(TARGET) trace $(POPCOUNT_OUTPUT) --input $(INPUT_VALUE)
 
 monitor: $(TARGET)
 	./$(TARGET) monitor
@@ -213,7 +235,10 @@ monitor: $(TARGET)
 monitor-bin: $(TARGET) assemble
 	./$(TARGET) monitor $(ASSEMBLER_DEMO_OUTPUT)
 
-test: $(TARGET) assemble $(TEST_TARGETS) $(PROCESS_TEST_SCRIPT)
+monitor-popcount: $(TARGET) assemble-popcount
+	./$(TARGET) monitor $(POPCOUNT_OUTPUT)
+
+test: $(TARGET) assemble assemble-popcount $(TEST_TARGETS) $(PROCESS_TEST_SCRIPT)
 	./$(CPU_TEST_TARGET)
 	./$(CPU_OBSERVER_TEST_TARGET)
 	./$(INSTRUCTION_SET_TEST_TARGET)
@@ -225,6 +250,7 @@ test: $(TARGET) assemble $(TEST_TARGETS) $(PROCESS_TEST_SCRIPT)
 	./$(PROGRAM_TEST_TARGET)
 	./$(BINARY_READER_TEST_TARGET)
 	./$(ASSEMBLED_PROGRAM_TEST_TARGET)
+	./$(POPCOUNT_PROGRAM_TEST_TARGET)
 	./$(SOURCE_LINE_TEST_TARGET)
 	./$(SOURCE_READER_TEST_TARGET)
 	./$(SYMBOL_TABLE_TEST_TARGET)
