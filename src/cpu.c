@@ -7,11 +7,32 @@ void cpu_reset(Cpu *cpu)
 
 uint8_t cpu_read_memory(const Cpu *cpu, uint8_t address)
 {
+  if (address == CPU_INPUT_PORT_ADDRESS)
+  {
+    return cpu->input_port;
+  }
+
+  if (address == CPU_OUTPUT_PORT_ADDRESS)
+  {
+    return cpu->output_port;
+  }
+
   return cpu->memory[address];
 }
 
 void cpu_write_memory(Cpu *cpu, uint8_t address, uint8_t value)
 {
+  if (address == CPU_INPUT_PORT_ADDRESS)
+  {
+    return;
+  }
+
+  if (address == CPU_OUTPUT_PORT_ADDRESS)
+  {
+    cpu->output_port = value;
+    return;
+  }
+
   cpu->memory[address] = value;
 }
 
@@ -23,6 +44,16 @@ uint8_t cpu_fetch_byte(Cpu *cpu)
   ++cpu->program_counter;
 
   return value;
+}
+
+void cpu_set_input_port(Cpu *cpu, uint8_t value)
+{
+  cpu->input_port = value;
+}
+
+uint8_t cpu_get_output_port(const Cpu *cpu)
+{
+  return cpu->output_port;
 }
 
 static void cpu_store_alu_flags(

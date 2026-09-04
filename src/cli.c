@@ -1,8 +1,13 @@
-#include <stdio.h>
-#include <string.h>
+#include <ctype.h>
+#include <errno.h>
 #include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 #include "cli.h"
+#include "cpu.h"
 #include "instruction_set.h"
 
 enum
@@ -10,9 +15,138 @@ enum
   CLI_ARGUMENT_COUNT_WITHOUT_COMMAND = 1,
   CLI_ARGUMENT_COUNT_WITH_COMMAND = 2,
   CLI_ARGUMENT_COUNT_WITH_BINARY_PATH = 3,
+  CLI_ARGUMENT_COUNT_WITH_INPUT = 4,
+  CLI_ARGUMENT_COUNT_WITH_BINARY_AND_INPUT = 5,
   CLI_COMMAND_ARGUMENT_INDEX = 1,
-  CLI_BINARY_PATH_ARGUMENT_INDEX = 2
+  CLI_FIRST_VALUE_ARGUMENT_INDEX = 2,
+  CLI_SECOND_VALUE_ARGUMENT_INDEX = 3,
+  CLI_THIRD_VALUE_ARGUMENT_INDEX = 4
 };
+
+static const char HELP_COMMAND[] = "help";
+static const char LONG_HELP_COMMAND[] = "--help";
+static const char RUN_COMMAND[] = "run";
+static const char TRACE_COMMAND[] = "trace";
+static const char INPUT_OPTION[] = "--input";
+
+static CliOptions cli_make_options(
+    CliCommand command,
+    const char *binary_path,
+    bool trace_enabled,
+    uint8_t input_port_value
+)
+{
+  return (CliOptions){
+    .command = command,
+    .binary_path = binary_path,
+    .trace_enabled = trace_enabled,
+    .input_port_value = input_port_value
+  };
+}
+
+static CliOptions cli_invalid_options(void)
+{
+  return cli_make_options(
+    CLI_COMMAND_INVALID,
+    NULL,
+    false,
+    0
+  );
+}
+
+static CliOptions cli_run_options(
+    const char *binary_path,
+    bool trace_enabled,
+    uint8_t input_port_value
+)
+{
+  const CliCommand command =
+    (binary_path == NULL)
+      ? CLI_COMMAND_RUN_DEMO
+      : CLI_COMMAND_RUN_BINARY;
+
+  return cli_make_options(
+    command,
+    binary_path,
+    trace_enabled,
+    input_port_value
+  );
+}
+
+static bool cli_parse_run_command(
+    const char *command,
+    bool *trace_enabled
+)
+{
+  if (strcmp(command, RUN_COMMAND) == 0)
+  {
+    *trace_enabled = false;
+    return true;
+  }
+
+  if (strcmp(command, TRACE_COMMAND) == 0)
+  {
+    *trace_enabled = true;
+    return true;
+  }
+
+  return false;
+}
+
+static bool cli_parse_input_port_value(
+    const char *text,
+    uint8_t *value
+)
+{
+  if ((text == NULL) || (value == NULL))
+  {
+    return false;
+  }
+
+  if ((text[0] == '\0') ||
+      isspace((unsigned char)text[0]) ||
+      (text[0] == '+') ||
+      (text[0] == '-'))
+  {
+    return false;
+  }
+
+  int base = 10;
+  const char *digits = text;
+
+  if ((text[0] == '0') &&
+      ((text[1] == 'x') || (text[1] == 'X')))
+  {
+    base = 16;
+    digits += 2;
+  }
+
+  if ((digits[0] == '\0') ||
+      isspace((unsigned char)digits[0]) ||
+      (digits[0] == '+') ||
+      (digits[0] == '-'))
+  {
+    return false;
+  }
+
+  errno = 0;
+
+  char *end = NULL;
+
+  const unsigned long parsed_value =
+    strtoul(digits, &end, base);
+
+  if ((errno != 0) ||
+      (end == digits) ||
+      (end[0] != '\0') ||
+      (parsed_value > UINT8_MAX))
+  {
+    return false;
+  }
+
+  *value = (uint8_t)parsed_value;
+  return true;
+}
 
 CliOptions cli_parse_arguments(
     int argument_count,
@@ -21,71 +155,124 @@ CliOptions cli_parse_arguments(
 {
   if (argument_count == CLI_ARGUMENT_COUNT_WITHOUT_COMMAND)
   {
-    return (CliOptions){
-      .command = CLI_COMMAND_RUN_DEMO,
-      .binary_path = NULL,
-      .trace_enabled = false
-    };
+    return cli_run_options(NULL, false, 0);
+  }
+
+  if (argument_count < CLI_ARGUMENT_COUNT_WITH_COMMAND)
+  {
+    return cli_invalid_options();
+  }
+
+  const char *const command =
+    arguments[CLI_COMMAND_ARGUMENT_INDEX];
+
+  if (
+    (argument_count == CLI_ARGUMENT_COUNT_WITH_COMMAND) &&
+    ((strcmp(command, HELP_COMMAND) == 0) ||
+     (strcmp(command, LONG_HELP_COMMAND) == 0))
+  )
+  {
+    return cli_make_options(
+      CLI_COMMAND_HELP,
+      NULL,
+      false,
+      0
+    );
+  }
+
+  bool trace_enabled = false;
+
+  if (!cli_parse_run_command(command, &trace_enabled))
+  {
+    return cli_invalid_options();
   }
 
   if (argument_count == CLI_ARGUMENT_COUNT_WITH_COMMAND)
   {
-    const char *command =
-      arguments[CLI_COMMAND_ARGUMENT_INDEX];
-
-    if ((strcmp(command, "help") == 0) ||
-        (strcmp(command, "--help") == 0))
-    {
-      return (CliOptions){
-        .command = CLI_COMMAND_HELP,
-        .binary_path = NULL,
-        .trace_enabled = false
-      };
-    }
-
-    if (strcmp(command, "trace") == 0)
-    {
-      return (CliOptions){
-        .command = CLI_COMMAND_RUN_DEMO,
-        .binary_path = NULL,
-        .trace_enabled = true
-      };
-    }
-
-    return (CliOptions){
-      .command = CLI_COMMAND_INVALID,
-      .binary_path = NULL,
-      .trace_enabled = false
-    };
+    return cli_run_options(
+      NULL,
+      trace_enabled,
+      0
+    );
   }
 
   if (argument_count == CLI_ARGUMENT_COUNT_WITH_BINARY_PATH)
   {
-    const char *command =
-      arguments[CLI_COMMAND_ARGUMENT_INDEX];
+    const char *const binary_path =
+      arguments[CLI_FIRST_VALUE_ARGUMENT_INDEX];
 
-    const bool runs_binary =
-      strcmp(command, "run") == 0;
-
-    const bool traces_binary =
-      strcmp(command, "trace") == 0;
-
-    if (runs_binary || traces_binary)
+    if (strcmp(binary_path, INPUT_OPTION) == 0)
     {
-      return (CliOptions){
-        .command = CLI_COMMAND_RUN_BINARY,
-        .binary_path =
-          arguments[CLI_BINARY_PATH_ARGUMENT_INDEX],
-        .trace_enabled = traces_binary
-      };
+      return cli_invalid_options();
     }
+
+    return cli_run_options(
+      binary_path,
+      trace_enabled,
+      0
+    );
   }
 
-  return (CliOptions){
-    .command = CLI_COMMAND_INVALID,
-    .binary_path = NULL,
-    .trace_enabled = false
-  };
+  if (argument_count == CLI_ARGUMENT_COUNT_WITH_INPUT)
+  {
+    const char *const input_option =
+      arguments[CLI_FIRST_VALUE_ARGUMENT_INDEX];
+
+    const char *const input_text =
+      arguments[CLI_SECOND_VALUE_ARGUMENT_INDEX];
+
+    uint8_t input_port_value = 0;
+
+    if ((strcmp(input_option, INPUT_OPTION) != 0) ||
+        !cli_parse_input_port_value(
+          input_text,
+          &input_port_value
+        ))
+    {
+      return cli_invalid_options();
+    }
+
+    return cli_run_options(
+      NULL,
+      trace_enabled,
+      input_port_value
+    );
+  }
+
+  if (
+    argument_count ==
+    CLI_ARGUMENT_COUNT_WITH_BINARY_AND_INPUT
+  )
+  {
+    const char *const binary_path =
+      arguments[CLI_FIRST_VALUE_ARGUMENT_INDEX];
+
+    const char *const input_option =
+      arguments[CLI_SECOND_VALUE_ARGUMENT_INDEX];
+
+    const char *const input_text =
+      arguments[CLI_THIRD_VALUE_ARGUMENT_INDEX];
+
+    uint8_t input_port_value = 0;
+
+    if ((strcmp(binary_path, INPUT_OPTION) == 0) ||
+        (strcmp(input_option, INPUT_OPTION) != 0) ||
+        !cli_parse_input_port_value(
+          input_text,
+          &input_port_value
+        ))
+    {
+      return cli_invalid_options();
+    }
+
+    return cli_run_options(
+      binary_path,
+      trace_enabled,
+      input_port_value
+    );
+  }
+
+  return cli_invalid_options();
 }
 
 void cli_print_help(void)
@@ -94,10 +281,10 @@ void cli_print_help(void)
   puts("");
 
   puts("Commands:");
-  puts("  make run        Build and run the built-in demonstration.");
+  puts("  make run        Run the built-in demonstration.");
   puts("  make run-bin    Assemble and run programs/demo.asm.");
   puts("  make trace      Run the built-in demo with a trace.");
-  puts("  make trace-bin  Assemble and run the demo with a trace.");
+  puts("  make trace-bin  Assemble and trace programs/demo.asm.");
   puts("  make test       Build and run the test suite.");
   puts("  make assembler  Build the assembler executable.");
   puts("  make assemble   Run the assembler on programs/demo.asm.");
@@ -107,16 +294,28 @@ void cli_print_help(void)
   puts("");
 
   puts("Direct executable commands:");
-  puts("  ./build/vm8             Run the built-in demonstration.");
-  puts("  ./build/vm8 run <program.bin> Run a binary program.");
-  puts("  ./build/vm8 help        Display this help.");
-  puts("  ./build/vm8 --help      Display this help.");
-  puts("  ./build/vm8 trace                Trace the built-in demo.");
-  puts("  ./build/vm8 trace <program.bin>  Trace a binary program.");
+  puts("  ./build/vm8");
+  puts("  ./build/vm8 run [--input <byte>]");
+  puts("  ./build/vm8 run <program.bin> [--input <byte>]");
+  puts("  ./build/vm8 trace [--input <byte>]");
+  puts("  ./build/vm8 trace <program.bin> [--input <byte>]");
+  puts("  ./build/vm8 help");
+  puts("  ./build/vm8 --help");
   puts(
     "  ./build/vm8asm <input.asm> <output.bin>  "
     "Assemble source into raw binary."
   );
+  puts("");
+
+  puts("Virtual input:");
+  puts(
+    "  <byte> accepts decimal or 0x-prefixed hexadecimal "
+    "from 0 through 255."
+  );
+  puts("  The default input value is 0x00.");
+  puts("  When present, --input <byte> must be the final option.");
+  puts("  Make example: make run INPUT_VALUE=0xA5");
+  puts("  Direct example: ./build/vm8 run firmware.bin --input 165");
   puts("");
 
   puts("Supported instructions:");
@@ -466,9 +665,28 @@ void cli_print_help(void)
   );
   puts("");
 
-  puts("Program and stack memory:");
-  puts("  Program binaries may use 0x00 through 0xEF (240 bytes).");
-  puts("  The 16-byte stack uses addresses 0xF0 through 0xFF.");
+  puts("Memory map:");
+  printf(
+    "  Program binaries may use 0x00 through 0x%02X "
+    "(%u bytes).\n",
+    (unsigned int)(CPU_PROGRAM_MEMORY_SIZE - 1),
+    (unsigned int)CPU_PROGRAM_MEMORY_SIZE
+  );
+  printf(
+    "  Input port: 0x%02X (read-only to VM8 software).\n",
+    (unsigned int)CPU_INPUT_PORT_ADDRESS
+  );
+  printf(
+    "  Output port: 0x%02X (readable and writable latch).\n",
+    (unsigned int)CPU_OUTPUT_PORT_ADDRESS
+  );
+  printf(
+    "  The %u-byte stack uses addresses 0x%02X through "
+    "0x%02X.\n",
+    (unsigned int)CPU_STACK_CAPACITY,
+    (unsigned int)CPU_STACK_LOW_ADDRESS,
+    (unsigned int)CPU_STACK_HIGH_ADDRESS
+  );
   puts("  SP = 0x00 represents an empty stack.");
   puts("");
 

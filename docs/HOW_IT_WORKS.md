@@ -32,6 +32,8 @@ The CPU simulator is operational. It can run the 18-byte built-in demonstration 
 
 The CPU now has a 16-byte downward-growing stack. `PUSH A` and `POP A` transfer data through it, while `CALL addr8` and `RET` use it to save and restore 8-bit return addresses. Stack overflow and underflow are explicit execution errors shared by both kinds of operation.
 
+The CPU also has one host-controlled input port at address `0xEE` and one output latch at `0xEF`. They are accessed through normal `LDA` and `STA` instructions because the CPU decodes those addresses as memory-mapped I/O.
+
 The shared `instruction_set` module owns the `Opcode` definitions and a read-only metadata table that maps every supported opcode byte to its Assembly mnemonic. A lookup receives a raw `uint8_t` because memory may contain any byte; it returns a metadata pointer for a recognized opcode or a null pointer for an unknown value.
 
 The assembler currently implements:
@@ -86,11 +88,13 @@ The `Cpu` structure contains the complete visible state of the virtual processor
 | Register `B` | 8 bits | Secondary arithmetic operand. |
 | Program counter (`PC`) | 8 bits | Address of the next byte to fetch. |
 | Stack pointer (`SP`) | 8 bits | Address of the newest stack byte, or `0x00` when the stack is empty. |
+| Input port | 8 bits | Value supplied by the host and read by VM8 software at `0xEE`. |
+| Output latch | 8 bits | Value read or written by VM8 software at `0xEF` and observed by the host. |
 | Zero flag (`Z`) | Boolean | Indicates that the most recent flag-updating result was zero. |
 | Carry flag (`C`) | Boolean | Indicates addition carry-out or subtraction borrow. |
 | Halted state | Boolean | Prevents further execution after a halt, invalid opcode, or stack error. |
 | Cycle counter | 64 bits | Counts attempted instructions in the simplified timing model. |
-| Memory | 256 bytes | Stores program bytes, ordinary data, and the reserved stack. |
+| Memory array | 256 bytes | Backs ordinary code/data and stack storage; mapped I/O is decoded before ordinary array access. |
 
 The normal initial state is completely zero-initialized:
 
@@ -98,15 +102,17 @@ The normal initial state is completely zero-initialized:
 Cpu cpu = {0};
 ```
 
-The program is then copied into memory beginning at address `0x00`. Although the complete memory array contains 256 bytes, a loaded program may occupy at most the first 240 bytes because the final 16 addresses are reserved for the stack.
+The program is then copied into memory beginning at address `0x00`. Although the complete address space contains 256 locations, a loaded program may occupy at most the first 238 bytes. Addresses `0xEE` and `0xEF` are reserved for I/O, and the final 16 addresses are reserved for the stack.
 
 ## Unified code and data memory
 
-The project uses a unified memory model. Instructions, ordinary data, and stack data occupy the same 256-byte array, but the current architecture reserves separate address ranges:
+The project uses one unified 8-bit address space. Instructions and ordinary data share the memory array, while the CPU intercepts the two I/O addresses before ordinary memory access. Stack data uses the final part of the same array.
 
 | Address range | Size | Use |
 | --- | ---: | --- |
-| `0x00` through `0xEF` | 240 bytes | Loaded program and ordinary program-selected data. |
+| `0x00` through `0xED` | 238 bytes | Loaded program and ordinary program-selected data. |
+| `0xEE` | 1 byte | Read-only virtual input port. |
+| `0xEF` | 1 byte | Readable and writable virtual output latch. |
 | `0xF0` through `0xFF` | 16 bytes | CPU-managed stack. |
 
 For example, the demonstration program occupies addresses `0x00` through `0x11`, while it uses address `0x80` to store data. The instruction:
@@ -117,7 +123,72 @@ STA 0x80
 
 writes register `A` into memory location `0x80`.
 
-Because code and data share the same array, a store directed at a program address could overwrite an instruction. The current demonstration deliberately places its writable data outside its instruction bytes. Software can still address the stack region with ordinary memory instructions, but doing so can corrupt stack contents; the assembler and program loader only guarantee that the loaded binary itself does not occupy that reserved region.
+Because code and data share the same array, a store directed at a program address could overwrite an instruction. The current demonstration deliberately places its writable data outside its instruction bytes. Software can still address the stack region with ordinary memory instructions, but doing so can corrupt stack contents. The assembler and program loader guarantee that the loaded binary itself occupies only `0x00` through `0xED`.
+
+## Memory-mapped input and output
+
+Memory-mapped I/O means that the CPU uses normal memory instructions for peripheral access. The address decoder decides whether an address refers to the memory array or to a device register:
+
+| Address | Read behavior | Write behavior |
+| --- | --- | --- |
+| `0xEE` | Returns the current host-supplied input value. | Ignored, because the port is input-only from VM8 software's perspective. |
+| `0xEF` | Returns the current output-latch value. | Replaces the output-latch value with the written byte. |
+| Any other address | Reads the corresponding memory-array byte. | Writes the corresponding memory-array byte. |
+
+The input and output values are fields in the `Cpu` state rather than bytes stored at those two array indexes. The host calls `cpu_set_input_port` before execution. VM8 software reads the input through `cpu_read_memory`, normally by executing `LDA 0xEE`. Software changes the output by executing `STA 0xEF`, and the host observes it through `cpu_get_output_port`. A complete CPU reset clears both port values.
+
+This program copies the input port to the output latch:
+
+```asm
+.EQU INPUT_PORT, 0xEE
+.EQU OUTPUT_PORT, 0xEF
+
+start:
+  LDA INPUT_PORT
+  STA OUTPUT_PORT
+  HALT
+```
+
+The assembler resolves the constants and emits five bytes:
+
+```text
+40 ee 41 ef 01
+```
+
+The same machine-code program can be created directly for a quick experiment:
+
+```bash
+make
+printf '\x40\xEE\x41\xEF\x01' > build/io-demo.bin
+./build/vm8 run build/io-demo.bin --input 0xA5
+```
+
+The relevant final state is:
+
+```text
+Register A: 0xA5
+Input port: 0xA5
+Output port: 0xA5
+Program counter: 5
+Cycle count: 3
+```
+
+The same value may be written in decimal, and tracing reveals exactly when the output changes:
+
+```bash
+./build/vm8 trace build/io-demo.bin --input 165
+```
+
+```text
+Execution trace:
+  ADDR=0x00 OP=0x40 MNEMONIC=LDA A=0xA5 B=0x00 SP=0x00 IN=0xA5 OUT=0x00 Z=0 C=0 NEXT=0x02 CYCLES=1 RESULT=ok
+  ADDR=0x02 OP=0x41 MNEMONIC=STA A=0xA5 B=0x00 SP=0x00 IN=0xA5 OUT=0xA5 Z=0 C=0 NEXT=0x04 CYCLES=2 RESULT=ok
+  ADDR=0x04 OP=0x01 MNEMONIC=HALT A=0xA5 B=0x00 SP=0x00 IN=0xA5 OUT=0xA5 Z=0 C=0 NEXT=0x05 CYCLES=3 RESULT=halted
+```
+
+The CLI accepts decimal or `0x`-prefixed hexadecimal input from 0 through 255. Signs, leading whitespace, trailing text, missing values, and larger values are rejected. When present, `--input <byte>` must be the final option. Without it, the input defaults to `0x00`.
+
+The Make targets expose the same option through `INPUT_VALUE`, for example `make run INPUT_VALUE=0xA5`. The built-in demonstration does not read `0xEE`, so its output latch remains zero even though the selected input value is still visible in the final state and trace.
 
 ## Stack, `PUSH`, and `POP`
 
@@ -695,6 +766,8 @@ Execution result: halted
 Register A: 0x5A
 Register B: 0x2A
 Stack pointer: 0x00
+Input port: 0x00
+Output port: 0x00
 Zero flag: clear
 Carry flag: clear
 Program counter: 18
@@ -703,7 +776,7 @@ Cycle count: 9
 
 ## Loading and bounded execution
 
-`cpu_load_program` validates that the byte sequence fits in the 240-byte program region and rejects a null pointer for a nonempty program. It copies the program beginning at address zero, but does not reset the CPU automatically or write into the reserved stack region.
+`cpu_load_program` validates that the byte sequence fits in the 238-byte program region and rejects a null pointer for a nonempty program. It copies the program beginning at address zero, but does not reset the CPU automatically or write into the reserved I/O and stack regions.
 
 `cpu_run` receives an instruction limit. This prevents an unconditional loop such as `JMP 0x00` from running forever without returning control to the caller. Execution reports one of five outcomes:
 
@@ -730,7 +803,7 @@ The trace module supplies an observer that interprets its context as a `FILE *` 
 
 ```text
 Execution trace:
-  ADDR=0x00 OP=0x10 MNEMONIC=LDI A=0x2A B=0x00 SP=0x00 Z=0 C=0 NEXT=0x02 CYCLES=1 RESULT=ok
+  ADDR=0x00 OP=0x10 MNEMONIC=LDI A=0x2A B=0x00 SP=0x00 IN=0x00 OUT=0x00 Z=0 C=0 NEXT=0x02 CYCLES=1 RESULT=ok
 ```
 
 The fields mean:
@@ -740,6 +813,8 @@ The fields mean:
 - `MNEMONIC`: operation name obtained from the shared instruction-set metadata, or `UNKNOWN` when no opcode matches;
 - `A` and `B`: register values after execution;
 - `SP`: stack pointer after execution;
+- `IN`: memory-mapped input-port value after execution;
+- `OUT`: memory-mapped output-latch value after execution;
 - `Z` and `C`: zero and carry flags after execution;
 - `NEXT`: program counter after execution, including any taken jump;
 - `CYCLES`: total attempted-instruction count after this step;
@@ -748,18 +823,18 @@ The fields mean:
 The final demonstration instruction is therefore shown as:
 
 ```text
-  ADDR=0x11 OP=0x01 MNEMONIC=HALT A=0x5A B=0x2A SP=0x00 Z=0 C=0 NEXT=0x12 CYCLES=9 RESULT=halted
+  ADDR=0x11 OP=0x01 MNEMONIC=HALT A=0x5A B=0x2A SP=0x00 IN=0x00 OUT=0x00 Z=0 C=0 NEXT=0x12 CYCLES=9 RESULT=halted
 ```
 
 This observer design keeps the CPU independent of presentation. A future debugger, logger, or graphical interface can supply a different callback without putting terminal-output code inside `cpu.c`.
 
 ## Reading and executing an external binary
 
-The simulator-side binary reader opens the selected file in binary mode and reads into a caller-provided buffer. `main.c` supplies a buffer whose capacity is exactly `CPU_PROGRAM_MEMORY_SIZE`, so the file reader cannot write beyond the virtual machine's 240-byte program region.
+The simulator-side binary reader opens the selected file in binary mode and reads into a caller-provided buffer. `main.c` supplies a buffer whose capacity is exactly `CPU_PROGRAM_MEMORY_SIZE`, so the file reader cannot write beyond the virtual machine's 238-byte program region.
 
 After filling the buffer, the reader attempts to fetch one additional byte. This extra read distinguishes two cases that would otherwise both produce a full buffer:
 
-- if the extra read reaches end-of-file, the program contains exactly 240 bytes and is valid;
+- if the extra read reaches end-of-file, the program contains exactly 238 bytes and is valid;
 - if another byte exists, the file is too large and is rejected.
 
 The reader reports the number of bytes actually read only after the read and file close both succeed. An empty file is a valid binary file from the reader's narrow I/O perspective, but `main.c` rejects it as an executable program. This separation keeps file-format transport separate from simulator policy.
@@ -769,9 +844,11 @@ The CLI exposes two program sources and an optional trace for either source:
 ```text
 make run
   -> built-in byte array from src/program.c
+  -> input defaults to 0x00 or comes from INPUT_VALUE
 
 make trace
   -> built-in byte array from src/program.c
+  -> input defaults to 0x00 or comes from INPUT_VALUE
   -> execution trace enabled
 
 make run-bin
@@ -780,6 +857,7 @@ make run-bin
   -> build/demo.bin
   -> binary_reader_read
   -> cpu_load_program
+  -> host input applied to the CPU
   -> cpu_run_with_observer
 
 make trace-bin
@@ -787,25 +865,25 @@ make trace-bin
   -> execution trace enabled
 ```
 
-The direct forms `./build/vm8 run <program.bin>` and `./build/vm8 trace <program.bin>` use the same external-binary path without first invoking the assembler. The simulator does not know whether that file came from `vm8asm`, another tool, or manual byte entry; it sees only the bytes. The difference is whether `main.c` gives the CPU run loop a trace observer.
+The direct forms `./build/vm8 run <program.bin>` and `./build/vm8 trace <program.bin>` use the same external-binary path without first invoking the assembler. Both accept a final `--input <byte>` option. The simulator does not know whether the file came from `vm8asm`, another tool, or manual byte entry; it sees only the bytes. The difference is whether `main.c` gives the CPU run loop a trace observer.
 
-The process-level Bash test exercises this public interface instead of calling C functions directly. It verifies normal external-binary execution, built-in tracing, external-binary tracing, and four expected failures: a missing file, an empty file, a 241-byte file, and a file containing the invalid opcode `0xFF`. Each failure must return a nonzero process status and place the expected diagnostic on `stderr`; successful execution must place the expected CPU state or trace entry on `stdout`.
+The process-level Bash test exercises this public interface instead of calling C functions directly. It verifies normal external-binary execution, built-in tracing, external-binary tracing, input-to-output transfer, both numeric input forms, and five expected failures: an invalid input value, a missing file, an empty file, a 239-byte file, and a file containing the invalid opcode `0xFF`. Each failure must return a nonzero process status and place the expected diagnostic on `stderr`; successful execution must place the expected CPU state or trace entry on `stdout`.
 
 ## Current module responsibilities
 
 | Module | Responsibility |
 | --- | --- |
 | `include/instruction_set.h`, `src/instruction_set.c` | Shared opcode definitions and read-only lookup from a raw opcode byte to instruction metadata. |
-| `include/cpu.h`, `src/cpu.c` | CPU state, memory and stack operations, fetching, decoding, execution, bounded program loading, bounded running, and optional per-step observer delivery. |
-| `include/cpu_trace.h`, `src/cpu_trace.c` | Human-readable formatting of post-instruction CPU snapshots, including `SP` and stack errors. |
+| `include/cpu.h`, `src/cpu.c` | CPU state, ordinary memory, memory-mapped I/O, stack operations, fetching, decoding, execution, bounded program loading, bounded running, and optional per-step observer delivery. |
+| `include/cpu_trace.h`, `src/cpu_trace.c` | Human-readable formatting of post-instruction CPU snapshots, including `SP`, `IN`, `OUT`, and stack errors. |
 | `include/program.h`, `src/program.c` | Immutable descriptor and current built-in demonstration bytecode. |
 | `include/binary_reader.h`, `src/binary_reader.c` | Bounded raw-binary input with open, read, size, and close validation. |
-| `include/cli.h`, `src/cli.c` | Selection of built-in or external-binary execution, optional tracing, and help presentation. |
-| `src/main.c` | Program-source selection, optional observer wiring, high-level simulator orchestration, and final state presentation. |
+| `include/cli.h`, `src/cli.c` | Selection of built-in or external-binary execution, strict virtual-input parsing, optional tracing, and help presentation. |
+| `src/main.c` | Program-source selection, host-input application, optional observer wiring, high-level simulator orchestration, and final state presentation. |
 | `assembler/source_line.*` | Comment removal and whitespace normalization. |
 | `assembler/source_reader.*` | Bounded file reading and callback delivery with source locations. |
 | `assembler/symbol_table.*` | Mapping symbol names to 8-bit label addresses or constant values. |
-| `assembler/first_pass.*` | Symbol collection, instruction-size calculation, and 240-byte program-capacity validation. |
+| `assembler/first_pass.*` | Symbol collection, instruction-size calculation, and 238-byte program-capacity validation. |
 | `assembler/byte_literal.*` | Strict conversion of decimal and hexadecimal text to `uint8_t`. |
 | `assembler/byte_operand.*` | Resolution of a literal or symbol into one byte. |
 | `assembler/instruction_parser.*` | Separation and structural validation of instruction mnemonics and operands. |
@@ -834,6 +912,12 @@ make run
 Builds and executes the simulator with the built-in bytecode demonstration.
 
 ```bash
+make run INPUT_VALUE=0xA5
+```
+
+Runs the same demonstration with host input `0xA5`. The input is observable even though the built-in program does not consume it.
+
+```bash
 make run-bin
 ```
 
@@ -844,6 +928,12 @@ make trace
 ```
 
 Builds and executes the built-in demonstration while printing one trace entry after every attempted instruction.
+
+```bash
+make trace INPUT_VALUE=165
+```
+
+Tracing and normal execution accept the same input in decimal or hexadecimal form.
 
 ```bash
 make trace-bin
@@ -857,10 +947,20 @@ An already existing compatible binary can be executed directly:
 ./build/vm8 run path/to/program.bin
 ```
 
+Supply input to that binary by placing the option last:
+
+```bash
+./build/vm8 run path/to/program.bin --input 0xA5
+```
+
 Trace an already existing compatible binary directly:
 
 ```bash
 ./build/vm8 trace path/to/program.bin
+```
+
+```bash
+./build/vm8 trace path/to/program.bin --input 165
 ```
 
 ```bash
@@ -873,7 +973,7 @@ Displays simulator commands and the instruction reference.
 make test
 ```
 
-Assembles the demonstration and runs all automated unit, integration, and process-level tests. Dedicated tests verify every current opcode-to-mnemonic mapping, rejection of an unknown opcode, observer delivery, and exact trace formatting. The assembled-program test reads `build/demo.bin`, loads it into CPU memory, executes it, and verifies the expected registers, flags, program counter, cycle count, and stored data. `tests/test_vm8_process.sh` then launches the real executable and checks its process status and output streams across normal execution, both trace modes, and failing inputs.
+Assembles the demonstration and runs all automated unit, integration, and process-level tests. Dedicated tests verify every current opcode-to-mnemonic mapping, rejection of an unknown opcode, observer delivery, exact trace formatting, memory-map boundaries, port direction, port reset, and strict CLI input parsing. The assembled-program test reads `build/demo.bin`, loads it into CPU memory, executes it, and verifies the expected registers, flags, program counter, cycle count, and stored data. `tests/test_vm8_process.sh` then launches the real executable and checks normal execution, both trace modes, real input-to-output transfer, invalid input, and binary-file failures.
 
 ```bash
 make assembler
@@ -950,6 +1050,9 @@ make inspect
 - The first pass discovers addresses, and the second pass replaces symbolic references with numeric bytes.
 - The binary writer stores the generated values as raw bytes, not hexadecimal text.
 - The binary reader uses a caller-provided capacity and checks one extra byte to reject oversized input safely.
+- Memory-mapped I/O reuses `LDA` and `STA`; the decoded address selects ordinary memory, the input port, or the output latch.
+- The host controls input `0xEE`, VM8 software controls output `0xEF`, and reset clears both.
+- The CLI accepts a final `--input` value from 0 through 255 in decimal or `0x` hexadecimal form.
 - `wc -c` verifies the byte count, while `od -An -tx1 -v` exposes the exact byte values.
 - Built-in and file-loaded programs use the same CPU loading and execution functions.
 - An observer receives the instruction address and opcode from before a step together with the CPU state from after that step.
@@ -958,7 +1061,7 @@ make inspect
 - Unit tests validate functions in isolation, while the Bash process test validates the compiled program through its public command-line interface.
 - `PC` measures byte addresses, while the simplified cycle counter measures attempted instructions.
 - Unified memory permits both code and data access, so stores must use addresses carefully.
-- The loaded program is limited to `0x00` through `0xEF`; the stack reserves `0xF0` through `0xFF` and grows downward.
+- The loaded program is limited to `0x00` through `0xED`; `0xEE` and `0xEF` provide I/O, while the stack reserves `0xF0` through `0xFF` and grows downward.
 - `SP = 0x00` is an empty-stack sentinel; `PUSH` and `POP` move bytes in last-in, first-out order and report boundary errors explicitly.
 - `CALL` pushes the already-advanced `PC` as an 8-bit return address; `RET` pops that byte back into `PC`.
 - Data and return addresses share the same stack, so balanced operations and available stack depth are software responsibilities.

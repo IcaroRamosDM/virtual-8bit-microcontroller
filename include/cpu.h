@@ -10,9 +10,14 @@ enum
 {
   CPU_MEMORY_SIZE = UINT8_MAX + 1,
   CPU_STACK_CAPACITY = 16,
+  CPU_IO_PORT_COUNT = 2,
   CPU_PROGRAM_MEMORY_SIZE =
-    CPU_MEMORY_SIZE - CPU_STACK_CAPACITY,
-  CPU_STACK_LOW_ADDRESS = CPU_PROGRAM_MEMORY_SIZE,
+    CPU_MEMORY_SIZE -
+    CPU_STACK_CAPACITY -
+    CPU_IO_PORT_COUNT,
+  CPU_INPUT_PORT_ADDRESS = CPU_PROGRAM_MEMORY_SIZE,
+  CPU_OUTPUT_PORT_ADDRESS = CPU_INPUT_PORT_ADDRESS + 1,
+  CPU_STACK_LOW_ADDRESS = CPU_OUTPUT_PORT_ADDRESS + 1,
   CPU_STACK_HIGH_ADDRESS = CPU_MEMORY_SIZE - 1,
   CPU_STACK_EMPTY_POINTER = 0
 };
@@ -23,6 +28,8 @@ typedef struct Cpu
   uint8_t register_b;
   uint8_t program_counter;
   uint8_t stack_pointer;
+  uint8_t input_port;
+  uint8_t output_port;
   bool zero_flag;
   bool carry_flag;
   bool halted;
@@ -57,6 +64,8 @@ typedef enum CpuRunResult
 } CpuRunResult;
 
 void cpu_reset(Cpu *cpu);
+void cpu_set_input_port(Cpu *cpu, uint8_t value);
+uint8_t cpu_get_output_port(const Cpu *cpu);
 
 bool cpu_load_program(
     Cpu *cpu,

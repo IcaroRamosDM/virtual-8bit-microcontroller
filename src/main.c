@@ -29,7 +29,10 @@ int main(int argument_count, char *arguments[])
       return EXIT_SUCCESS;
 
     case CLI_COMMAND_INVALID:
-      fputs("Unknown command. Run 'make help'.\n", stderr);
+      fputs(
+        "Invalid command or arguments. Run 'make help'.\n",
+        stderr
+      );
       return EXIT_FAILURE;
   }
 
@@ -83,6 +86,11 @@ int main(int argument_count, char *arguments[])
     fputs("Program does not fit in program memory.\n", stderr);
     return EXIT_FAILURE;
   }
+
+  cpu_set_input_port(
+    &cpu,
+    options.input_port_value
+  );
 
   CpuStepObserver observer = NULL;
   void *observer_context = NULL;
@@ -143,6 +151,19 @@ int main(int argument_count, char *arguments[])
   printf(
      "Stack pointer: 0x%02X\n",
      (unsigned int)cpu.stack_pointer
+  );
+
+  printf(
+    "Input port: 0x%02X\n",
+    (unsigned int)cpu_read_memory(
+      &cpu,
+      CPU_INPUT_PORT_ADDRESS
+    )
+  );
+
+  printf(
+    "Output port: 0x%02X\n",
+    (unsigned int)cpu_get_output_port(&cpu)
   );
 
   printf(
