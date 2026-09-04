@@ -20,6 +20,12 @@ static const char *cpu_trace_step_result_name(
 
     case CPU_STEP_INVALID_OPCODE:
       return "invalid-opcode";
+
+    case CPU_STEP_STACK_OVERFLOW:
+      return "stack-overflow";
+
+    case CPU_STEP_STACK_UNDERFLOW:
+      return "stack-underflow";
   }
 
   return "unknown";
@@ -52,7 +58,7 @@ void cpu_trace_observer(
     output,
     "  ADDR=0x%02X OP=0x%02X "
     "MNEMONIC=%s "
-    "A=0x%02X B=0x%02X "
+    "A=0x%02X B=0x%02X SP=0x%02X "
     "Z=%u C=%u NEXT=0x%02X "
     "CYCLES=%" PRIu64 " RESULT=%s\n",
     (unsigned int)instruction_address,
@@ -60,6 +66,7 @@ void cpu_trace_observer(
     mnemonic,
     (unsigned int)cpu->register_a,
     (unsigned int)cpu->register_b,
+    (unsigned int)cpu->stack_pointer,
     cpu->zero_flag ? 1U : 0U,
     cpu->carry_flag ? 1U : 0U,
     (unsigned int)cpu->program_counter,

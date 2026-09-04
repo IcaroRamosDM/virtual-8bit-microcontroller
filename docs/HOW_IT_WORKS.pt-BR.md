@@ -30,6 +30,8 @@ A CPU nunca lê palavras como `LDI`, `start` ou `memory_demo`. Essas palavras ex
 
 O simulador da CPU está funcional. Ele pode executar a demonstração embutida de 18 bytes armazenada em `src/program.c` ou um binário bruto compatível selecionado pela linha de comando. A demonstração Assembly atual gera um binário de 19 bytes porque inclui um byte de dado embutido depois de `HALT`. Qualquer uma dessas origens pode ser executada normalmente ou com um rastreamento de instruções legível por pessoas.
 
+A CPU agora possui uma pilha descendente de 16 bytes e as instruções de um byte `PUSH A` e `POP A`. Overflow e underflow da pilha são erros explícitos de execução. `CALL` e `RET` ainda não estão implementadas; elas são as próximas operações planejadas para reutilizar o mesmo mecanismo de pilha.
+
 O módulo compartilhado `instruction_set` é o responsável pelas definições de `Opcode` e por uma tabela de metadados somente para leitura que associa cada byte de opcode suportado ao seu mnemônico Assembly. A busca recebe um `uint8_t` bruto porque a memória pode conter qualquer byte; ela retorna um ponteiro para os metadados de um opcode reconhecido ou um ponteiro nulo para um valor desconhecido.
 
 O montador atualmente implementa:
@@ -57,6 +59,7 @@ Neste projeto, 8 bits descreve a largura natural dos dados da CPU:
 - o registrador `B` armazena um valor de 8 bits;
 - cada posição da memória armazena um valor de 8 bits;
 - o contador de programa armazena um endereço de 8 bits;
+- o ponteiro de pilha armazena um endereço de pilha de 8 bits ou o sentinela de pilha vazia;
 - os resultados aritméticos mantidos pela CPU possuem 8 bits.
 
 Um valor de 8 bits possui 256 combinações possíveis:
@@ -82,11 +85,12 @@ A estrutura `Cpu` contém todo o estado visível do processador virtual:
 | Registrador `A` | 8 bits | Acumulador principal usado por instruções aritméticas e de transferência de memória. |
 | Registrador `B` | 8 bits | Operando aritmético secundário. |
 | Contador de programa (`PC`) | 8 bits | Endereço do próximo byte que será buscado. |
+| Ponteiro de pilha (`SP`) | 8 bits | Endereço do byte mais novo da pilha, ou `0x00` quando a pilha está vazia. |
 | Flag zero (`Z`) | Booleana | Indica que o resultado mais recente que atualiza flags foi zero. |
 | Flag carry (`C`) | Booleana | Indica carry de saída na adição ou empréstimo na subtração. |
-| Estado halted | Booleano | Impede novas execuções após uma parada ou opcode inválido. |
+| Estado halted | Booleano | Impede novas execuções após uma parada, opcode inválido ou erro da pilha. |
 | Contador de ciclos | 64 bits | Conta instruções tentadas no modelo simplificado de temporização. |
-| Memória | 256 bytes | Armazena tanto os bytes do programa quanto os bytes de dados. |
+| Memória | 256 bytes | Armazena bytes do programa, dados comuns e a pilha reservada. |
 
 O estado inicial normal é completamente inicializado com zeros:
 
@@ -94,11 +98,16 @@ O estado inicial normal é completamente inicializado com zeros:
 Cpu cpu = {0};
 ```
 
-O programa é então copiado para a memória começando no endereço `0x00`.
+O programa é então copiado para a memória começando no endereço `0x00`. Embora o vetor completo de memória possua 256 bytes, um programa carregado pode ocupar no máximo os primeiros 240 bytes porque os 16 endereços finais são reservados para a pilha.
 
 ## Memória unificada de código e dados
 
-O projeto usa um modelo de memória unificada. As instruções e os dados comuns ocupam o mesmo vetor de 256 bytes.
+O projeto usa um modelo de memória unificada. Instruções, dados comuns e dados da pilha ocupam o mesmo vetor de 256 bytes, mas a arquitetura atual reserva faixas de endereços separadas:
+
+| Faixa de endereços | Tamanho | Uso |
+| --- | ---: | --- |
+| `0x00` até `0xEF` | 240 bytes | Programa carregado e dados comuns selecionados pelo programa. |
+| `0xF0` até `0xFF` | 16 bytes | Pilha gerenciada pela CPU. |
 
 Por exemplo, o programa de demonstração ocupa os endereços de `0x00` até `0x11`, enquanto usa o endereço `0x80` para armazenar dados. A instrução:
 
@@ -108,7 +117,39 @@ STA 0x80
 
 grava o registrador `A` na posição de memória `0x80`.
 
-Como código e dados compartilham o mesmo vetor, uma gravação direcionada a um endereço do programa poderia sobrescrever uma instrução. A demonstração atual coloca seus dados deliberadamente fora da região do programa.
+Como código e dados compartilham o mesmo vetor, uma gravação direcionada a um endereço do programa poderia sobrescrever uma instrução. A demonstração atual coloca seus dados graváveis deliberadamente fora de seus bytes de instrução. O software ainda pode endereçar a região da pilha com instruções comuns de memória, mas fazer isso pode corromper o conteúdo da pilha; o montador e o carregador de programas garantem apenas que o próprio binário carregado não ocupe essa região reservada.
+
+## Pilha, `PUSH` e `POP`
+
+Uma pilha é uma área de armazenamento de último a entrar, primeiro a sair. O byte inserido mais recentemente é o primeiro byte devolvido por uma retirada. A VM8 reserva os endereços de `0xF0` até `0xFF` para uma pilha que cresce para baixo, em direção a endereços menores.
+
+`SP = 0x00` representa uma pilha vazia. Esse é um valor sentinela, e não um endereço atualmente ocupado por dados da pilha. Isso permite que a inicialização normal com zeros `Cpu cpu = {0};` crie uma pilha vazia válida sem exigir uma atribuição de inicialização separada.
+
+`PUSH A` funciona assim:
+
+1. Se a pilha estiver vazia, ajusta `SP` para `0xFF`.
+2. Caso contrário, decrementa `SP` antes da gravação.
+3. Armazena o registrador `A` em `memory[SP]`.
+
+`POP A` realiza a operação inversa:
+
+1. Lê `memory[SP]` para o registrador `A`.
+2. Se o byte removido estava em `0xFF`, ajusta `SP` novamente para o sentinela vazio `0x00`.
+3. Caso contrário, incrementa `SP` em direção a `0xFF`.
+
+Por exemplo:
+
+| Operação | `SP` resultante | Memória relevante ou resultado |
+| --- | ---: | --- |
+| Estado inicial vazio | `0x00` | Nenhum byte da pilha está ativo. |
+| Insere `0xA5` | `0xFF` | `memory[0xFF] = 0xA5`. |
+| Insere `0x5A` | `0xFE` | `memory[0xFE] = 0x5A`; `0xA5` permanece abaixo dele em `0xFF`. |
+| Retira | `0xFF` | `A = 0x5A`. |
+| Retira novamente | `0x00` | `A = 0xA5`; a pilha está vazia novamente. |
+
+Depois de 16 inserções, todos os endereços de `0xFF` até `0xF0` estão ocupados e `SP` é igual a `0xF0`. Outro `PUSH A` informa overflow da pilha. Um `POP A` enquanto `SP` é `0x00` informa underflow da pilha. Qualquer um desses erros interrompe a execução e produz resultados distintos de passo e de execução sem alterar registradores, flags, memória da pilha ou `SP`; a busca do opcode tentado e a contagem do ciclo já ocorreram.
+
+`PUSH A` preserva ambos os registradores e ambas as flags. `POP A` substitui `A`, atualiza `Z` conforme o byte retirado seja ou não zero, preserva `B` e `C` e não apaga o byte deixado na memória. É o avanço de `SP` que faz essa posição deixar de pertencer à pilha ativa.
 
 ## Busca, decodificação e execução
 
@@ -180,8 +221,11 @@ A CPU não precisa de um registrador de 16 bits para executar essa instrução. 
 | `JMP addr8` | `31 addr8` | 2 | Sempre carrega `PC` com o endereço absoluto. |
 | `LDA addr8` | `40 addr8` | 2 | Carrega `A` a partir do endereço de memória; atualiza `Z`; preserva `C`. |
 | `STA addr8` | `41 addr8` | 2 | Armazena `A` no endereço de memória; preserva registradores e flags. |
+| `PUSH A` | `50` | 1 | Insere `A` na pilha; preserva registradores e flags. |
+| `POP A` | `51` | 1 | Retira o byte mais novo da pilha para `A`; atualiza `Z`; preserva `C`. |
 
 `imm8` e `addr8` possuem um byte cada. Portanto, podem representar valores de `0x00` até `0xFF`.
+`PUSH A` e `POP A` não precisam de um byte de operando codificado porque o opcode já identifica tanto a operação quanto o registrador `A`.
 
 ## Operações lógicas e de bits
 
@@ -235,7 +279,8 @@ A flag zero é ativada quando uma instrução que atualiza flags produz zero. At
 - `SHL A`;
 - `SHR A`;
 - `CMP A, B`;
-- `LDA addr8`.
+- `LDA addr8`;
+- `POP A`.
 
 `JZ` e `JNZ` leem a flag zero, mas não a modificam.
 
@@ -267,7 +312,7 @@ zero          = inativa
 carry/borrow  = ativa
 ```
 
-`JC` lê a flag carry, mas não a modifica.
+`JC` lê a flag carry, mas não a modifica. `PUSH A` preserva ambas as flags, enquanto `POP A` atualiza zero e preserva carry.
 
 ## Comparação e saltos condicionais
 
@@ -599,6 +644,7 @@ O estado final visível é:
 Execution result: halted
 Register A: 0x5A
 Register B: 0x2A
+Stack pointer: 0x00
 Zero flag: clear
 Carry flag: clear
 Program counter: 18
@@ -607,15 +653,17 @@ Cycle count: 9
 
 ## Carregamento e execução limitada
 
-`cpu_load_program` verifica se a sequência de bytes cabe na memória e rejeita um ponteiro nulo para um programa não vazio. Ele copia o programa a partir do endereço zero, mas não reinicializa a CPU automaticamente.
+`cpu_load_program` verifica se a sequência de bytes cabe na região de programa de 240 bytes e rejeita um ponteiro nulo para um programa não vazio. Ele copia o programa a partir do endereço zero, mas não reinicializa a CPU automaticamente nem grava na região reservada para a pilha.
 
-`cpu_run` recebe um limite de instruções. Isso impede que um laço incondicional como `JMP 0x00` continue para sempre sem devolver o controle ao chamador. A execução informa um de três resultados:
+`cpu_run` recebe um limite de instruções. Isso impede que um laço incondicional como `JMP 0x00` continue para sempre sem devolver o controle ao chamador. A execução informa um de cinco resultados:
 
 - parada normal;
 - opcode inválido;
-- limite de instruções atingido.
+- limite de instruções atingido;
+- overflow da pilha;
+- underflow da pilha.
 
-Um opcode inválido também para a CPU para que a execução não continue silenciosamente sobre dados desconhecidos.
+Um opcode inválido ou erro da pilha também para a CPU para que a execução não continue silenciosamente depois de uma transição de estado inválida.
 
 ## Observador de instruções e rastreamento da execução
 
@@ -632,7 +680,7 @@ O módulo de rastreamento fornece um observador que interpreta seu contexto como
 
 ```text
 Execution trace:
-  ADDR=0x00 OP=0x10 MNEMONIC=LDI A=0x2A B=0x00 Z=0 C=0 NEXT=0x02 CYCLES=1 RESULT=ok
+  ADDR=0x00 OP=0x10 MNEMONIC=LDI A=0x2A B=0x00 SP=0x00 Z=0 C=0 NEXT=0x02 CYCLES=1 RESULT=ok
 ```
 
 Os campos significam:
@@ -641,26 +689,27 @@ Os campos significam:
 - `OP`: byte bruto do opcode;
 - `MNEMONIC`: nome da operação obtido dos metadados compartilhados do conjunto de instruções, ou `UNKNOWN` quando nenhum opcode corresponde;
 - `A` e `B`: valores dos registradores depois da execução;
+- `SP`: ponteiro de pilha depois da execução;
 - `Z` e `C`: flags zero e carry depois da execução;
 - `NEXT`: contador de programa depois da execução, incluindo qualquer salto realizado;
 - `CYCLES`: total de instruções tentadas após esse passo;
-- `RESULT`: `ok`, `halted` ou `invalid-opcode`.
+- `RESULT`: `ok`, `halted`, `invalid-opcode`, `stack-overflow` ou `stack-underflow`.
 
 A instrução final da demonstração, portanto, é exibida assim:
 
 ```text
-  ADDR=0x11 OP=0x01 MNEMONIC=HALT A=0x5A B=0x2A Z=0 C=0 NEXT=0x12 CYCLES=9 RESULT=halted
+  ADDR=0x11 OP=0x01 MNEMONIC=HALT A=0x5A B=0x2A SP=0x00 Z=0 C=0 NEXT=0x12 CYCLES=9 RESULT=halted
 ```
 
 Esse projeto de observador mantém a CPU independente da apresentação. Um depurador, registrador ou interface gráfica futura poderá fornecer outro callback sem inserir código de saída para terminal dentro de `cpu.c`.
 
 ## Leitura e execução de um binário externo
 
-O leitor binário do simulador abre o arquivo selecionado em modo binário e lê seu conteúdo para um buffer fornecido pelo chamador. `main.c` fornece um buffer cuja capacidade é exatamente `CPU_MEMORY_SIZE`, portanto o leitor não consegue gravar além da capacidade de programa de 256 bytes da máquina virtual.
+O leitor binário do simulador abre o arquivo selecionado em modo binário e lê seu conteúdo para um buffer fornecido pelo chamador. `main.c` fornece um buffer cuja capacidade é exatamente `CPU_PROGRAM_MEMORY_SIZE`, portanto o leitor não consegue gravar além da região de programa de 240 bytes da máquina virtual.
 
 Depois de preencher o buffer, o leitor tenta buscar mais um byte. Essa leitura adicional diferencia dois casos que, sem ela, produziriam igualmente um buffer cheio:
 
-- se a leitura adicional alcançar o fim do arquivo, o programa possui exatamente 256 bytes e é válido;
+- se a leitura adicional alcançar o fim do arquivo, o programa possui exatamente 240 bytes e é válido;
 - se existir outro byte, o arquivo é grande demais e será rejeitado.
 
 O leitor informa a quantidade de bytes realmente lida somente depois que tanto a leitura quanto o fechamento do arquivo terminam corretamente. Um arquivo vazio é um arquivo binário válido do ponto de vista estrito de entrada e saída do leitor, mas `main.c` o rejeita como programa executável. Essa separação mantém o transporte do arquivo separado da política do simulador.
@@ -690,23 +739,23 @@ make trace-bin
 
 As formas diretas `./build/vm8 run <program.bin>` e `./build/vm8 trace <program.bin>` utilizam o mesmo caminho de binário externo sem executar primeiro o montador. O simulador não sabe se esse arquivo veio de `vm8asm`, de outra ferramenta ou da inserção manual de bytes; ele enxerga somente os bytes. A diferença é se `main.c` fornece um observador de rastreamento ao laço de execução da CPU.
 
-O teste de processo em Bash exercita essa interface pública em vez de chamar diretamente as funções C. Ele verifica a execução normal de um binário externo, o rastreamento da demonstração embutida, o rastreamento do binário externo e quatro falhas esperadas: arquivo inexistente, arquivo vazio, arquivo de 257 bytes e arquivo contendo o opcode inválido `0xFF`. Cada falha precisa retornar um status de processo diferente de zero e colocar o diagnóstico esperado em `stderr`; a execução bem-sucedida precisa colocar o estado esperado da CPU ou a entrada esperada do rastreamento em `stdout`.
+O teste de processo em Bash exercita essa interface pública em vez de chamar diretamente as funções C. Ele verifica a execução normal de um binário externo, o rastreamento da demonstração embutida, o rastreamento do binário externo e quatro falhas esperadas: arquivo inexistente, arquivo vazio, arquivo de 241 bytes e arquivo contendo o opcode inválido `0xFF`. Cada falha precisa retornar um status de processo diferente de zero e colocar o diagnóstico esperado em `stderr`; a execução bem-sucedida precisa colocar o estado esperado da CPU ou a entrada esperada do rastreamento em `stdout`.
 
 ## Responsabilidades atuais dos módulos
 
 | Módulo | Responsabilidade |
 | --- | --- |
 | `include/instruction_set.h`, `src/instruction_set.c` | Definições compartilhadas dos opcodes e busca somente para leitura de um byte bruto de opcode para seus metadados. |
-| `include/cpu.h`, `src/cpu.c` | Estado da CPU, operações de memória, busca, decodificação, execução, carregamento do programa, execução limitada e entrega opcional de cada passo a um observador. |
-| `include/cpu_trace.h`, `src/cpu_trace.c` | Formatação legível dos estados da CPU após cada instrução. |
+| `include/cpu.h`, `src/cpu.c` | Estado da CPU, operações de memória e pilha, busca, decodificação, execução, carregamento limitado do programa, execução limitada e entrega opcional de cada passo a um observador. |
+| `include/cpu_trace.h`, `src/cpu_trace.c` | Formatação legível dos estados da CPU após cada instrução, incluindo `SP` e erros da pilha. |
 | `include/program.h`, `src/program.c` | Descritor imutável e bytecode atual da demonstração embutida. |
 | `include/binary_reader.h`, `src/binary_reader.c` | Entrada limitada de binário bruto com validação de abertura, leitura, tamanho e fechamento. |
 | `include/cli.h`, `src/cli.c` | Seleção da execução embutida ou do binário externo, rastreamento opcional e apresentação da ajuda. |
 | `src/main.c` | Seleção da origem do programa, conexão opcional do observador, orquestração geral do simulador e apresentação do estado final. |
 | `assembler/source_line.*` | Remoção de comentários e normalização de espaços. |
 | `assembler/source_reader.*` | Leitura limitada do arquivo e entrega por callback com localização no código-fonte. |
-| `assembler/symbol_table.*` | Associação dos nomes dos símbolos a endereços de 8 bits. |
-| `assembler/first_pass.*` | Coleta dos labels, cálculo do tamanho das instruções e validação da capacidade da memória. |
+| `assembler/symbol_table.*` | Associação dos nomes dos símbolos a endereços de labels ou valores constantes de 8 bits. |
+| `assembler/first_pass.*` | Coleta dos símbolos, cálculo do tamanho das instruções e validação da capacidade de programa de 240 bytes. |
 | `assembler/byte_literal.*` | Conversão estrita de texto decimal e hexadecimal para `uint8_t`. |
 | `assembler/byte_operand.*` | Resolução de um literal ou símbolo para um byte. |
 | `assembler/instruction_parser.*` | Separação e validação estrutural dos mnemônicos e operandos das instruções. |
@@ -859,3 +908,5 @@ make inspect
 - Testes unitários validam funções isoladamente, enquanto o teste de processo em Bash valida o programa compilado por meio de sua interface pública de linha de comando.
 - `PC` mede endereços de bytes, enquanto o contador simplificado de ciclos mede instruções tentadas.
 - A memória unificada permite acesso tanto ao código quanto aos dados, portanto as instruções de armazenamento devem usar endereços com cuidado.
+- O programa carregado é limitado de `0x00` até `0xEF`; a pilha reserva de `0xF0` até `0xFF` e cresce para baixo.
+- `SP = 0x00` é um sentinela de pilha vazia; `PUSH` e `POP` movimentam bytes na ordem último a entrar, primeiro a sair e informam explicitamente os erros de limite.

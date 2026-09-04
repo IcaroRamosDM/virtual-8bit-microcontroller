@@ -35,7 +35,9 @@ static void test_finds_every_instruction(void)
     {OPCODE_JUMP_IF_CARRY, "JC"},
     {OPCODE_JUMP, "JMP"},
     {OPCODE_LOAD_A_FROM_MEMORY, "LDA"},
-    {OPCODE_STORE_A_TO_MEMORY, "STA"}
+    {OPCODE_STORE_A_TO_MEMORY, "STA"},
+    {OPCODE_PUSH_A, "PUSH"},
+    {OPCODE_POP_A, "POP"}
   };
 
   const size_t expectation_count =

@@ -33,7 +33,7 @@ int main(int argument_count, char *arguments[])
       return EXIT_FAILURE;
   }
 
-  uint8_t binary_bytes[CPU_MEMORY_SIZE] = {0};
+  uint8_t binary_bytes[CPU_PROGRAM_MEMORY_SIZE] = {0};
   size_t binary_size = 0;
   Program program = program_get_demo();
 
@@ -80,7 +80,7 @@ int main(int argument_count, char *arguments[])
 
   if (!program_loaded)
   {
-    fputs("Program does not fit in memory.\n", stderr);
+    fputs("Program does not fit in program memory.\n", stderr);
     return EXIT_FAILURE;
   }
 
@@ -120,6 +120,14 @@ int main(int argument_count, char *arguments[])
         stderr
       );
       return EXIT_FAILURE;
+
+    case CPU_RUN_STACK_OVERFLOW:
+      fputs("Execution result: stack overflow\n", stderr);
+      return EXIT_FAILURE;
+
+    case CPU_RUN_STACK_UNDERFLOW:
+      fputs("Execution result: stack underflow\n", stderr);
+      return EXIT_FAILURE;
   }
 
   printf(
@@ -130,6 +138,11 @@ int main(int argument_count, char *arguments[])
   printf(
     "Register B: 0x%02X\n",
     (unsigned int)cpu.register_b
+  );
+
+  printf(
+     "Stack pointer: 0x%02X\n",
+     (unsigned int)cpu.stack_pointer
   );
 
   printf(

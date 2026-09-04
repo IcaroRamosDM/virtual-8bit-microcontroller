@@ -152,7 +152,7 @@ static void test_encodes_demo_program(void)
 
   initialize_test_symbols(&symbols);
 
-  uint8_t program[CPU_MEMORY_SIZE] = {0};
+  uint8_t program[CPU_PROGRAM_MEMORY_SIZE] = {0};
   SecondPassResult result;
 
   second_pass_initialize(

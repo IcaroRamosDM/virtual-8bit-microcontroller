@@ -41,6 +41,7 @@ static void test_demo_program_executes_expected_flow(void)
   assert(cpu.halted);
   assert(cpu.register_a == expected_register_a);
   assert(cpu.register_b == expected_register_b);
+  assert(cpu.stack_pointer == CPU_STACK_EMPTY_POINTER);
   assert(!cpu.zero_flag);
   assert(!cpu.carry_flag);
   assert(

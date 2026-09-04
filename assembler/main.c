@@ -65,7 +65,7 @@ int main(int argument_count, char *arguments[])
     first_pass_result.symbols.count
   );
 
-  uint8_t program[CPU_MEMORY_SIZE] = {0};
+  uint8_t program[CPU_PROGRAM_MEMORY_SIZE] = {0};
   SecondPassResult second_pass_result;
   size_t second_pass_line_count = 0;
 

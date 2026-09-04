@@ -30,7 +30,7 @@ static void test_executes_assembled_program(void)
   const uint64_t expected_cycle_count = UINT64_C(9);
   const uint64_t instruction_limit = CPU_MEMORY_SIZE;
 
-  uint8_t program_bytes[CPU_MEMORY_SIZE] = {0};
+  uint8_t program_bytes[CPU_PROGRAM_MEMORY_SIZE] = {0};
   size_t program_size = 0;
 
   const bool read_succeeded = binary_reader_read(
@@ -62,6 +62,7 @@ static void test_executes_assembled_program(void)
   assert(cpu.halted);
   assert(cpu.register_a == expected_register_a);
   assert(cpu.register_b == expected_register_b);
+  assert(cpu.stack_pointer == CPU_STACK_EMPTY_POINTER);
   assert(!cpu.zero_flag);
   assert(!cpu.carry_flag);
 

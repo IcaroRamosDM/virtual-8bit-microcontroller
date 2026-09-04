@@ -394,6 +394,48 @@ void cli_print_help(void)
   );
   puts("");
 
+  printf(
+    "  PUSH A          Opcode: 0x%02X | Size: 1 byte\n",
+    (unsigned int)OPCODE_PUSH_A
+  );
+  puts(
+    "    Effect: SP <- 0xFF if empty, otherwise SP - 1; "
+    "memory[SP] <- A."
+  );
+  puts("    Explanation: Pushes A onto the downward-growing stack.");
+  puts("    Registers A and B and flags Z and C are unchanged.");
+  puts("    Pushing past address 0xF0 causes stack overflow.");
+  puts("    Assembly example: PUSH A");
+  printf(
+    "    Encoding: 0x%02X\n",
+    (unsigned int)OPCODE_PUSH_A
+  );
+  puts("");
+
+  printf(
+    "  POP A           Opcode: 0x%02X | Size: 1 byte\n",
+    (unsigned int)OPCODE_POP_A
+  );
+  puts(
+    "    Effect: A <- memory[SP]; SP <- 0x00 if SP was 0xFF, "
+    "otherwise SP + 1."
+  );
+  puts("    Explanation: Pops the newest stack byte into A.");
+  puts("    Z <- (A == 0); C unchanged; B and memory unchanged.");
+  puts("    Popping when SP is 0x00 causes stack underflow.");
+  puts("    Assembly example: POP A");
+  printf(
+    "    Encoding: 0x%02X\n",
+    (unsigned int)OPCODE_POP_A
+  );
+  puts("");
+
+  puts("Program and stack memory:");
+  puts("  Program binaries may use 0x00 through 0xEF (240 bytes).");
+  puts("  The 16-byte stack uses addresses 0xF0 through 0xFF.");
+  puts("  SP = 0x00 represents an empty stack.");
+  puts("");
+
   puts("Assembler directives:");
   puts("  .EQU NAME, value  Define a named 8-bit constant; emits no bytes.");
   puts("    NAME is case-sensitive and shares a namespace with labels.");
