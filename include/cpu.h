@@ -8,7 +8,13 @@
 
 enum
 {
-  CPU_MEMORY_SIZE = UINT8_MAX + 1
+  CPU_MEMORY_SIZE = UINT8_MAX + 1,
+  CPU_STACK_CAPACITY = 16,
+  CPU_PROGRAM_MEMORY_SIZE =
+    CPU_MEMORY_SIZE - CPU_STACK_CAPACITY,
+  CPU_STACK_LOW_ADDRESS = CPU_PROGRAM_MEMORY_SIZE,
+  CPU_STACK_HIGH_ADDRESS = CPU_MEMORY_SIZE - 1,
+  CPU_STACK_EMPTY_POINTER = 0
 };
 
 typedef struct Cpu
@@ -16,6 +22,7 @@ typedef struct Cpu
   uint8_t register_a;
   uint8_t register_b;
   uint8_t program_counter;
+  uint8_t stack_pointer;
   bool zero_flag;
   bool carry_flag;
   bool halted;
@@ -27,7 +34,9 @@ typedef enum CpuStepResult
 {
   CPU_STEP_OK,
   CPU_STEP_HALTED,
-  CPU_STEP_INVALID_OPCODE
+  CPU_STEP_INVALID_OPCODE,
+  CPU_STEP_STACK_OVERFLOW,
+  CPU_STEP_STACK_UNDERFLOW
 } CpuStepResult;
 
 typedef void (*CpuStepObserver)(
@@ -42,7 +51,9 @@ typedef enum CpuRunResult
 {
   CPU_RUN_HALTED,
   CPU_RUN_INVALID_OPCODE,
-  CPU_RUN_INSTRUCTION_LIMIT_REACHED
+  CPU_RUN_INSTRUCTION_LIMIT_REACHED,
+  CPU_RUN_STACK_OVERFLOW,
+  CPU_RUN_STACK_UNDERFLOW
 } CpuRunResult;
 
 void cpu_reset(Cpu *cpu);

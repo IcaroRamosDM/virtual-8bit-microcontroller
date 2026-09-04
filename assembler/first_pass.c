@@ -48,7 +48,9 @@ static const InstructionDefinition
   {"JC", INSTRUCTION_SIZE_TWO_BYTES},
   {"JMP", INSTRUCTION_SIZE_TWO_BYTES},
   {"LDA", INSTRUCTION_SIZE_TWO_BYTES},
-  {"STA", INSTRUCTION_SIZE_TWO_BYTES}
+  {"STA", INSTRUCTION_SIZE_TWO_BYTES},
+  {"PUSH", INSTRUCTION_SIZE_ONE_BYTE},
+  {"POP", INSTRUCTION_SIZE_ONE_BYTE},
 };
 
 static bool statement_has_mnemonic(
@@ -244,12 +246,12 @@ static bool process_label(
     return false;
   }
 
-  if (result->program_size >= CPU_MEMORY_SIZE)
+  if (result->program_size >= CPU_PROGRAM_MEMORY_SIZE)
   {
     fprintf(
       stderr,
       "%s:%zu: label '%s' is outside "
-      "8-bit memory\n",
+      "the program region\n",
       input_path,
       line_number,
       label_name
@@ -451,16 +453,16 @@ static bool process_byte_directive(
 
   if (
     result->program_size + INSTRUCTION_SIZE_ONE_BYTE >
-    CPU_MEMORY_SIZE
+    CPU_PROGRAM_MEMORY_SIZE
   )
   {
     fprintf(
       stderr,
       "%s:%zu: program exceeds "
-      "%d-byte memory\n",
+      "%d-byte program region\n",
       input_path,
       line_number,
-      CPU_MEMORY_SIZE
+      CPU_PROGRAM_MEMORY_SIZE
     );
 
     return false;
@@ -500,16 +502,16 @@ static bool process_instruction(
 
   if (
     result->program_size + instruction_size >
-    CPU_MEMORY_SIZE
+    CPU_PROGRAM_MEMORY_SIZE
   )
   {
     fprintf(
       stderr,
       "%s:%zu: program exceeds "
-      "%d-byte memory\n",
+      "%d-byte program region\n",
       input_path,
       line_number,
-      CPU_MEMORY_SIZE
+      CPU_PROGRAM_MEMORY_SIZE
     );
 
     return false;

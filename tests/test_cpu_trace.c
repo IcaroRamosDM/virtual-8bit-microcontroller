@@ -10,12 +10,15 @@
 
 enum
 {
-  TRACE_BUFFER_CAPACITY = 512,
+  TRACE_BUFFER_CAPACITY = 1024,
   TRACE_INSTRUCTION_ADDRESS = 0x04,
   TRACE_INVALID_INSTRUCTION_ADDRESS = 0x06,
+  TRACE_STACK_OVERFLOW_ADDRESS = 0x07,
+  TRACE_STACK_UNDERFLOW_ADDRESS = 0x08,
   TRACE_NEXT_PROGRAM_COUNTER = 0x05,
   TRACE_REGISTER_A = 0x30,
   TRACE_REGISTER_B = 0x10,
+  TRACE_STACK_POINTER = CPU_STACK_HIGH_ADDRESS - 1,
   TRACE_CYCLE_COUNT = 7
 };
 
@@ -24,19 +27,28 @@ static void test_prints_trace_entry(void)
   static const char expected_output[] =
     "Execution trace:\n"
     "  ADDR=0x04 OP=0x20 MNEMONIC=ADD "
-    "A=0x30 B=0x10 "
+    "A=0x30 B=0x10 SP=0xFE "
     "Z=0 C=1 NEXT=0x05 "
     "CYCLES=7 RESULT=ok\n"
     "  ADDR=0x06 OP=0xFF MNEMONIC=UNKNOWN "
-    "A=0x30 B=0x10 "
+    "A=0x30 B=0x10 SP=0xFE "
     "Z=0 C=1 NEXT=0x05 "
-    "CYCLES=7 RESULT=invalid-opcode\n";
+    "CYCLES=7 RESULT=invalid-opcode\n"
+    "  ADDR=0x07 OP=0x50 MNEMONIC=PUSH "
+    "A=0x30 B=0x10 SP=0xFE "
+    "Z=0 C=1 NEXT=0x05 "
+    "CYCLES=7 RESULT=stack-overflow\n"
+    "  ADDR=0x08 OP=0x51 MNEMONIC=POP "
+    "A=0x30 B=0x10 SP=0xFE "
+    "Z=0 C=1 NEXT=0x05 "
+    "CYCLES=7 RESULT=stack-underflow\n";
 
   Cpu cpu =
   {
     .register_a = TRACE_REGISTER_A,
     .register_b = TRACE_REGISTER_B,
     .program_counter = TRACE_NEXT_PROGRAM_COUNTER,
+    .stack_pointer = TRACE_STACK_POINTER,
     .zero_flag = false,
     .carry_flag = true,
     .halted = false,
@@ -63,6 +75,22 @@ static void test_prints_trace_entry(void)
     UINT8_MAX,
     &cpu,
     CPU_STEP_INVALID_OPCODE,
+    output
+  );
+
+  cpu_trace_observer(
+    TRACE_STACK_OVERFLOW_ADDRESS,
+    OPCODE_PUSH_A,
+    &cpu,
+    CPU_STEP_STACK_OVERFLOW,
+    output
+  );
+
+  cpu_trace_observer(
+    TRACE_STACK_UNDERFLOW_ADDRESS,
+    OPCODE_POP_A,
+    &cpu,
+    CPU_STEP_STACK_UNDERFLOW,
     output
   );
 

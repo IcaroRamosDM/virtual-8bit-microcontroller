@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "cpu.h"
 #include "first_pass.h"
 
 typedef struct TestStatement
@@ -61,12 +62,14 @@ static void test_recognizes_all_instruction_sizes(void)
     {15, "JC target"},
     {16, "JMP target"},
     {17, "LDA 0x80"},
-    {18, "STA 0x80"}
+    {18, "STA 0x80"},
+    {19, "PUSH A"},
+    {20, "POP A"}
   };
 
   enum
   {
-    EXPECTED_PROGRAM_SIZE = 25
+    EXPECTED_PROGRAM_SIZE = 27
   };
 
   const size_t statement_count =
@@ -308,6 +311,41 @@ static void test_rejects_duplicate_label_and_constant(void)
   assert(result.symbols.count == 1);
 }
 
+static void test_rejects_program_that_reaches_stack_region(void)
+{
+  FirstPassResult result;
+
+  first_pass_initialize(&result);
+
+  for (
+    size_t index = 0;
+    index < CPU_PROGRAM_MEMORY_SIZE;
+    ++index
+  )
+  {
+    const bool succeeded =
+      first_pass_process_statement(
+        TEST_INPUT_PATH,
+        index + 1,
+        "NOP",
+        &result
+      );
+
+    assert(succeeded);
+  }
+
+  const bool oversized_succeeded =
+    first_pass_process_statement(
+      TEST_INPUT_PATH,
+      CPU_PROGRAM_MEMORY_SIZE + 1,
+      "NOP",
+      &result
+    );
+
+  assert(!oversized_succeeded);
+  assert(result.program_size == CPU_PROGRAM_MEMORY_SIZE);
+}
+
 int main(void)
 {
   test_recognizes_all_instruction_sizes();
@@ -315,6 +353,7 @@ int main(void)
   test_processes_equ_and_byte_directives();
   test_rejects_invalid_directives();
   test_rejects_duplicate_label_and_constant();
+  test_rejects_program_that_reaches_stack_region();
 
   puts("All first-pass tests passed.");
 

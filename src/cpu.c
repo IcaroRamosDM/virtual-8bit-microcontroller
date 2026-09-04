@@ -63,6 +63,66 @@ static void cpu_jump_if(
   }
 }
 
+static CpuStepResult cpu_stack_push(
+    Cpu *cpu,
+    uint8_t value
+)
+{
+  if (
+    (cpu->stack_pointer != CPU_STACK_EMPTY_POINTER) &&
+    (cpu->stack_pointer <= CPU_STACK_LOW_ADDRESS)
+  )
+  {
+    cpu->halted = true;
+    return CPU_STEP_STACK_OVERFLOW;
+  }
+
+  if (cpu->stack_pointer == CPU_STACK_EMPTY_POINTER)
+  {
+    cpu->stack_pointer = CPU_STACK_HIGH_ADDRESS;
+  }
+  else
+  {
+    --cpu->stack_pointer;
+  }
+
+  cpu_write_memory(
+    cpu,
+    cpu->stack_pointer,
+    value
+  );
+
+  return CPU_STEP_OK;
+}
+
+static CpuStepResult cpu_stack_pop(
+    Cpu *cpu,
+    uint8_t *value
+)
+{
+  if (cpu->stack_pointer < CPU_STACK_LOW_ADDRESS)
+  {
+    cpu->halted = true;
+    return CPU_STEP_STACK_UNDERFLOW;
+  }
+
+  *value = cpu_read_memory(
+    cpu,
+    cpu->stack_pointer
+  );
+
+  if (cpu->stack_pointer == CPU_STACK_HIGH_ADDRESS)
+  {
+    cpu->stack_pointer = CPU_STACK_EMPTY_POINTER;
+  }
+  else
+  {
+    ++cpu->stack_pointer;
+  }
+
+  return CPU_STEP_OK;
+}
+
 CpuStepResult cpu_step(Cpu *cpu)
 {
   if (cpu->halted)
@@ -251,6 +311,33 @@ CpuStepResult cpu_step(Cpu *cpu)
       return CPU_STEP_OK;
     }
 
+    case OPCODE_PUSH_A:
+      return cpu_stack_push(
+        cpu,
+        cpu->register_a
+      );
+
+    case OPCODE_POP_A:
+    {
+      uint8_t value = 0;
+
+      const CpuStepResult result =
+        cpu_stack_pop(
+          cpu,
+          &value
+        );
+
+      if (result != CPU_STEP_OK)
+      {
+        return result;
+      }
+
+      cpu->register_a = value;
+      cpu->zero_flag = (value == 0);
+
+      return CPU_STEP_OK;
+    }
+
     case OPCODE_HALT:
       cpu->halted = true;
       return CPU_STEP_HALTED;
@@ -267,7 +354,7 @@ bool cpu_load_program(
     size_t program_size
 )
 {
-  if (program_size > sizeof cpu->memory)
+  if (program_size > CPU_PROGRAM_MEMORY_SIZE)
   {
     return false;
   }
@@ -333,6 +420,12 @@ CpuRunResult cpu_run_with_observer(
 
       case CPU_STEP_INVALID_OPCODE:
         return CPU_RUN_INVALID_OPCODE;
+
+      case CPU_STEP_STACK_OVERFLOW:
+        return CPU_RUN_STACK_OVERFLOW;
+
+      case CPU_STEP_STACK_UNDERFLOW:
+        return CPU_RUN_STACK_UNDERFLOW;
     }
   }
 

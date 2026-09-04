@@ -22,7 +22,9 @@ typedef enum Opcode
   OPCODE_JUMP_IF_NOT_ZERO = 0x32,
   OPCODE_JUMP_IF_CARRY = 0x33,
   OPCODE_LOAD_A_FROM_MEMORY = 0x40,
-  OPCODE_STORE_A_TO_MEMORY = 0x41
+  OPCODE_STORE_A_TO_MEMORY = 0x41,
+  OPCODE_PUSH_A = 0x50,
+  OPCODE_POP_A = 0x51
 } Opcode;
 
 typedef struct InstructionMetadata

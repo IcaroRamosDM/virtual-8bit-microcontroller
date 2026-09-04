@@ -403,6 +403,23 @@ InstructionEncodeResult instruction_encode(
     );
   }
 
+  else if (strcmp(instruction->mnemonic, "PUSH") == 0)
+  {
+    result = encode_register_a(
+        instruction,
+        OPCODE_PUSH_A,
+        &candidate
+    );
+  }
+  else if (strcmp(instruction->mnemonic, "POP") == 0)
+  {
+    result = encode_register_a(
+        instruction,
+        OPCODE_POP_A,
+        &candidate
+    );
+  }
+
   if (result == INSTRUCTION_ENCODE_SUCCESS)
   {
     *encoded_instruction = candidate;

@@ -160,6 +160,16 @@ static void test_encodes_supported_instructions(
       "STA 128",
       {(uint8_t)OPCODE_STORE_A_TO_MEMORY, DATA_ADDRESS},
       TWO_BYTE_INSTRUCTION_SIZE
+    },
+    {
+      "PUSH A",
+      {(uint8_t)OPCODE_PUSH_A, UNUSED_BYTE},
+      ONE_BYTE_INSTRUCTION_SIZE
+    },
+    {
+      "POP A",
+      {(uint8_t)OPCODE_POP_A, UNUSED_BYTE},
+      ONE_BYTE_INSTRUCTION_SIZE
     }
   };
 
@@ -272,6 +282,14 @@ static void test_reports_semantic_errors(
     {
       "STA bad-name",
       INSTRUCTION_ENCODE_INVALID_OPERAND
+    },
+    {
+      "PUSH B",
+      INSTRUCTION_ENCODE_INVALID_REGISTER
+    },
+    {
+      "POP",
+      INSTRUCTION_ENCODE_WRONG_OPERAND_COUNT
     }
   };
 

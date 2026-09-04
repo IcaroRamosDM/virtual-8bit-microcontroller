@@ -11,8 +11,8 @@ readonly INVALID_OPCODE_BINARY_PATH="build/test_vm8_invalid_opcode.bin"
 readonly STDOUT_PATH="build/test_vm8_stdout.txt"
 readonly STDERR_PATH="build/test_vm8_stderr.txt"
 
-readonly VM8_MEMORY_SIZE=256
-readonly OVERSIZED_BINARY_SIZE=$((VM8_MEMORY_SIZE + 1))
+readonly VM8_PROGRAM_MEMORY_SIZE=240
+readonly OVERSIZED_BINARY_SIZE=$((VM8_PROGRAM_MEMORY_SIZE + 1))
 
 cleanup()
 {
@@ -89,12 +89,12 @@ expect_success \
 
 expect_success \
   "built-in trace" \
-  "ADDR=0x11 OP=0x01 MNEMONIC=HALT A=0x5A B=0x2A Z=0 C=0 NEXT=0x12 CYCLES=9 RESULT=halted" \
+  "ADDR=0x11 OP=0x01 MNEMONIC=HALT A=0x5A B=0x2A SP=0x00 Z=0 C=0 NEXT=0x12 CYCLES=9 RESULT=halted" \
   "$VM8_EXECUTABLE" trace
 
 expect_success \
   "binary trace" \
-  "ADDR=0x11 OP=0x01 MNEMONIC=HALT A=0x5A B=0x2A Z=0 C=0 NEXT=0x12 CYCLES=9 RESULT=halted" \
+  "ADDR=0x11 OP=0x01 MNEMONIC=HALT A=0x5A B=0x2A SP=0x00 Z=0 C=0 NEXT=0x12 CYCLES=9 RESULT=halted" \
   "$VM8_EXECUTABLE" trace "$VALID_BINARY_PATH"
 
 expect_failure \
@@ -118,7 +118,7 @@ dd \
 
 expect_failure \
   "oversized binary" \
-  "${OVERSIZED_BINARY_PATH}: binary input exceeds ${VM8_MEMORY_SIZE}-byte capacity" \
+  "${OVERSIZED_BINARY_PATH}: binary input exceeds ${VM8_PROGRAM_MEMORY_SIZE}-byte capacity" \
   "$VM8_EXECUTABLE" run "$OVERSIZED_BINARY_PATH"
 
 printf '\xFF' > "$INVALID_OPCODE_BINARY_PATH"

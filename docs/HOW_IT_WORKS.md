@@ -30,6 +30,8 @@ The CPU never reads words such as `LDI`, `start`, or `memory_demo`. Those words 
 
 The CPU simulator is operational. It can run the 18-byte built-in demonstration stored in `src/program.c` or a compatible raw binary selected on the command line. The current Assembly demonstration generates a 19-byte binary because it includes one embedded data byte after `HALT`. Either source can run normally or with a human-readable instruction trace.
 
+The CPU now has a 16-byte downward-growing stack and the one-byte instructions `PUSH A` and `POP A`. Stack overflow and underflow are explicit execution errors. `CALL` and `RET` are not implemented yet; they are the next operations planned to reuse the same stack mechanism.
+
 The shared `instruction_set` module owns the `Opcode` definitions and a read-only metadata table that maps every supported opcode byte to its Assembly mnemonic. A lookup receives a raw `uint8_t` because memory may contain any byte; it returns a metadata pointer for a recognized opcode or a null pointer for an unknown value.
 
 The assembler currently implements:
@@ -57,6 +59,7 @@ In this project, 8-bit describes the natural data width of the CPU:
 - register `B` stores one 8-bit value;
 - each memory location stores one 8-bit value;
 - the program counter stores one 8-bit address;
+- the stack pointer stores one 8-bit stack address or the empty-stack sentinel;
 - arithmetic results retained by the CPU are 8 bits wide.
 
 An 8-bit value has 256 possible bit patterns:
@@ -82,11 +85,12 @@ The `Cpu` structure contains the complete visible state of the virtual processor
 | Register `A` | 8 bits | Primary accumulator used by arithmetic and memory-transfer instructions. |
 | Register `B` | 8 bits | Secondary arithmetic operand. |
 | Program counter (`PC`) | 8 bits | Address of the next byte to fetch. |
+| Stack pointer (`SP`) | 8 bits | Address of the newest stack byte, or `0x00` when the stack is empty. |
 | Zero flag (`Z`) | Boolean | Indicates that the most recent flag-updating result was zero. |
 | Carry flag (`C`) | Boolean | Indicates addition carry-out or subtraction borrow. |
-| Halted state | Boolean | Prevents further instruction execution after a halt or invalid opcode. |
+| Halted state | Boolean | Prevents further execution after a halt, invalid opcode, or stack error. |
 | Cycle counter | 64 bits | Counts attempted instructions in the simplified timing model. |
-| Memory | 256 bytes | Stores both program bytes and data bytes. |
+| Memory | 256 bytes | Stores program bytes, ordinary data, and the reserved stack. |
 
 The normal initial state is completely zero-initialized:
 
@@ -94,11 +98,16 @@ The normal initial state is completely zero-initialized:
 Cpu cpu = {0};
 ```
 
-The program is then copied into memory beginning at address `0x00`.
+The program is then copied into memory beginning at address `0x00`. Although the complete memory array contains 256 bytes, a loaded program may occupy at most the first 240 bytes because the final 16 addresses are reserved for the stack.
 
 ## Unified code and data memory
 
-The project uses a unified memory model. Instructions and ordinary data occupy the same 256-byte array.
+The project uses a unified memory model. Instructions, ordinary data, and stack data occupy the same 256-byte array, but the current architecture reserves separate address ranges:
+
+| Address range | Size | Use |
+| --- | ---: | --- |
+| `0x00` through `0xEF` | 240 bytes | Loaded program and ordinary program-selected data. |
+| `0xF0` through `0xFF` | 16 bytes | CPU-managed stack. |
 
 For example, the demonstration program occupies addresses `0x00` through `0x11`, while it uses address `0x80` to store data. The instruction:
 
@@ -108,7 +117,39 @@ STA 0x80
 
 writes register `A` into memory location `0x80`.
 
-Because code and data share the same array, a store directed at a program address could overwrite an instruction. The current demonstration deliberately places its data outside the program region.
+Because code and data share the same array, a store directed at a program address could overwrite an instruction. The current demonstration deliberately places its writable data outside its instruction bytes. Software can still address the stack region with ordinary memory instructions, but doing so can corrupt stack contents; the assembler and program loader only guarantee that the loaded binary itself does not occupy that reserved region.
+
+## Stack, `PUSH`, and `POP`
+
+A stack is a last-in, first-out storage area. The newest byte pushed is the first byte returned by a pop. VM8 reserves addresses `0xF0` through `0xFF` for a stack that grows downward toward smaller addresses.
+
+`SP = 0x00` represents an empty stack. This is a sentinel value, not an address currently occupied by stack data. It lets the normal zero initialization `Cpu cpu = {0};` create a valid empty stack without requiring a separate initialization assignment.
+
+`PUSH A` works as follows:
+
+1. If the stack is empty, set `SP` to `0xFF`.
+2. Otherwise, decrement `SP` before writing.
+3. Store register `A` at `memory[SP]`.
+
+`POP A` performs the inverse operation:
+
+1. Read `memory[SP]` into register `A`.
+2. If the removed byte was at `0xFF`, set `SP` back to the empty sentinel `0x00`.
+3. Otherwise, increment `SP` toward `0xFF`.
+
+For example:
+
+| Operation | Resulting `SP` | Relevant memory or result |
+| --- | ---: | --- |
+| Initial empty state | `0x00` | No stack byte is active. |
+| Push `0xA5` | `0xFF` | `memory[0xFF] = 0xA5`. |
+| Push `0x5A` | `0xFE` | `memory[0xFE] = 0x5A`; `0xA5` remains below it at `0xFF`. |
+| Pop | `0xFF` | `A = 0x5A`. |
+| Pop again | `0x00` | `A = 0xA5`; the stack is empty again. |
+
+After 16 pushes, every address from `0xFF` down through `0xF0` is occupied and `SP` equals `0xF0`. Another `PUSH A` reports stack overflow. A `POP A` while `SP` is `0x00` reports stack underflow. Either error halts execution and produces a distinct step and run result without changing registers, flags, stack memory, or `SP`; the attempted opcode fetch and cycle count have already occurred.
+
+`PUSH A` preserves both registers and both flags. `POP A` replaces `A`, updates `Z` according to whether the popped byte is zero, preserves `B` and `C`, and does not erase the byte left in memory. Advancing `SP` is what makes that location no longer part of the active stack.
 
 ## Fetch, decode, and execute
 
@@ -180,8 +221,11 @@ The CPU does not need a 16-bit register to execute this instruction. It first fe
 | `JMP addr8` | `31 addr8` | 2 | Always loads `PC` with the absolute address. |
 | `LDA addr8` | `40 addr8` | 2 | Loads `A` from the given memory address; updates `Z`; preserves `C`. |
 | `STA addr8` | `41 addr8` | 2 | Stores `A` at the given memory address; preserves the registers and flags. |
+| `PUSH A` | `50` | 1 | Pushes `A` onto the stack; preserves registers and flags. |
+| `POP A` | `51` | 1 | Pops the newest stack byte into `A`; updates `Z`; preserves `C`. |
 
 `imm8` and `addr8` are each one byte. They may therefore represent values from `0x00` through `0xFF`.
+`PUSH A` and `POP A` require no encoded operand byte because the opcode already identifies both the operation and register `A`.
 
 ## Logical and bit operations
 
@@ -235,7 +279,8 @@ The zero flag is set when a flag-updating instruction produces zero. It is curre
 - `SHL A`;
 - `SHR A`;
 - `CMP A, B`;
-- `LDA addr8`.
+- `LDA addr8`;
+- `POP A`.
 
 `JZ` and `JNZ` read the zero flag but do not modify it.
 
@@ -267,7 +312,7 @@ zero         = clear
 carry/borrow = set
 ```
 
-`JC` reads the carry flag but does not modify it.
+`JC` reads the carry flag but does not modify it. `PUSH A` preserves both flags, while `POP A` updates zero and preserves carry.
 
 ## Comparison and conditional branches
 
@@ -599,6 +644,7 @@ The final visible state is:
 Execution result: halted
 Register A: 0x5A
 Register B: 0x2A
+Stack pointer: 0x00
 Zero flag: clear
 Carry flag: clear
 Program counter: 18
@@ -607,15 +653,17 @@ Cycle count: 9
 
 ## Loading and bounded execution
 
-`cpu_load_program` validates that the byte sequence fits in memory and rejects a null pointer for a nonempty program. It copies the program beginning at address zero, but does not reset the CPU automatically.
+`cpu_load_program` validates that the byte sequence fits in the 240-byte program region and rejects a null pointer for a nonempty program. It copies the program beginning at address zero, but does not reset the CPU automatically or write into the reserved stack region.
 
-`cpu_run` receives an instruction limit. This prevents an unconditional loop such as `JMP 0x00` from running forever without returning control to the caller. Execution reports one of three outcomes:
+`cpu_run` receives an instruction limit. This prevents an unconditional loop such as `JMP 0x00` from running forever without returning control to the caller. Execution reports one of five outcomes:
 
 - halted normally;
 - invalid opcode;
-- instruction limit reached.
+- instruction limit reached;
+- stack overflow;
+- stack underflow.
 
-An invalid opcode also halts the CPU so that execution cannot silently continue through unknown data.
+An invalid opcode or stack error also halts the CPU so that execution cannot silently continue after an invalid state transition.
 
 ## Instruction observer and execution trace
 
@@ -632,7 +680,7 @@ The trace module supplies an observer that interprets its context as a `FILE *` 
 
 ```text
 Execution trace:
-  ADDR=0x00 OP=0x10 MNEMONIC=LDI A=0x2A B=0x00 Z=0 C=0 NEXT=0x02 CYCLES=1 RESULT=ok
+  ADDR=0x00 OP=0x10 MNEMONIC=LDI A=0x2A B=0x00 SP=0x00 Z=0 C=0 NEXT=0x02 CYCLES=1 RESULT=ok
 ```
 
 The fields mean:
@@ -641,26 +689,27 @@ The fields mean:
 - `OP`: raw opcode byte;
 - `MNEMONIC`: operation name obtained from the shared instruction-set metadata, or `UNKNOWN` when no opcode matches;
 - `A` and `B`: register values after execution;
+- `SP`: stack pointer after execution;
 - `Z` and `C`: zero and carry flags after execution;
 - `NEXT`: program counter after execution, including any taken jump;
 - `CYCLES`: total attempted-instruction count after this step;
-- `RESULT`: `ok`, `halted`, or `invalid-opcode`.
+- `RESULT`: `ok`, `halted`, `invalid-opcode`, `stack-overflow`, or `stack-underflow`.
 
 The final demonstration instruction is therefore shown as:
 
 ```text
-  ADDR=0x11 OP=0x01 MNEMONIC=HALT A=0x5A B=0x2A Z=0 C=0 NEXT=0x12 CYCLES=9 RESULT=halted
+  ADDR=0x11 OP=0x01 MNEMONIC=HALT A=0x5A B=0x2A SP=0x00 Z=0 C=0 NEXT=0x12 CYCLES=9 RESULT=halted
 ```
 
 This observer design keeps the CPU independent of presentation. A future debugger, logger, or graphical interface can supply a different callback without putting terminal-output code inside `cpu.c`.
 
 ## Reading and executing an external binary
 
-The simulator-side binary reader opens the selected file in binary mode and reads into a caller-provided buffer. `main.c` supplies a buffer whose capacity is exactly `CPU_MEMORY_SIZE`, so the file reader cannot write beyond the virtual machine's 256-byte program capacity.
+The simulator-side binary reader opens the selected file in binary mode and reads into a caller-provided buffer. `main.c` supplies a buffer whose capacity is exactly `CPU_PROGRAM_MEMORY_SIZE`, so the file reader cannot write beyond the virtual machine's 240-byte program region.
 
 After filling the buffer, the reader attempts to fetch one additional byte. This extra read distinguishes two cases that would otherwise both produce a full buffer:
 
-- if the extra read reaches end-of-file, the program contains exactly 256 bytes and is valid;
+- if the extra read reaches end-of-file, the program contains exactly 240 bytes and is valid;
 - if another byte exists, the file is too large and is rejected.
 
 The reader reports the number of bytes actually read only after the read and file close both succeed. An empty file is a valid binary file from the reader's narrow I/O perspective, but `main.c` rejects it as an executable program. This separation keeps file-format transport separate from simulator policy.
@@ -690,23 +739,23 @@ make trace-bin
 
 The direct forms `./build/vm8 run <program.bin>` and `./build/vm8 trace <program.bin>` use the same external-binary path without first invoking the assembler. The simulator does not know whether that file came from `vm8asm`, another tool, or manual byte entry; it sees only the bytes. The difference is whether `main.c` gives the CPU run loop a trace observer.
 
-The process-level Bash test exercises this public interface instead of calling C functions directly. It verifies normal external-binary execution, built-in tracing, external-binary tracing, and four expected failures: a missing file, an empty file, a 257-byte file, and a file containing the invalid opcode `0xFF`. Each failure must return a nonzero process status and place the expected diagnostic on `stderr`; successful execution must place the expected CPU state or trace entry on `stdout`.
+The process-level Bash test exercises this public interface instead of calling C functions directly. It verifies normal external-binary execution, built-in tracing, external-binary tracing, and four expected failures: a missing file, an empty file, a 241-byte file, and a file containing the invalid opcode `0xFF`. Each failure must return a nonzero process status and place the expected diagnostic on `stderr`; successful execution must place the expected CPU state or trace entry on `stdout`.
 
 ## Current module responsibilities
 
 | Module | Responsibility |
 | --- | --- |
 | `include/instruction_set.h`, `src/instruction_set.c` | Shared opcode definitions and read-only lookup from a raw opcode byte to instruction metadata. |
-| `include/cpu.h`, `src/cpu.c` | CPU state, memory operations, fetching, decoding, execution, program loading, bounded running, and optional per-step observer delivery. |
-| `include/cpu_trace.h`, `src/cpu_trace.c` | Human-readable formatting of post-instruction CPU snapshots. |
+| `include/cpu.h`, `src/cpu.c` | CPU state, memory and stack operations, fetching, decoding, execution, bounded program loading, bounded running, and optional per-step observer delivery. |
+| `include/cpu_trace.h`, `src/cpu_trace.c` | Human-readable formatting of post-instruction CPU snapshots, including `SP` and stack errors. |
 | `include/program.h`, `src/program.c` | Immutable descriptor and current built-in demonstration bytecode. |
 | `include/binary_reader.h`, `src/binary_reader.c` | Bounded raw-binary input with open, read, size, and close validation. |
 | `include/cli.h`, `src/cli.c` | Selection of built-in or external-binary execution, optional tracing, and help presentation. |
 | `src/main.c` | Program-source selection, optional observer wiring, high-level simulator orchestration, and final state presentation. |
 | `assembler/source_line.*` | Comment removal and whitespace normalization. |
 | `assembler/source_reader.*` | Bounded file reading and callback delivery with source locations. |
-| `assembler/symbol_table.*` | Mapping symbol names to 8-bit addresses. |
-| `assembler/first_pass.*` | Label collection, instruction-size calculation, and memory-capacity validation. |
+| `assembler/symbol_table.*` | Mapping symbol names to 8-bit label addresses or constant values. |
+| `assembler/first_pass.*` | Symbol collection, instruction-size calculation, and 240-byte program-capacity validation. |
 | `assembler/byte_literal.*` | Strict conversion of decimal and hexadecimal text to `uint8_t`. |
 | `assembler/byte_operand.*` | Resolution of a literal or symbol into one byte. |
 | `assembler/instruction_parser.*` | Separation and structural validation of instruction mnemonics and operands. |
@@ -859,3 +908,5 @@ make inspect
 - Unit tests validate functions in isolation, while the Bash process test validates the compiled program through its public command-line interface.
 - `PC` measures byte addresses, while the simplified cycle counter measures attempted instructions.
 - Unified memory permits both code and data access, so stores must use addresses carefully.
+- The loaded program is limited to `0x00` through `0xEF`; the stack reserves `0xF0` through `0xFF` and grows downward.
+- `SP = 0x00` is an empty-stack sentinel; `PUSH` and `POP` move bytes in last-in, first-out order and report boundary errors explicitly.
