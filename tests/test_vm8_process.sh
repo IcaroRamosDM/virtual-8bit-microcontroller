@@ -4,6 +4,7 @@ set -euo pipefail
 
 readonly VM8_EXECUTABLE="./build/vm8"
 readonly VALID_BINARY_PATH="build/demo.bin"
+readonly POPCOUNT_BINARY_PATH="build/popcount.bin"
 readonly MISSING_BINARY_PATH="build/test_vm8_missing.bin"
 readonly EMPTY_BINARY_PATH="build/test_vm8_empty.bin"
 readonly OVERSIZED_BINARY_PATH="build/test_vm8_oversized.bin"
@@ -116,6 +117,26 @@ expect_success \
   "memory-mapped I/O trace" \
   "ADDR=0x02 OP=0x41 MNEMONIC=STA A=0xA5 B=0x00 SP=0x00 IN=0xA5 OUT=0xA5 Z=0 C=0 NEXT=0x04 CYCLES=2 RESULT=ok" \
   "$VM8_EXECUTABLE" trace "$IO_BINARY_PATH" --input 165
+
+expect_success \
+  "popcount with zero input" \
+  "Output port: 0x00" \
+  "$VM8_EXECUTABLE" run "$POPCOUNT_BINARY_PATH" --input 0x00
+
+expect_success \
+  "popcount with mixed bits" \
+  "Output port: 0x04" \
+  "$VM8_EXECUTABLE" run "$POPCOUNT_BINARY_PATH" --input 0xA5
+
+expect_success \
+  "popcount with every bit set" \
+  "Output port: 0x08" \
+  "$VM8_EXECUTABLE" run "$POPCOUNT_BINARY_PATH" --input 255
+
+expect_success \
+  "popcount trace" \
+  "ADDR=0x1B OP=0x01 MNEMONIC=HALT A=0x04 B=0x01 SP=0x00 IN=0xA5 OUT=0x04 Z=0 C=0 NEXT=0x1C CYCLES=126 RESULT=halted" \
+  "$VM8_EXECUTABLE" trace "$POPCOUNT_BINARY_PATH" --input 0xA5
 
 printf '%s\n' \
   "breakpoint add $MONITOR_BREAKPOINT_ADDRESS" \

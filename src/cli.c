@@ -270,14 +270,19 @@ void cli_print_help(void)
   puts("Commands:");
   puts("  make run        Run the built-in demonstration.");
   puts("  make run-bin    Assemble and run programs/demo.asm.");
+  puts("  make run-popcount  Assemble and run the popcount firmware.");
   puts("  make trace      Run the built-in demo with a trace.");
   puts("  make trace-bin  Assemble and trace programs/demo.asm.");
+  puts("  make trace-popcount  Assemble and trace the popcount firmware.");
   puts("  make monitor    Open the monitor with the built-in demo.");
   puts("  make monitor-bin  Assemble and monitor programs/demo.asm.");
+  puts("  make monitor-popcount  Assemble and monitor the popcount firmware.");
   puts("  make test       Build and run the test suite.");
   puts("  make assembler  Build the assembler executable.");
   puts("  make assemble   Run the assembler on programs/demo.asm.");
+  puts("  make assemble-popcount  Assemble programs/popcount.asm.");
   puts("  make inspect    Assemble and inspect the demo binary.");
+  puts("  make inspect-popcount  Assemble and inspect the popcount binary.");
   puts("  make help       Build and display this help.");
   puts("  make clean      Remove generated build files.");
   puts("");
@@ -309,9 +314,20 @@ void cli_print_help(void)
   puts("  Direct example: ./build/vm8 run firmware.bin --input 165");
   puts("");
 
+  puts("Popcount firmware:");
+  puts("  Reads the byte at input port 0xEE.");
+  puts("  Counts its set bits and writes the result from 0 through 8");
+  puts("  to output port 0xEF.");
+  puts("  Run example: make run-popcount INPUT_VALUE=0xA5");
+  puts("  Trace example: make trace-popcount INPUT_VALUE=0xA5");
+  puts("  Monitor example: make monitor-popcount");
+  puts("");
+
   puts("Interactive monitor:");
   puts("  Start the built-in demo with 'make monitor'.");
   puts("  Assemble and open programs/demo.asm with 'make monitor-bin'.");
+  puts("  Assemble and open the popcount firmware with");
+  puts("  'make monitor-popcount'.");
   puts(
     "  Commands: help, registers, step, run, reset, input, memory, "
     "load,"
@@ -709,16 +725,20 @@ void cli_print_help(void)
   puts("Simulator workflow:");
   puts("  Run the built-in demonstration with: make run");
   puts("  Assemble and run programs/demo.asm with: make run-bin");
+  puts("  Run the popcount firmware with: make run-popcount INPUT_VALUE=0xA5");
   puts("  Run another binary with: ./build/vm8 run <program.bin>");
   puts("  Trace the built-in demonstration with: make trace");
   puts("  Assemble and trace programs/demo.asm with make trace-bin");
+  puts("  Trace the popcount firmware with: make trace-popcount INPUT_VALUE=0xA5");
   puts("");
 
   puts("Assembler workflow:");
   puts("  Write assembly source in programs/demo.asm.");
   puts("  Build the assembler with: make assembler");
   puts("  Generate build/demo.bin with: make assemble");
+  puts("  Generate build/popcount.bin with: make assemble-popcount");
   puts("  Display its size and raw bytes with: make inspect");
+  puts("  Inspect the popcount binary with: make inspect-popcount");
   puts("  Size only: wc -c build/demo.bin");
   puts("  Bytes only: od -An -tx1 -v build/demo.bin");
 }

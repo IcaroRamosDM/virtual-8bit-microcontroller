@@ -1,0 +1,53 @@
+; Counts the set bits in the virtual input byte and writes the result to output.
+
+.EQU INPUT_PORT, 0xEE
+.EQU OUTPUT_PORT, 0xEF
+
+.EQU WORK_VALUE_ADDRESS, 0xD0
+.EQU BIT_COUNT_ADDRESS, 0xD1
+.EQU BITS_REMAINING_ADDRESS, 0xD2
+
+.EQU ZERO, 0x00
+.EQU ONE, 0x01
+.EQU BITS_IN_BYTE, 0x08
+
+start:
+  LDA INPUT_PORT
+  STA WORK_VALUE_ADDRESS
+
+  LDI A, ZERO
+  STA BIT_COUNT_ADDRESS
+
+  LDI A, BITS_IN_BYTE
+  STA BITS_REMAINING_ADDRESS
+
+  LDI B, ONE
+
+count_loop:
+  CALL count_low_bit_and_shift
+
+  LDA BITS_REMAINING_ADDRESS
+  SUB A, B
+  STA BITS_REMAINING_ADDRESS
+  JNZ count_loop
+
+  LDA BIT_COUNT_ADDRESS
+  STA OUTPUT_PORT
+  HALT
+
+count_low_bit_and_shift:
+  LDA WORK_VALUE_ADDRESS
+  PUSH A
+
+  AND A, B
+  JZ skip_increment
+
+  LDA BIT_COUNT_ADDRESS
+  ADD A, B
+  STA BIT_COUNT_ADDRESS
+
+skip_increment:
+  POP A
+  SHR A
+  STA WORK_VALUE_ADDRESS
+  RET
