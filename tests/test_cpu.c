@@ -13,6 +13,8 @@ static void test_cpu_reset_clears_state(void)
     .register_b = UINT8_MAX,
     .program_counter = UINT8_MAX,
     .stack_pointer = UINT8_MAX,
+    .input_port = UINT8_MAX,
+    .output_port = UINT8_MAX,
     .zero_flag = true,
     .carry_flag = true,
     .halted = true,
@@ -30,6 +32,8 @@ static void test_cpu_reset_clears_state(void)
   assert(cpu.register_b == 0);
   assert(cpu.program_counter == 0);
   assert(cpu.stack_pointer == CPU_STACK_EMPTY_POINTER);
+  assert(cpu.input_port == 0);
+  assert(cpu.output_port == 0);
   assert(!cpu.zero_flag);
   assert(!cpu.carry_flag);
   assert(!cpu.halted);
@@ -56,6 +60,78 @@ static void test_cpu_memory_read_and_write(void)
   assert(cpu_read_memory(&cpu, first_address) == first_address_value);
   assert(cpu_read_memory(&cpu, last_address) == last_address_value);
   assert(cpu_read_memory(&cpu, middle_address) == 0);
+}
+
+static void test_cpu_memory_map_layout(void)
+{
+  const int expected_program_memory_size = 238;
+  const int expected_input_port_address = 0xEE;
+  const int expected_output_port_address = 0xEF;
+
+  assert(
+    CPU_PROGRAM_MEMORY_SIZE ==
+    expected_program_memory_size
+  );
+
+  assert(
+    CPU_INPUT_PORT_ADDRESS ==
+    expected_input_port_address
+  );
+
+  assert(
+    CPU_OUTPUT_PORT_ADDRESS ==
+    expected_output_port_address
+  );
+
+  assert(
+    CPU_OUTPUT_PORT_ADDRESS ==
+    CPU_INPUT_PORT_ADDRESS + 1
+  );
+
+  assert(
+    CPU_STACK_LOW_ADDRESS ==
+    CPU_OUTPUT_PORT_ADDRESS + 1
+  );
+}
+
+static void test_cpu_memory_mapped_ports(void)
+{
+  const uint8_t input_value = UINT8_C(0xA5);
+  const uint8_t ignored_input_write = UINT8_C(0x3C);
+  const uint8_t output_value = UINT8_C(0x5A);
+  Cpu cpu = {0};
+
+  cpu_set_input_port(&cpu, input_value);
+
+  assert(
+    cpu_read_memory(&cpu, CPU_INPUT_PORT_ADDRESS) ==
+    input_value
+  );
+
+  cpu_write_memory(
+    &cpu,
+    CPU_INPUT_PORT_ADDRESS,
+    ignored_input_write
+  );
+
+  assert(
+    cpu_read_memory(&cpu, CPU_INPUT_PORT_ADDRESS) ==
+    input_value
+  );
+
+  assert(cpu_get_output_port(&cpu) == 0);
+
+  cpu_write_memory(
+    &cpu,
+    CPU_OUTPUT_PORT_ADDRESS,
+    output_value
+  );
+
+  assert(cpu_get_output_port(&cpu) == output_value);
+  assert(
+    cpu_read_memory(&cpu, CPU_OUTPUT_PORT_ADDRESS) ==
+    output_value
+  );
 }
 
 static void test_cpu_fetch_byte_reads_and_advances_program_counter(void)
@@ -170,10 +246,19 @@ static void test_cpu_load_program_accepts_full_program_region(void)
 {
   const uint8_t last_program_address =
     (uint8_t)(CPU_PROGRAM_MEMORY_SIZE - 1);
+  const uint8_t input_port_value = UINT8_C(0xA5);
+  const uint8_t output_port_value = UINT8_C(0x5A);
   uint8_t program[CPU_PROGRAM_MEMORY_SIZE] = {0};
   Cpu cpu = {0};
 
   program[last_program_address] = OPCODE_HALT;
+  cpu_set_input_port(&cpu, input_port_value);
+
+  cpu_write_memory(
+    &cpu,
+    CPU_OUTPUT_PORT_ADDRESS,
+    output_port_value
+  );
 
   const bool loaded = cpu_load_program(
     &cpu,
@@ -186,6 +271,11 @@ static void test_cpu_load_program_accepts_full_program_region(void)
     cpu_read_memory(&cpu, last_program_address) ==
     OPCODE_HALT
   );
+  assert(
+    cpu_read_memory(&cpu, CPU_INPUT_PORT_ADDRESS) ==
+    input_port_value
+  );
+  assert(cpu_get_output_port(&cpu) == output_port_value);
   assert(
     cpu_read_memory(&cpu, CPU_STACK_LOW_ADDRESS) == 0
   );
@@ -1122,6 +1212,101 @@ static void test_cpu_step_executes_store_a_to_memory(void)
   assert(!cpu.halted);
 }
 
+static void test_cpu_executes_memory_mapped_io(void)
+{
+  enum
+  {
+    EXPECTED_PROGRAM_COUNTER = 5
+  };
+
+  const uint8_t input_value = UINT8_C(0xA5);
+  const uint8_t expected_register_b = UINT8_C(0x3C);
+  const uint64_t expected_cycle_count = UINT64_C(3);
+
+  const uint8_t program[] = {
+    OPCODE_LOAD_A_FROM_MEMORY,
+    CPU_INPUT_PORT_ADDRESS,
+    OPCODE_STORE_A_TO_MEMORY,
+    CPU_OUTPUT_PORT_ADDRESS,
+    OPCODE_HALT
+  };
+
+  Cpu cpu = {
+    .register_b = expected_register_b,
+    .carry_flag = true
+  };
+
+  const bool loaded = cpu_load_program(
+    &cpu,
+    program,
+    sizeof program
+  );
+
+  assert(loaded);
+
+  cpu_set_input_port(&cpu, input_value);
+
+  const CpuRunResult result = cpu_run(
+    &cpu,
+    CPU_MEMORY_SIZE
+  );
+
+  assert(result == CPU_RUN_HALTED);
+  assert(cpu.register_a == input_value);
+  assert(cpu.register_b == expected_register_b);
+  assert(cpu_get_output_port(&cpu) == input_value);
+  assert(!cpu.zero_flag);
+  assert(cpu.carry_flag);
+  assert(cpu.stack_pointer == CPU_STACK_EMPTY_POINTER);
+  assert(cpu.program_counter == EXPECTED_PROGRAM_COUNTER);
+  assert(cpu.cycle_count == expected_cycle_count);
+}
+
+static void test_cpu_input_port_updates_zero_flag(void)
+{
+  enum
+  {
+    EXPECTED_PROGRAM_COUNTER = 2
+  };
+
+  const uint8_t original_register_a = UINT8_C(0xA5);
+  const uint8_t expected_register_b = UINT8_C(0x3C);
+  const uint64_t expected_cycle_count = UINT64_C(1);
+
+  const uint8_t program[] = {
+    OPCODE_LOAD_A_FROM_MEMORY,
+    CPU_INPUT_PORT_ADDRESS
+  };
+
+  Cpu cpu = {
+    .register_a = original_register_a,
+    .register_b = expected_register_b,
+    .carry_flag = true
+  };
+
+  const bool loaded = cpu_load_program(
+    &cpu,
+    program,
+    sizeof program
+  );
+
+  assert(loaded);
+
+  cpu_set_input_port(&cpu, 0);
+
+  const CpuStepResult result = cpu_step(&cpu);
+
+  assert(result == CPU_STEP_OK);
+  assert(cpu.register_a == 0);
+  assert(cpu.register_b == expected_register_b);
+  assert(cpu_get_output_port(&cpu) == 0);
+  assert(cpu.zero_flag);
+  assert(cpu.carry_flag);
+  assert(cpu.program_counter == EXPECTED_PROGRAM_COUNTER);
+  assert(cpu.cycle_count == expected_cycle_count);
+  assert(!cpu.halted);
+}
+
 static void test_cpu_step_executes_push_a(void)
 {
   const uint8_t first_value = UINT8_C(0xA5);
@@ -1592,6 +1777,8 @@ int main(void)
 {
   test_cpu_reset_clears_state();
   test_cpu_memory_read_and_write();
+  test_cpu_memory_map_layout();
+  test_cpu_memory_mapped_ports();
   test_cpu_fetch_byte_reads_and_advances_program_counter();
   test_cpu_step_executes_nop_and_halt();
   test_cpu_step_executes_load_immediate_a();
@@ -1612,6 +1799,8 @@ int main(void)
   test_cpu_step_executes_jump();
   test_cpu_step_executes_load_a_from_memory();
   test_cpu_step_executes_store_a_to_memory();
+  test_cpu_executes_memory_mapped_io();
+  test_cpu_input_port_updates_zero_flag();
   test_cpu_step_executes_push_a();
   test_cpu_step_executes_pop_a();
   test_cpu_step_executes_nested_calls_and_returns();

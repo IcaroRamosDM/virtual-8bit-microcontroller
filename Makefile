@@ -11,6 +11,7 @@ ASSEMBLER_TARGET := build/vm8asm
 ASSEMBLER_DEMO_SOURCE := programs/demo.asm
 ASSEMBLER_DEMO_OUTPUT := build/demo.bin
 PROCESS_TEST_SCRIPT := tests/test_vm8_process.sh
+INPUT_VALUE ?= 0x00
 CPU_TEST_TARGET := build/test_cpu
 CPU_OBSERVER_TEST_TARGET := build/test_cpu_observer
 INSTRUCTION_SET_TEST_TARGET := build/test_instruction_set
@@ -56,7 +57,7 @@ ASSEMBLER_HEADERS := $(wildcard assembler/*.h)
 CPU_TEST_SOURCES := src/cpu.c tests/test_cpu.c
 CPU_OBSERVER_TEST_SOURCES := src/cpu.c tests/test_cpu_observer.c
 INSTRUCTION_SET_TEST_SOURCES := src/instruction_set.c tests/test_instruction_set.c
-CPU_TRACE_TEST_SOURCES := src/cpu_trace.c src/instruction_set.c tests/test_cpu_trace.c
+CPU_TRACE_TEST_SOURCES := src/cpu.c src/cpu_trace.c src/instruction_set.c tests/test_cpu_trace.c
 CLI_TEST_SOURCES := src/cli.c tests/test_cli.c
 PROGRAM_TEST_SOURCES := src/cpu.c src/program.c tests/test_program.c
 BINARY_READER_TEST_SOURCES := src/binary_reader.c tests/test_binary_reader.c
@@ -166,16 +167,16 @@ $(BINARY_WRITER_TEST_TARGET): $(BINARY_WRITER_TEST_SOURCES) $(ASSEMBLER_HEADERS)
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(BINARY_WRITER_TEST_SOURCES) -o $(BINARY_WRITER_TEST_TARGET)
 
 run: $(TARGET)
-	./$(TARGET)
+	./$(TARGET) run --input $(INPUT_VALUE)
 
 run-bin: $(TARGET) assemble
-	./$(TARGET) run $(ASSEMBLER_DEMO_OUTPUT)
+	./$(TARGET) run $(ASSEMBLER_DEMO_OUTPUT) --input $(INPUT_VALUE)
 
 trace: $(TARGET)
-	./$(TARGET) trace
+	./$(TARGET) trace --input $(INPUT_VALUE)
 
 trace-bin: $(TARGET) assemble
-	./$(TARGET) trace $(ASSEMBLER_DEMO_OUTPUT)
+	./$(TARGET) trace $(ASSEMBLER_DEMO_OUTPUT) --input $(INPUT_VALUE)
 
 test: $(TARGET) assemble $(TEST_TARGETS) $(PROCESS_TEST_SCRIPT)
 	./$(CPU_TEST_TARGET)

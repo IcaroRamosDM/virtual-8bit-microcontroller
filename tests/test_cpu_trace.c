@@ -19,6 +19,8 @@ enum
   TRACE_REGISTER_A = 0x30,
   TRACE_REGISTER_B = 0x10,
   TRACE_STACK_POINTER = CPU_STACK_HIGH_ADDRESS - 1,
+  TRACE_INPUT_PORT = 0xA5,
+  TRACE_OUTPUT_PORT = 0x5A,
   TRACE_CYCLE_COUNT = 7
 };
 
@@ -28,18 +30,22 @@ static void test_prints_trace_entry(void)
     "Execution trace:\n"
     "  ADDR=0x04 OP=0x20 MNEMONIC=ADD "
     "A=0x30 B=0x10 SP=0xFE "
+    "IN=0xA5 OUT=0x5A "
     "Z=0 C=1 NEXT=0x05 "
     "CYCLES=7 RESULT=ok\n"
     "  ADDR=0x06 OP=0xFF MNEMONIC=UNKNOWN "
     "A=0x30 B=0x10 SP=0xFE "
+    "IN=0xA5 OUT=0x5A "
     "Z=0 C=1 NEXT=0x05 "
     "CYCLES=7 RESULT=invalid-opcode\n"
     "  ADDR=0x07 OP=0x50 MNEMONIC=PUSH "
     "A=0x30 B=0x10 SP=0xFE "
+    "IN=0xA5 OUT=0x5A "
     "Z=0 C=1 NEXT=0x05 "
     "CYCLES=7 RESULT=stack-overflow\n"
     "  ADDR=0x08 OP=0x51 MNEMONIC=POP "
     "A=0x30 B=0x10 SP=0xFE "
+    "IN=0xA5 OUT=0x5A "
     "Z=0 C=1 NEXT=0x05 "
     "CYCLES=7 RESULT=stack-underflow\n";
 
@@ -49,6 +55,8 @@ static void test_prints_trace_entry(void)
     .register_b = TRACE_REGISTER_B,
     .program_counter = TRACE_NEXT_PROGRAM_COUNTER,
     .stack_pointer = TRACE_STACK_POINTER,
+    .input_port = TRACE_INPUT_PORT,
+    .output_port = TRACE_OUTPUT_PORT,
     .zero_flag = false,
     .carry_flag = true,
     .halted = false,

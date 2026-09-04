@@ -22,7 +22,8 @@ The initial CPU model contains:
 - two 8-bit general-purpose registers named `A` and `B`;
 - an 8-bit program counter;
 - an 8-bit stack pointer;
-- 256 bytes of unified memory, partitioned into a 240-byte program/data region and a 16-byte stack;
+- a 256-byte address space, partitioned into 238 program/data bytes, two memory-mapped I/O addresses, and a 16-byte stack;
+- one host-controlled 8-bit input port and one CPU-controlled 8-bit output latch;
 - zero and carry flags;
 - a halted state;
 - a 64-bit cycle counter;
@@ -37,16 +38,43 @@ The initial CPU model contains:
 - an immutable bytecode-program descriptor that keeps its byte pointer and size together;
 - a dedicated module for the built-in demonstration bytecode;
 - explicit stack-overflow and stack-underflow execution results;
-- a bounded binary-file reader that rejects input larger than the 240-byte program capacity;
+- a bounded binary-file reader that rejects input larger than the 238-byte program capacity;
 - a standalone two-pass assembler with normalized source reading, a shared label-and-constant symbol table, strict instruction and directive parsing, byte-operand resolution, instruction encoding, and raw binary output;
 - command-line selection between normal or traced execution of the built-in demonstration and an external binary program;
+- strict decimal or hexadecimal virtual-input selection through `--input`;
 - built-in help for simulator commands and CPU instructions;
 - process-level CLI tests for successful execution and expected failure paths.
 
 Public headers use `#pragma once`. The memory size is derived from the complete 8-bit address space, and the implementation starts from a fully zero-initialized CPU state.
+Addresses `0xEE` and `0xEF` are decoded as memory-mapped input and output rather than ordinary RAM. The loaded program is limited to `0x00` through `0xED`, while the stack retains `0xF0` through `0xFF`.
 The stack occupies addresses `0xF0` through `0xFF`, grows downward, and uses `SP = 0x00` as its empty sentinel rather than as a stack-memory address. It stores both explicitly pushed data and the return addresses created by subroutine calls.
 The current cycle counter is intentionally simplified: every attempted instruction counts as one cycle regardless of its byte length.
 The `instruction_set` module owns the opcode definitions and their mnemonic lookup, allowing the CPU, assembler, help, built-in program, and trace to share the same opcode vocabulary without making opcode-only modules depend on the complete CPU interface.
+
+## Memory-mapped I/O
+
+| Address range | Size | Use |
+| --- | ---: | --- |
+| `0x00` through `0xED` | 238 bytes | Loaded program and ordinary data. |
+| `0xEE` | 1 byte | Virtual input port, read-only to VM8 software. |
+| `0xEF` | 1 byte | Virtual output latch, readable and writable by VM8 software. |
+| `0xF0` through `0xFF` | 16 bytes | Downward-growing stack. |
+
+The host supplies the input value before execution. VM8 software reads it with the existing `LDA` instruction, so no dedicated input opcode is required. Writes to `0xEE` are ignored. Reading or writing `0xEF` accesses the output latch, which starts at zero after reset.
+
+For example:
+
+```asm
+.EQU INPUT_PORT, 0xEE
+.EQU OUTPUT_PORT, 0xEF
+
+start:
+  LDA INPUT_PORT
+  STA OUTPUT_PORT
+  HALT
+```
+
+This five-byte program encodes as `40 EE 41 EF 01`. With input `0xA5`, it copies `0xA5` from the virtual input into the virtual output.
 
 ## Current instruction set
 
@@ -117,6 +145,8 @@ Execution result: halted
 Register A: 0x5A
 Register B: 0x2A
 Stack pointer: 0x00
+Input port: 0x00
+Output port: 0x00
 Zero flag: clear
 Carry flag: clear
 Program counter: 18
@@ -125,9 +155,9 @@ Cycle count: 9
 
 The demonstration bytecode is stored privately in `src/program.c` and exposed through a `Program` value containing a pointer to constant bytes and their size. Running `make run` selects this built-in program.
 
-The Assembly demonstration is stored in `programs/demo.asm`. The standalone assembler resolves its labels, constants, instructions, and data directives in two passes and generates the behaviorally equivalent 19-byte raw machine-code file at `build/demo.bin`. Running `make run-bin` assembles that source, reads the generated binary into a bounded 240-byte host buffer, copies the resulting program into CPU memory, and executes it.
+The Assembly demonstration is stored in `programs/demo.asm`. The standalone assembler resolves its labels, constants, instructions, and data directives in two passes and generates the behaviorally equivalent 19-byte raw machine-code file at `build/demo.bin`. Running `make run-bin` assembles that source, reads the generated binary into a bounded 238-byte host buffer, copies the resulting program into CPU memory, and executes it.
 
-An arbitrary compatible binary can be selected with `./build/vm8 run <program.bin>`. The CLI distinguishes the built-in and external-binary execution modes and independently enables tracing when requested. `main.c` remains responsible for orchestration, presentation, and process status. Reusable file reading, program copying, CPU execution, and trace formatting remain in independently tested modules. Run `make help` to see simulator commands, instruction encodings, effects, flag behavior, and usage examples.
+An arbitrary compatible binary can be selected with `./build/vm8 run <program.bin>`. Append `--input <byte>` to either `run` or `trace` to supply the virtual input; the byte may be decimal or `0x`-prefixed hexadecimal from 0 through 255, and defaults to zero. The CLI distinguishes the built-in and external-binary execution modes and independently enables tracing when requested. `main.c` remains responsible for orchestration, presentation, and process status. Reusable file reading, program copying, CPU execution, and trace formatting remain in independently tested modules. Run `make help` to see simulator commands, instruction encodings, effects, flag behavior, and usage examples.
 
 ## Project structure
 
@@ -153,6 +183,14 @@ Compile and run:
 make run
 ```
 
+Supply a virtual input value to the built-in demonstration:
+
+```bash
+make run INPUT_VALUE=0xA5
+```
+
+The demonstration does not read the port, so this shows `Input port: 0xA5` while `Output port` remains `0x00`.
+
 Assemble `programs/demo.asm`, load the generated binary, and run it:
 
 ```bash
@@ -165,10 +203,22 @@ Run another compatible binary directly:
 ./build/vm8 run path/to/program.bin
 ```
 
+Supply decimal or hexadecimal input to that binary:
+
+```bash
+./build/vm8 run path/to/program.bin --input 165
+```
+
 Trace the built-in demonstration instruction by instruction:
 
 ```bash
 make trace
+```
+
+The Make targets accept the same input through `INPUT_VALUE`:
+
+```bash
+make trace INPUT_VALUE=0xA5
 ```
 
 Assemble and trace `programs/demo.asm`:
@@ -187,10 +237,10 @@ Each trace entry identifies the executed instruction address and opcode, then sh
 
 ```text
 Execution trace:
-  ADDR=0x00 OP=0x10 MNEMONIC=LDI A=0x2A B=0x00 SP=0x00 Z=0 C=0 NEXT=0x02 CYCLES=1 RESULT=ok
+  ADDR=0x00 OP=0x10 MNEMONIC=LDI A=0x2A B=0x00 SP=0x00 IN=0x00 OUT=0x00 Z=0 C=0 NEXT=0x02 CYCLES=1 RESULT=ok
 ```
 
-`ADDR` is the address at which the instruction started, `OP` is its raw opcode byte, `MNEMONIC` is the decoded operation name, `SP` is the post-execution stack pointer, and `NEXT` is the post-execution program counter. The remaining fields show registers `A` and `B`, the zero and carry flags, the accumulated cycle count, and the step result. An unrecognized byte is displayed as `MNEMONIC=UNKNOWN`.
+`ADDR` is the address at which the instruction started, `OP` is its raw opcode byte, `MNEMONIC` is the decoded operation name, `SP` is the post-execution stack pointer, `IN` and `OUT` are the post-execution port values, and `NEXT` is the post-execution program counter. The remaining fields show registers `A` and `B`, the zero and carry flags, the accumulated cycle count, and the step result. An unrecognized byte is displayed as `MNEMONIC=UNKNOWN`.
 
 Run the automated tests:
 
@@ -199,10 +249,10 @@ make test
 ```
 
 The test target assembles `programs/demo.asm` and then builds and runs independent tests for the CPU, CPU observer, instruction-set lookup, trace formatter, CLI, built-in program, binary reader, assembled-program execution, source normalization and reading, symbol table, first pass, byte parsing and resolution, instruction parser and encoder, second pass, and binary writer.
-The CPU tests cover arithmetic, logical operations, unary bit inversion, shifted-out carry bits, nondestructive comparison, every taken and non-taken conditional branch, stack ordering and boundaries, nested subroutine calls and returns, stack error propagation through `CALL` and `RET`, zero results, and a `JMP`-to-zero loop that verifies bounded execution stops at the configured instruction limit.
+The CPU tests cover arithmetic, logical operations, unary bit inversion, shifted-out carry bits, nondestructive comparison, every taken and non-taken conditional branch, stack ordering and boundaries, nested subroutine calls and returns, stack error propagation through `CALL` and `RET`, memory-mapped port direction and reset behavior, zero results, and a `JMP`-to-zero loop that verifies bounded execution stops at the configured instruction limit.
 The program-integration test loads and executes the built-in demonstration, then verifies its complete final CPU state and the value stored at data address `0x80`.
 The assembled-program integration test reads `build/demo.bin`, loads it into CPU memory, executes it, verifies the same final CPU state, and checks both the embedded byte at `0x12` and the copied value at `0x80`. This confirms that the human-readable Assembly source and built-in byte array describe behaviorally equivalent programs even though their byte sequences differ.
-The Bash process test launches `build/vm8` exactly as a user would and verifies normal external-binary execution, both trace modes, and the expected failure behavior for a missing file, an empty file, an oversized file, and an invalid opcode.
+The Bash process test launches `build/vm8` exactly as a user would and verifies normal external-binary execution, both trace modes, a five-byte input-to-output program, decimal and hexadecimal host input, invalid input rejection, and the expected failure behavior for a missing file, an empty file, an oversized file, and an invalid opcode.
 
 Display simulator and instruction help:
 
