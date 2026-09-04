@@ -1248,6 +1248,206 @@ static void test_cpu_step_executes_pop_a(void)
   assert(!cpu.halted);
 }
 
+static void test_cpu_step_executes_nested_calls_and_returns(void)
+{
+  enum
+  {
+    FIRST_RETURN_ADDRESS = 0x02,
+    FIRST_SUBROUTINE_ADDRESS = 0x03,
+    SECOND_RETURN_ADDRESS = 0x05,
+    SECOND_SUBROUTINE_ADDRESS = 0x06,
+    EXPECTED_HALTED_PROGRAM_COUNTER =
+      FIRST_RETURN_ADDRESS + 1,
+    FIRST_CALL_CYCLE_COUNT = 1,
+    SECOND_CALL_CYCLE_COUNT = 2,
+    FIRST_RETURN_CYCLE_COUNT = 3,
+    SECOND_RETURN_CYCLE_COUNT = 4,
+    HALT_CYCLE_COUNT = 5
+  };
+
+  const uint8_t expected_register_a = UINT8_C(0xA5);
+  const uint8_t expected_register_b = UINT8_C(0x5A);
+  const uint8_t second_stack_address =
+    (uint8_t)(CPU_STACK_HIGH_ADDRESS - 1);
+
+  const uint8_t program[] = {
+    OPCODE_CALL,
+    FIRST_SUBROUTINE_ADDRESS,
+    OPCODE_HALT,
+    OPCODE_CALL,
+    SECOND_SUBROUTINE_ADDRESS,
+    OPCODE_RETURN,
+    OPCODE_RETURN
+  };
+
+  Cpu cpu = {
+    .register_a = expected_register_a,
+    .register_b = expected_register_b,
+    .zero_flag = true,
+    .carry_flag = true
+  };
+
+  const bool loaded = cpu_load_program(
+    &cpu,
+    program,
+    sizeof program
+  );
+
+  assert(loaded);
+
+  const CpuStepResult first_call_result = cpu_step(&cpu);
+
+  assert(first_call_result == CPU_STEP_OK);
+  assert(cpu.program_counter == FIRST_SUBROUTINE_ADDRESS);
+  assert(cpu.stack_pointer == CPU_STACK_HIGH_ADDRESS);
+  assert(
+    cpu_read_memory(&cpu, CPU_STACK_HIGH_ADDRESS) ==
+    FIRST_RETURN_ADDRESS
+  );
+  assert(cpu.cycle_count == FIRST_CALL_CYCLE_COUNT);
+
+  const CpuStepResult second_call_result = cpu_step(&cpu);
+
+  assert(second_call_result == CPU_STEP_OK);
+  assert(cpu.program_counter == SECOND_SUBROUTINE_ADDRESS);
+  assert(cpu.stack_pointer == second_stack_address);
+  assert(
+    cpu_read_memory(&cpu, second_stack_address) ==
+    SECOND_RETURN_ADDRESS
+  );
+  assert(
+    cpu_read_memory(&cpu, CPU_STACK_HIGH_ADDRESS) ==
+    FIRST_RETURN_ADDRESS
+  );
+  assert(cpu.cycle_count == SECOND_CALL_CYCLE_COUNT);
+
+  const CpuStepResult first_return_result = cpu_step(&cpu);
+
+  assert(first_return_result == CPU_STEP_OK);
+  assert(cpu.program_counter == SECOND_RETURN_ADDRESS);
+  assert(cpu.stack_pointer == CPU_STACK_HIGH_ADDRESS);
+  assert(cpu.cycle_count == FIRST_RETURN_CYCLE_COUNT);
+
+  const CpuStepResult second_return_result = cpu_step(&cpu);
+
+  assert(second_return_result == CPU_STEP_OK);
+  assert(cpu.program_counter == FIRST_RETURN_ADDRESS);
+  assert(cpu.stack_pointer == CPU_STACK_EMPTY_POINTER);
+  assert(cpu.cycle_count == SECOND_RETURN_CYCLE_COUNT);
+
+  const CpuStepResult halt_result = cpu_step(&cpu);
+
+  assert(halt_result == CPU_STEP_HALTED);
+  assert(
+    cpu.program_counter ==
+    EXPECTED_HALTED_PROGRAM_COUNTER
+  );
+  assert(cpu.cycle_count == HALT_CYCLE_COUNT);
+  assert(cpu.register_a == expected_register_a);
+  assert(cpu.register_b == expected_register_b);
+  assert(cpu.zero_flag);
+  assert(cpu.carry_flag);
+  assert(cpu.halted);
+}
+
+static void test_cpu_step_reports_call_and_return_stack_errors(void)
+{
+  enum
+  {
+    CALL_TARGET_ADDRESS = 0x40,
+    EXPECTED_CALL_PROGRAM_COUNTER = 0x02,
+    EXPECTED_RETURN_PROGRAM_COUNTER = 0x01
+  };
+
+  const uint8_t expected_register_a = UINT8_C(0xA5);
+  const uint8_t expected_register_b = UINT8_C(0x5A);
+  const uint8_t stack_sentinel = UINT8_C(0x3C);
+  const uint64_t expected_cycle_count = UINT64_C(1);
+
+  const uint8_t call_program[] = {
+    OPCODE_CALL,
+    CALL_TARGET_ADDRESS
+  };
+
+  Cpu overflow_cpu = {
+    .register_a = expected_register_a,
+    .register_b = expected_register_b,
+    .stack_pointer = CPU_STACK_LOW_ADDRESS,
+    .zero_flag = true,
+    .carry_flag = true
+  };
+
+  const bool call_loaded = cpu_load_program(
+    &overflow_cpu,
+    call_program,
+    sizeof call_program
+  );
+
+  assert(call_loaded);
+
+  cpu_write_memory(
+    &overflow_cpu,
+    CPU_STACK_LOW_ADDRESS,
+    stack_sentinel
+  );
+
+  const CpuStepResult call_result = cpu_step(&overflow_cpu);
+
+  assert(call_result == CPU_STEP_STACK_OVERFLOW);
+  assert(overflow_cpu.halted);
+  assert(
+    overflow_cpu.program_counter ==
+    EXPECTED_CALL_PROGRAM_COUNTER
+  );
+  assert(overflow_cpu.stack_pointer == CPU_STACK_LOW_ADDRESS);
+  assert(
+    cpu_read_memory(
+      &overflow_cpu,
+      CPU_STACK_LOW_ADDRESS
+    ) == stack_sentinel
+  );
+  assert(overflow_cpu.register_a == expected_register_a);
+  assert(overflow_cpu.register_b == expected_register_b);
+  assert(overflow_cpu.zero_flag);
+  assert(overflow_cpu.carry_flag);
+  assert(overflow_cpu.cycle_count == expected_cycle_count);
+
+  const uint8_t return_program[] = {OPCODE_RETURN};
+
+  Cpu underflow_cpu = {
+    .register_a = expected_register_a,
+    .register_b = expected_register_b,
+    .zero_flag = true,
+    .carry_flag = true
+  };
+
+  const bool return_loaded = cpu_load_program(
+    &underflow_cpu,
+    return_program,
+    sizeof return_program
+  );
+
+  assert(return_loaded);
+
+  const CpuStepResult return_result = cpu_step(&underflow_cpu);
+
+  assert(return_result == CPU_STEP_STACK_UNDERFLOW);
+  assert(underflow_cpu.halted);
+  assert(
+    underflow_cpu.program_counter ==
+    EXPECTED_RETURN_PROGRAM_COUNTER
+  );
+  assert(
+    underflow_cpu.stack_pointer ==
+    CPU_STACK_EMPTY_POINTER
+  );
+  assert(underflow_cpu.register_a == expected_register_a);
+  assert(underflow_cpu.register_b == expected_register_b);
+  assert(underflow_cpu.zero_flag);
+  assert(underflow_cpu.carry_flag);
+  assert(underflow_cpu.cycle_count == expected_cycle_count);
+}
+
 static void test_cpu_step_reports_stack_errors(void)
 {
   const uint8_t value = UINT8_C(0xA5);
@@ -1414,6 +1614,8 @@ int main(void)
   test_cpu_step_executes_store_a_to_memory();
   test_cpu_step_executes_push_a();
   test_cpu_step_executes_pop_a();
+  test_cpu_step_executes_nested_calls_and_returns();
+  test_cpu_step_reports_call_and_return_stack_errors();
   test_cpu_step_reports_stack_errors();
   test_cpu_run_reports_stack_errors();
 

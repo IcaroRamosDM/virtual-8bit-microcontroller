@@ -338,6 +338,47 @@ CpuStepResult cpu_step(Cpu *cpu)
       return CPU_STEP_OK;
     }
 
+    case OPCODE_CALL:
+    {
+      const uint8_t target_address = cpu_fetch_byte(cpu);
+      const uint8_t return_address = cpu->program_counter;
+
+      const CpuStepResult result =
+        cpu_stack_push(
+          cpu,
+          return_address
+        );
+
+      if (result != CPU_STEP_OK)
+      {
+        return result;
+      }
+
+      cpu->program_counter = target_address;
+
+      return CPU_STEP_OK;
+    }
+
+    case OPCODE_RETURN:
+    {
+      uint8_t return_address = 0;
+
+      const CpuStepResult result =
+        cpu_stack_pop(
+          cpu,
+          &return_address
+        );
+
+      if (result != CPU_STEP_OK)
+      {
+        return result;
+      }
+
+      cpu->program_counter = return_address;
+
+      return CPU_STEP_OK;
+    }
+
     case OPCODE_HALT:
       cpu->halted = true;
       return CPU_STEP_HALTED;

@@ -51,6 +51,8 @@ static const InstructionDefinition
   {"STA", INSTRUCTION_SIZE_TWO_BYTES},
   {"PUSH", INSTRUCTION_SIZE_ONE_BYTE},
   {"POP", INSTRUCTION_SIZE_ONE_BYTE},
+  {"CALL", INSTRUCTION_SIZE_TWO_BYTES},
+  {"RET", INSTRUCTION_SIZE_ONE_BYTE}
 };
 
 static bool statement_has_mnemonic(

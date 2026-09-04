@@ -44,7 +44,7 @@ The initial CPU model contains:
 - process-level CLI tests for successful execution and expected failure paths.
 
 Public headers use `#pragma once`. The memory size is derived from the complete 8-bit address space, and the implementation starts from a fully zero-initialized CPU state.
-The stack occupies addresses `0xF0` through `0xFF`, grows downward, and uses `SP = 0x00` as its empty sentinel rather than as a stack-memory address.
+The stack occupies addresses `0xF0` through `0xFF`, grows downward, and uses `SP = 0x00` as its empty sentinel rather than as a stack-memory address. It stores both explicitly pushed data and the return addresses created by subroutine calls.
 The current cycle counter is intentionally simplified: every attempted instruction counts as one cycle regardless of its byte length.
 The `instruction_set` module owns the opcode definitions and their mnemonic lookup, allowing the CPU, assembler, help, built-in program, and trace to share the same opcode vocabulary without making opcode-only modules depend on the complete CPU interface.
 
@@ -73,12 +73,14 @@ The `instruction_set` module owns the opcode definitions and their mnemonic look
 | `STA addr8` | `0x41` | Stores register `A` at an absolute memory address without changing registers or flags. |
 | `PUSH A` | `0x50` | Pushes `A` onto the downward-growing stack without changing registers or flags. |
 | `POP A` | `0x51` | Pops the newest stack byte into `A`, updates zero, and preserves carry. |
+| `CALL addr8` | `0x52` | Pushes the address following the operand, then jumps to an absolute 8-bit subroutine address. |
+| `RET` | `0x53` | Pops the newest stack byte directly into the program counter and resumes the caller. |
 
 An invalid opcode, stack overflow, or stack underflow halts execution and produces a distinct step result.
-The two `LDI` instructions, `JZ`, `JNZ`, `JC`, `JMP`, `LDA`, and `STA` occupy two bytes each: the opcode followed by an immediate value, target address, or data address. Arithmetic, comparison, logical, and shift instructions occupy one byte because their required register operands are implied by the opcode.
+The two `LDI` instructions, `JZ`, `JNZ`, `JC`, `JMP`, `LDA`, `STA`, and `CALL` occupy two bytes each: the opcode followed by an immediate value, target address, or data address. Arithmetic, comparison, logical, shift, and `RET` instructions occupy one byte because their complete behavior is implied by the opcode.
 `PUSH A` and `POP A` are also one-byte instructions because register `A` and the stack operation are completely identified by their opcodes.
 
-The carry flag reports unsigned carry for addition, unsigned borrow for subtraction and comparison, and the bit shifted out by `SHL` or `SHR`. The four non-shift logical instructions clear carry. `CMP` sets zero when `A == B` and carry when unsigned `A < B`, without changing either register. `JZ`, `JNZ`, and `JC` test the corresponding flag while preserving CPU state other than the program counter and cycle count. `JMP` always replaces the program counter with its absolute address operand. `LDA` reads memory into `A` and updates zero, while `STA` writes `A` to memory without changing flags.
+The carry flag reports unsigned carry for addition, unsigned borrow for subtraction and comparison, and the bit shifted out by `SHL` or `SHR`. The four non-shift logical instructions clear carry. `CMP` sets zero when `A == B` and carry when unsigned `A < B`, without changing either register. `JZ`, `JNZ`, and `JC` test the corresponding flag while preserving CPU state other than the program counter and cycle count. `JMP` always replaces the program counter with its absolute address operand. `LDA` reads memory into `A` and updates zero, while `STA` writes `A` to memory without changing flags. `CALL` saves its already-advanced program counter before jumping, and `RET` restores that saved byte; both preserve `A`, `B`, `Z`, and `C`.
 
 ## Assembler symbols and directives
 
@@ -197,7 +199,7 @@ make test
 ```
 
 The test target assembles `programs/demo.asm` and then builds and runs independent tests for the CPU, CPU observer, instruction-set lookup, trace formatter, CLI, built-in program, binary reader, assembled-program execution, source normalization and reading, symbol table, first pass, byte parsing and resolution, instruction parser and encoder, second pass, and binary writer.
-The CPU tests cover arithmetic, logical operations, unary bit inversion, shifted-out carry bits, nondestructive comparison, every taken and non-taken conditional branch, stack ordering and boundaries, stack error propagation, zero results, and a `JMP`-to-zero loop that verifies bounded execution stops at the configured instruction limit.
+The CPU tests cover arithmetic, logical operations, unary bit inversion, shifted-out carry bits, nondestructive comparison, every taken and non-taken conditional branch, stack ordering and boundaries, nested subroutine calls and returns, stack error propagation through `CALL` and `RET`, zero results, and a `JMP`-to-zero loop that verifies bounded execution stops at the configured instruction limit.
 The program-integration test loads and executes the built-in demonstration, then verifies its complete final CPU state and the value stored at data address `0x80`.
 The assembled-program integration test reads `build/demo.bin`, loads it into CPU memory, executes it, verifies the same final CPU state, and checks both the embedded byte at `0x12` and the copied value at `0x80`. This confirms that the human-readable Assembly source and built-in byte array describe behaviorally equivalent programs even though their byte sequences differ.
 The Bash process test launches `build/vm8` exactly as a user would and verifies normal external-binary execution, both trace modes, and the expected failure behavior for a missing file, an empty file, an oversized file, and an invalid opcode.

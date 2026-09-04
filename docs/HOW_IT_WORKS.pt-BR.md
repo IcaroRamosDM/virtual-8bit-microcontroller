@@ -30,7 +30,7 @@ A CPU nunca lê palavras como `LDI`, `start` ou `memory_demo`. Essas palavras ex
 
 O simulador da CPU está funcional. Ele pode executar a demonstração embutida de 18 bytes armazenada em `src/program.c` ou um binário bruto compatível selecionado pela linha de comando. A demonstração Assembly atual gera um binário de 19 bytes porque inclui um byte de dado embutido depois de `HALT`. Qualquer uma dessas origens pode ser executada normalmente ou com um rastreamento de instruções legível por pessoas.
 
-A CPU agora possui uma pilha descendente de 16 bytes e as instruções de um byte `PUSH A` e `POP A`. Overflow e underflow da pilha são erros explícitos de execução. `CALL` e `RET` ainda não estão implementadas; elas são as próximas operações planejadas para reutilizar o mesmo mecanismo de pilha.
+A CPU agora possui uma pilha descendente de 16 bytes. `PUSH A` e `POP A` transferem dados por meio dela, enquanto `CALL addr8` e `RET` a utilizam para salvar e restaurar endereços de retorno de 8 bits. Overflow e underflow da pilha são erros explícitos de execução compartilhados pelos dois tipos de operação.
 
 O módulo compartilhado `instruction_set` é o responsável pelas definições de `Opcode` e por uma tabela de metadados somente para leitura que associa cada byte de opcode suportado ao seu mnemônico Assembly. A busca recebe um `uint8_t` bruto porque a memória pode conter qualquer byte; ela retorna um ponteiro para os metadados de um opcode reconhecido ou um ponteiro nulo para um valor desconhecido.
 
@@ -151,6 +151,54 @@ Depois de 16 inserções, todos os endereços de `0xFF` até `0xF0` estão ocupa
 
 `PUSH A` preserva ambos os registradores e ambas as flags. `POP A` substitui `A`, atualiza `Z` conforme o byte retirado seja ou não zero, preserva `B` e `C` e não apaga o byte deixado na memória. É o avanço de `SP` que faz essa posição deixar de pertencer à pilha ativa.
 
+## Sub-rotinas, `CALL` e `RET`
+
+Uma sub-rotina é um bloco reutilizável de instruções que recebe temporariamente o controle e depois retorna para quem a chamou. Um salto comum modifica `PC`, mas não memoriza de onde veio a execução. `CALL addr8` realiza as duas tarefas: salva o endereço de retorno na pilha e depois salta para a sub-rotina. `RET` retira esse endereço da pilha e o coloca novamente em `PC`.
+
+`CALL addr8` ocupa dois bytes: o opcode `0x52`, seguido por um byte de endereço absoluto. Sua ordem de execução é importante:
+
+1. A busca normal da instrução lê o opcode de `CALL` e avança `PC`.
+2. Uma segunda busca lê `addr8` e avança `PC` novamente.
+3. O `PC` já avançado, que agora identifica a instrução posterior a `CALL`, é inserido na pilha como endereço de retorno.
+4. O endereço de destino substitui `PC`, transferindo a execução para a sub-rotina.
+
+Portanto, o endereço de retorno é calculado durante a execução; ele não é outro byte codificado no programa. `RET` ocupa um byte. Depois que seu opcode é buscado, ela retira o byte mais novo da pilha diretamente para `PC`. As duas instruções preservam os registradores `A` e `B` e as flags `Z` e `C`.
+
+Considere este programa com chamadas aninhadas, cujos labels estão anotados com seus endereços de byte resultantes:
+
+```asm
+start:           ; endereço 0x00
+  CALL first     ; bytes: 52 03
+  HALT           ; endereço 0x02
+
+first:           ; endereço 0x03
+  CALL second    ; bytes: 52 06
+  RET            ; endereço 0x05
+
+second:          ; endereço 0x06
+  RET
+```
+
+O montador resolve os labels e emite somente estes sete bytes:
+
+```text
+52 03 01 52 06 53 53
+```
+
+A sequência de execução é:
+
+1. `CALL first` insere `0x02` em `memory[0xFF]`, deixa `SP = 0xFF` e ajusta `PC = 0x03`.
+2. `CALL second` insere `0x05` em `memory[0xFE]`, deixa `SP = 0xFE` e ajusta `PC = 0x06`.
+3. A instrução `RET` em `0x06` retira `0x05`, deixa `SP = 0xFF` e retoma a primeira sub-rotina em `0x05`.
+4. A instrução `RET` em `0x05` retira `0x02`, restaura o sentinela vazio `SP = 0x00` e retoma o chamador em `0x02`.
+5. `HALT` é executada em `0x02`. Cinco instruções foram tentadas, portanto a contagem simplificada de ciclos é cinco.
+
+O último endereço de retorno inserido é o primeiro recuperado, exatamente o comportamento de último a entrar, primeiro a sair necessário para chamadas aninhadas.
+
+Endereços de retorno e valores inseridos por `PUSH A` compartilham a mesma capacidade de 16 bytes. Dezesseis chamadas podem ser aninhadas somente quando não há outras entradas ativas na pilha. Cada `PUSH A` ativo consome uma posição que estaria disponível para uma chamada. O software também precisa manter as operações equilibradas: um `POP A` inesperado, um `PUSH A` adicional ou uma instrução `RET` no lugar errado pode consumir o byte incorreto, pois a pilha armazena bytes sem registrar se cada um representa dados ou um endereço de retorno.
+
+Uma instrução `CALL` executada com a pilha cheia informa overflow depois que seu opcode e seu operando de destino já foram buscados, portanto `PC` já contém o endereço que seria utilizado para retorno; o salto não acontece. Uma instrução `RET` executada com a pilha vazia informa underflow depois da busca de seu opcode. Qualquer um desses erros interrompe a execução, contabiliza a instrução tentada e preserva registradores, flags, memória da pilha e `SP`.
+
 ## Busca, decodificação e execução
 
 Cada passo da CPU segue três etapas conceituais:
@@ -223,9 +271,11 @@ A CPU não precisa de um registrador de 16 bits para executar essa instrução. 
 | `STA addr8` | `41 addr8` | 2 | Armazena `A` no endereço de memória; preserva registradores e flags. |
 | `PUSH A` | `50` | 1 | Insere `A` na pilha; preserva registradores e flags. |
 | `POP A` | `51` | 1 | Retira o byte mais novo da pilha para `A`; atualiza `Z`; preserva `C`. |
+| `CALL addr8` | `52 addr8` | 2 | Insere o endereço posterior ao operando e depois carrega `PC` com o destino absoluto; preserva registradores e flags. |
+| `RET` | `53` | 1 | Retira o byte mais novo da pilha diretamente para `PC`; preserva registradores e flags. |
 
 `imm8` e `addr8` possuem um byte cada. Portanto, podem representar valores de `0x00` até `0xFF`.
-`PUSH A` e `POP A` não precisam de um byte de operando codificado porque o opcode já identifica tanto a operação quanto o registrador `A`.
+`PUSH A`, `POP A` e `RET` não precisam de um byte de operando codificado porque seus opcodes identificam suas operações completas. `CALL` exige um operando `addr8`, que pode ser escrito como literal, constante ou label.
 
 ## Operações lógicas e de bits
 
@@ -530,7 +580,7 @@ missing          -> erro de símbolo indefinido
 
 O parser separa cada statement normalizado em um nome inicial e até dois operandos. Ele valida a estrutura sintática, como espaços, vírgulas, operandos ausentes e operandos em excesso, mas não decide se uma instrução, diretiva ou registrador é suportado.
 
-O codificador de instruções então valida o significado dos campos interpretados. Ele reconhece o conjunto atual de instruções, verifica a quantidade de operandos e a ordem dos registradores, resolve literais de byte ou símbolos e emite uma instrução codificada de um ou dois bytes. `AND`, `OR`, `XOR` e `CMP` exigem o par de registradores exato `A, B`, enquanto `NOT`, `SHL` e `SHR` exigem somente o registrador `A`. `JZ`, `JNZ` e `JC` aceitam um endereço de byte literal ou simbólico. Uma falha de codificação deixa inalterado o objeto de saída fornecido pelo chamador.
+O codificador de instruções então valida o significado dos campos interpretados. Ele reconhece o conjunto atual de instruções, verifica a quantidade de operandos e a ordem dos registradores, resolve literais de byte ou símbolos e emite uma instrução codificada de um ou dois bytes. `AND`, `OR`, `XOR` e `CMP` exigem o par de registradores exato `A, B`; `NOT`, `SHL` e `SHR` exigem somente o registrador `A`; e `PUSH` e `POP` exigem `A`. `JZ`, `JNZ`, `JC`, `JMP`, `LDA`, `STA` e `CALL` aceitam um endereço de byte literal ou simbólico. `NOP`, `HALT` e `RET` não aceitam operandos. Uma falha de codificação deixa inalterado o objeto de saída fornecido pelo chamador.
 
 A segunda passagem lê novamente os statements normalizados e trata cada tipo explicitamente:
 
@@ -910,3 +960,5 @@ make inspect
 - A memória unificada permite acesso tanto ao código quanto aos dados, portanto as instruções de armazenamento devem usar endereços com cuidado.
 - O programa carregado é limitado de `0x00` até `0xEF`; a pilha reserva de `0xF0` até `0xFF` e cresce para baixo.
 - `SP = 0x00` é um sentinela de pilha vazia; `PUSH` e `POP` movimentam bytes na ordem último a entrar, primeiro a sair e informam explicitamente os erros de limite.
+- `CALL` insere o `PC` já avançado como endereço de retorno de 8 bits; `RET` retira esse byte novamente para `PC`.
+- Dados e endereços de retorno compartilham a mesma pilha, portanto operações equilibradas e profundidade disponível da pilha são responsabilidades do software.
