@@ -1,14 +1,12 @@
-#include <ctype.h>
-#include <errno.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 
 #include "cli.h"
 #include "cpu.h"
 #include "instruction_set.h"
+#include "byte_value.h"
 
 enum
 {
@@ -27,6 +25,7 @@ static const char HELP_COMMAND[] = "help";
 static const char LONG_HELP_COMMAND[] = "--help";
 static const char RUN_COMMAND[] = "run";
 static const char TRACE_COMMAND[] = "trace";
+static const char MONITOR_COMMAND[] = "monitor";
 static const char INPUT_OPTION[] = "--input";
 
 static CliOptions cli_make_options(
@@ -73,6 +72,23 @@ static CliOptions cli_run_options(
   );
 }
 
+static CliOptions cli_monitor_options(
+    const char *binary_path
+)
+{
+  const CliCommand command =
+    (binary_path == NULL)
+      ? CLI_COMMAND_MONITOR_DEMO
+      : CLI_COMMAND_MONITOR_BINARY;
+
+  return cli_make_options(
+    command,
+    binary_path,
+    false,
+    0
+  );
+}
+
 static bool cli_parse_run_command(
     const char *command,
     bool *trace_enabled
@@ -91,61 +107,6 @@ static bool cli_parse_run_command(
   }
 
   return false;
-}
-
-static bool cli_parse_input_port_value(
-    const char *text,
-    uint8_t *value
-)
-{
-  if ((text == NULL) || (value == NULL))
-  {
-    return false;
-  }
-
-  if ((text[0] == '\0') ||
-      isspace((unsigned char)text[0]) ||
-      (text[0] == '+') ||
-      (text[0] == '-'))
-  {
-    return false;
-  }
-
-  int base = 10;
-  const char *digits = text;
-
-  if ((text[0] == '0') &&
-      ((text[1] == 'x') || (text[1] == 'X')))
-  {
-    base = 16;
-    digits += 2;
-  }
-
-  if ((digits[0] == '\0') ||
-      isspace((unsigned char)digits[0]) ||
-      (digits[0] == '+') ||
-      (digits[0] == '-'))
-  {
-    return false;
-  }
-
-  errno = 0;
-
-  char *end = NULL;
-
-  const unsigned long parsed_value =
-    strtoul(digits, &end, base);
-
-  if ((errno != 0) ||
-      (end == digits) ||
-      (end[0] != '\0') ||
-      (parsed_value > UINT8_MAX))
-  {
-    return false;
-  }
-
-  *value = (uint8_t)parsed_value;
-  return true;
 }
 
 CliOptions cli_parse_arguments(
@@ -178,6 +139,32 @@ CliOptions cli_parse_arguments(
       false,
       0
     );
+  }
+
+  if (strcmp(command, MONITOR_COMMAND) == 0)
+  {
+    if (argument_count == CLI_ARGUMENT_COUNT_WITH_COMMAND)
+    {
+      return cli_monitor_options(NULL);
+    }
+
+    if (
+      argument_count ==
+      CLI_ARGUMENT_COUNT_WITH_BINARY_PATH
+    )
+    {
+      const char *const binary_path =
+        arguments[CLI_FIRST_VALUE_ARGUMENT_INDEX];
+
+      if (strcmp(binary_path, INPUT_OPTION) == 0)
+      {
+        return cli_invalid_options();
+      }
+
+      return cli_monitor_options(binary_path);
+    }
+
+    return cli_invalid_options();
   }
 
   bool trace_enabled = false;
@@ -224,7 +211,7 @@ CliOptions cli_parse_arguments(
     uint8_t input_port_value = 0;
 
     if ((strcmp(input_option, INPUT_OPTION) != 0) ||
-        !cli_parse_input_port_value(
+        !byte_value_parse(
           input_text,
           &input_port_value
         ))
@@ -257,7 +244,7 @@ CliOptions cli_parse_arguments(
 
     if ((strcmp(binary_path, INPUT_OPTION) == 0) ||
         (strcmp(input_option, INPUT_OPTION) != 0) ||
-        !cli_parse_input_port_value(
+        !byte_value_parse(
           input_text,
           &input_port_value
         ))
@@ -285,6 +272,8 @@ void cli_print_help(void)
   puts("  make run-bin    Assemble and run programs/demo.asm.");
   puts("  make trace      Run the built-in demo with a trace.");
   puts("  make trace-bin  Assemble and trace programs/demo.asm.");
+  puts("  make monitor    Open the monitor with the built-in demo.");
+  puts("  make monitor-bin  Assemble and monitor programs/demo.asm.");
   puts("  make test       Build and run the test suite.");
   puts("  make assembler  Build the assembler executable.");
   puts("  make assemble   Run the assembler on programs/demo.asm.");
@@ -301,6 +290,8 @@ void cli_print_help(void)
   puts("  ./build/vm8 trace <program.bin> [--input <byte>]");
   puts("  ./build/vm8 help");
   puts("  ./build/vm8 --help");
+  puts("  ./build/vm8 monitor");
+  puts("  ./build/vm8 monitor <program.bin>");
   puts(
     "  ./build/vm8asm <input.asm> <output.bin>  "
     "Assemble source into raw binary."
@@ -316,6 +307,21 @@ void cli_print_help(void)
   puts("  When present, --input <byte> must be the final option.");
   puts("  Make example: make run INPUT_VALUE=0xA5");
   puts("  Direct example: ./build/vm8 run firmware.bin --input 165");
+  puts("");
+
+  puts("Interactive monitor:");
+  puts("  Start the built-in demo with 'make monitor'.");
+  puts("  Assemble and open programs/demo.asm with 'make monitor-bin'.");
+  puts(
+    "  Commands: help, registers, step, run, reset, input, memory, "
+    "load,"
+  );
+  puts("            trace, breakpoint, and quit.");
+  puts(
+    "  Breakpoints stop before the marked instruction; "
+    "step executes it."
+  );
+  puts("  Run 'help' inside the monitor for complete command syntax.");
   puts("");
 
   puts("Supported instructions:");

@@ -34,6 +34,8 @@ A CPU agora possui uma pilha descendente de 16 bytes. `PUSH A` e `POP A` transfe
 
 A CPU também possui uma porta de entrada controlada pelo hospedeiro no endereço `0xEE` e um latch de saída em `0xEF`. Eles são acessados por instruções comuns `LDA` e `STA`, pois a CPU decodifica esses endereços como E/S mapeada em memória.
 
+O simulador também oferece um monitor interativo de terminal. Ele pode executar o programa embutido ou um programa carregado de arquivo uma instrução por vez, inspecionar o estado da CPU e a memória mapeada, substituir o programa atual, gerenciar breakpoints no hospedeiro e ativar ou desativar o rastreamento de instruções sem reiniciar o processo.
+
 O módulo compartilhado `instruction_set` é o responsável pelas definições de `Opcode` e por uma tabela de metadados somente para leitura que associa cada byte de opcode suportado ao seu mnemônico Assembly. A busca recebe um `uint8_t` bruto porque a memória pode conter qualquer byte; ela retorna um ponteiro para os metadados de um opcode reconhecido ou um ponteiro nulo para um valor desconhecido.
 
 O montador atualmente implementa:
@@ -867,7 +869,84 @@ make trace-bin
 
 As formas diretas `./build/vm8 run <program.bin>` e `./build/vm8 trace <program.bin>` utilizam o mesmo caminho de binário externo sem executar primeiro o montador. As duas aceitam uma opção final `--input <byte>`. O simulador não sabe se esse arquivo veio de `vm8asm`, de outra ferramenta ou da inserção manual de bytes; ele enxerga somente os bytes. A diferença é se `main.c` fornece um observador de rastreamento ao laço de execução da CPU.
 
-O teste de processo em Bash exercita essa interface pública em vez de chamar diretamente as funções C. Ele verifica a execução normal de um binário externo, o rastreamento da demonstração embutida, o rastreamento do binário externo, a transferência da entrada para a saída, as duas formas numéricas da entrada e cinco falhas esperadas: valor de entrada inválido, arquivo inexistente, arquivo vazio, arquivo de 239 bytes e arquivo contendo o opcode inválido `0xFF`. Cada falha precisa retornar um status de processo diferente de zero e colocar o diagnóstico esperado em `stderr`; a execução bem-sucedida precisa colocar o estado esperado da CPU ou a entrada esperada do rastreamento em `stdout`.
+O teste de processo em Bash exercita essa interface pública em vez de chamar diretamente as funções C. Ele verifica a execução normal de um binário externo, o rastreamento da demonstração embutida, o rastreamento do binário externo, a transferência da entrada para a saída, uma sessão interativa com breakpoint e execução passo a passo, as duas formas numéricas da entrada e cinco falhas esperadas: valor de entrada inválido, arquivo inexistente, arquivo vazio, arquivo de 239 bytes e arquivo contendo o opcode inválido `0xFF`. Cada falha precisa retornar um status de processo diferente de zero e colocar o diagnóstico esperado em `stderr`; a execução bem-sucedida precisa colocar o estado esperado da CPU ou a entrada esperada do rastreamento em `stdout`.
+
+## Monitor interativo de terminal
+
+Os modos `run` e `trace`, que executam uma única tarefa e encerram, são úteis para automação. O monitor acrescenta um laço de comandos no hospedeiro para inspecionar e controlar um processo VM8 em execução:
+
+```bash
+make monitor
+make monitor-bin
+./build/vm8 monitor path/to/program.bin
+```
+
+`make monitor` inicia com a demonstração embutida. `make monitor-bin` primeiro monta `programs/demo.asm` e inicia com `build/demo.bin`. O comando direto aceita qualquer binário bruto compatível. Em todos os casos, `main.c` seleciona e carrega o programa inicial antes de entregar o controle ao módulo dedicado do monitor.
+
+Os comandos do monitor são:
+
+| Comando | Efeito |
+| --- | --- |
+| `help` | Exibe a lista completa de comandos do monitor. |
+| `registers` | Exibe registradores, `SP`, portas, flags, `PC` e o contador de ciclos. |
+| `step` | Tenta executar exatamente uma instrução e exibe o resultado e o estado produzido da CPU. |
+| `run` | Continua até `HALT`, opcode inválido, erro de pilha, limite de instruções ou breakpoint. |
+| `reset` | Zera o estado da CPU e recarrega a imagem atual do programa no endereço zero. |
+| `input <byte>` | Define a porta de entrada virtual usando um byte decimal ou hexadecimal estrito com prefixo `0x`. |
+| `memory <address> [count]` | Exibe bytes a partir de um endereço de 8 bits; omitir `count` exibe 16 bytes. |
+| `load <program.bin>` | Lê um novo binário não vazio, torna-o o programa atual, reinicia a CPU e o carrega. |
+| `trace` | Informa se o rastreamento do monitor está ativado ou desativado. |
+| `trace on` / `trace off` | Ativa ou desativa uma entrada de rastreamento para cada instrução tentada por `run` ou `step`. |
+| `breakpoint add <address>` | Adiciona um endereço de parada mantido pelo hospedeiro. |
+| `breakpoint remove <address>` | Remove um endereço de parada. |
+| `breakpoint list` | Lista os endereços de parada ativos em ordem crescente. |
+| `breakpoint clear` | Remove todos os endereços de parada. |
+| `quit` | Encerra a sessão do monitor com sucesso. |
+
+### Imagem atual do programa e reset
+
+O `Program` entregue ao monitor pode apontar para dados pertencentes a outro módulo ou para um buffer temporário de `main.c`. Por isso, o monitor copia os bytes iniciais para seu próprio vetor de capacidade fixa. Um `reset` zera a CPU, recarrega essa imagem salva e devolve `PC` e o contador de ciclos a zero.
+
+`load` utiliza primeiro um buffer separado para o candidato. Somente uma leitura bem-sucedida, não vazia e dentro da capacidade substitui a imagem salva. Se o caminho não existir, o arquivo estiver vazio ou o binário for grande demais, o monitor informa o erro e preserva o programa que já estava carregado. Esse é um pequeno padrão transacional: validar a substituição proposta antes de alterar o estado atual.
+
+Reiniciar ou carregar zera o estado pertencente à CPU, como registradores, flags, portas, estado da pilha e contador de ciclos. Isso não limpa a opção de rastreamento nem a tabela de breakpoints do monitor, pois essas são configurações de depuração do hospedeiro, e não estado da CPU.
+
+### Inspeção de memória
+
+`memory` interpreta seu endereço com o mesmo conversor estrito de bytes usado pela interface de linha de comando. O `count` opcional precisa estar entre 1 e 255. As leituras passam por `cpu_read_memory`, então os endereços `0xEE` e `0xEF` mostram as portas atuais de entrada e saída em vez de bytes ocultos da RAM.
+
+A exibição nunca dá a volta de `0xFF` para `0x00`. Por exemplo, `memory 0xFE 4` pode exibir somente os dois endereços existentes `0xFE` e `0xFF`. Limitar a contagem no fim do espaço de endereços impede que um comando conveniente de inspeção apresente por engano memória que deu a volta como se fosse um trecho contínuo.
+
+### Breakpoints, execução passo a passo e rastreamento
+
+Os breakpoints são armazenados em uma tabela de 256 valores booleanos no processo hospedeiro. O índice `0x04`, por exemplo, responde se a execução deve parar quando `PC == 0x04`. A tabela não consome nenhum byte da memória VM8 e não pode ser sobrescrita por uma instrução VM8 `STA`.
+
+`run` verifica um breakpoint antes de executar a instrução atual e novamente depois que cada instrução bem-sucedida avança ou altera `PC`. Portanto, alcançar um breakpoint significa que a instrução marcada ainda não foi executada. `step` ignora breakpoints de propósito, permitindo executar essa instrução pendente sem remover primeiro o breakpoint. O breakpoint continua disponível se a execução voltar depois ao mesmo endereço.
+
+A demonstração embutida mostra essa diferença porque sua instrução `SUB A, B` começa em `0x04`:
+
+```text
+vm8> breakpoint add 0x04
+Breakpoint added at 0x04.
+vm8> trace on
+Trace enabled.
+vm8> run
+Execution trace:
+  ADDR=0x00 OP=0x10 MNEMONIC=LDI ...
+  ADDR=0x02 OP=0x11 MNEMONIC=LDI ...
+Breakpoint reached at 0x04.
+...
+Program counter: 4
+Cycle count: 2
+vm8> step
+Execution trace:
+  ADDR=0x04 OP=0x21 MNEMONIC=SUB ...
+Step result: ok
+```
+
+As duas instruções `LDI` foram executadas, então `PC` chegou ao valor decimal 4 depois de dois ciclos. `SUB` só foi executada após `step`. Com o rastreamento ativado, `run` exibe um cabeçalho seguido por todas as instruções tentadas naquela execução, enquanto `step` exibe um cabeçalho e sua única instrução tentada. Um `step` solicitado depois de `HALT` ainda informa o estado halted, mas não produz uma entrada falsa de rastreamento, pois nenhuma instrução foi tentada.
+
+O monitor mantém a mesma garantia de execução limitada do executor que encerra após uma tarefa. Um programa que nunca para e nunca alcança um breakpoint devolve o controle depois de, no máximo, `CPU_MEMORY_SIZE` instruções tentadas, em vez de prender o usuário em um comando infinito.
 
 ## Responsabilidades atuais dos módulos
 
@@ -876,10 +955,13 @@ O teste de processo em Bash exercita essa interface pública em vez de chamar di
 | `include/instruction_set.h`, `src/instruction_set.c` | Definições compartilhadas dos opcodes e busca somente para leitura de um byte bruto de opcode para seus metadados. |
 | `include/cpu.h`, `src/cpu.c` | Estado da CPU, memória comum, E/S mapeada em memória, operações de pilha, busca, decodificação, execução, carregamento limitado do programa, execução limitada e entrega opcional de cada passo a um observador. |
 | `include/cpu_trace.h`, `src/cpu_trace.c` | Formatação legível dos estados da CPU após cada instrução, incluindo `SP`, `IN`, `OUT` e erros da pilha. |
+| `include/cpu_state.h`, `src/cpu_state.c` | Formatação reutilizável de todo o estado visível da CPU para a execução normal e os comandos do monitor. |
+| `include/byte_value.h`, `src/byte_value.c` | Conversão estrita de um argumento do hospedeiro em decimal ou hexadecimal com prefixo `0x` para um byte. |
+| `include/monitor.h`, `src/monitor.c` | Laço interativo de comandos, imagem salva do programa, controle da CPU, inspeção de memória, substituição do binário, estado do rastreamento e breakpoints no hospedeiro. |
 | `include/program.h`, `src/program.c` | Descritor imutável e bytecode atual da demonstração embutida. |
 | `include/binary_reader.h`, `src/binary_reader.c` | Entrada limitada de binário bruto com validação de abertura, leitura, tamanho e fechamento. |
-| `include/cli.h`, `src/cli.c` | Seleção da execução embutida ou do binário externo, interpretação estrita da entrada virtual, rastreamento opcional e apresentação da ajuda. |
-| `src/main.c` | Seleção da origem do programa, aplicação da entrada do hospedeiro, conexão opcional do observador, orquestração geral do simulador e apresentação do estado final. |
+| `include/cli.h`, `src/cli.c` | Seleção da execução única ou pelo monitor com programa embutido ou externo, rastreamento e entrada opcionais e apresentação da ajuda. |
+| `src/main.c` | Seleção da origem do programa, aplicação da entrada do hospedeiro, conexão opcional do observador ou do monitor, orquestração geral do simulador e apresentação do estado final. |
 | `assembler/source_line.*` | Remoção de comentários e normalização de espaços. |
 | `assembler/source_reader.*` | Leitura limitada do arquivo e entrega por callback com localização no código-fonte. |
 | `assembler/symbol_table.*` | Associação dos nomes dos símbolos a endereços de labels ou valores constantes de 8 bits. |
@@ -963,6 +1045,26 @@ Rastreie diretamente um binário compatível já existente:
 ./build/vm8 trace path/to/program.bin --input 165
 ```
 
+Abra o monitor de terminal com a demonstração embutida:
+
+```bash
+make monitor
+```
+
+Monte a demonstração Assembly e abra-a no monitor:
+
+```bash
+make monitor-bin
+```
+
+Abra no monitor um binário compatível que já exista:
+
+```bash
+./build/vm8 monitor path/to/program.bin
+```
+
+Execute `help` no prompt `vm8>` para exibir toda a sintaxe interativa.
+
 ```bash
 make help
 ```
@@ -973,7 +1075,7 @@ Exibe os comandos do simulador e a referência das instruções.
 make test
 ```
 
-Monta a demonstração e executa todos os testes unitários, de integração e de processo automatizados. Testes dedicados verificam todas as associações atuais entre opcode e mnemônico, a rejeição de um opcode desconhecido, a entrega ao observador, a formatação exata do rastreamento, os limites do mapa de memória, a direção das portas, a reinicialização das portas e a interpretação estrita da entrada pela CLI. O teste do programa montado lê `build/demo.bin`, carrega-o na memória da CPU, executa-o e verifica os registradores, as flags, o contador de programa, o contador de ciclos e o dado armazenado esperados. Em seguida, `tests/test_vm8_process.sh` inicia o executável real e verifica a execução normal, os dois modos de rastreamento, a transferência real da entrada para a saída, uma entrada inválida e falhas de arquivos binários.
+Monta a demonstração e executa todos os testes unitários, de integração e de processo automatizados. Testes dedicados verificam todas as associações atuais entre opcode e mnemônico, a rejeição de um opcode desconhecido, a entrega ao observador, a formatação exata do rastreamento e do estado da CPU, os limites do mapa de memória, a direção das portas, a reinicialização das portas, a interpretação estrita de bytes do hospedeiro, a seleção pela CLI e o laço de comandos do monitor. Os testes do monitor cobrem execução passo a passo, execução limitada, reset, exibição da memória mapeada sem dar a volta nos endereços, substituição segura do binário, persistência dos breakpoints e do estado do rastreamento, argumentos inválidos, fim de arquivo e entrada longa demais. O teste do programa montado lê `build/demo.bin`, carrega-o na memória da CPU, executa-o e verifica os registradores, as flags, o contador de programa, o contador de ciclos e o dado armazenado esperados. Em seguida, `tests/test_vm8_process.sh` inicia o executável real e verifica a execução normal, os dois modos de rastreamento que encerram após uma tarefa, a transferência real da entrada para a saída, uma sessão interativa com breakpoint e execução passo a passo, uma entrada inválida e falhas de arquivos binários.
 
 ```bash
 make assembler
@@ -1057,6 +1159,10 @@ make inspect
 - Programas embutidos e carregados de arquivo utilizam as mesmas funções de carregamento e execução da CPU.
 - Um observador recebe o endereço e o opcode anteriores a um passo junto com o estado da CPU posterior a esse passo.
 - O rastreamento é uma camada de apresentação sobre a execução da CPU; o núcleo da CPU não imprime nada por conta própria.
+- O monitor também é software do hospedeiro; o texto dos comandos, a imagem salva do programa, a opção de rastreamento e a tabela de breakpoints não consomem memória VM8.
+- `run` para antes de executar um endereço com breakpoint, enquanto `step` executa de propósito a instrução atual mesmo quando esse endereço continua marcado.
+- `reset` e um `load` bem-sucedido no monitor substituem o estado da CPU, mas preservam as configurações de depuração; um `load` que falha também preserva a imagem atual do programa.
+- A inspeção da memória utiliza a decodificação de endereços da CPU e para em `0xFF`, portanto revela as portas mapeadas sem dar a volta até o endereço zero.
 - A CPU finalmente executa somente uma sequência de bytes, independentemente da origem desses bytes.
 - Testes unitários validam funções isoladamente, enquanto o teste de processo em Bash valida o programa compilado por meio de sua interface pública de linha de comando.
 - `PC` mede endereços de bytes, enquanto o contador simplificado de ciclos mede instruções tentadas.

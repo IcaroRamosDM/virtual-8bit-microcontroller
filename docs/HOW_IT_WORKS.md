@@ -34,6 +34,8 @@ The CPU now has a 16-byte downward-growing stack. `PUSH A` and `POP A` transfer 
 
 The CPU also has one host-controlled input port at address `0xEE` and one output latch at `0xEF`. They are accessed through normal `LDA` and `STA` instructions because the CPU decodes those addresses as memory-mapped I/O.
 
+The simulator also provides an interactive terminal monitor. It can run the built-in or a file-loaded program one instruction at a time, inspect CPU state and mapped memory, replace the current program, manage host-side breakpoints, and enable or disable instruction tracing without restarting the process.
+
 The shared `instruction_set` module owns the `Opcode` definitions and a read-only metadata table that maps every supported opcode byte to its Assembly mnemonic. A lookup receives a raw `uint8_t` because memory may contain any byte; it returns a metadata pointer for a recognized opcode or a null pointer for an unknown value.
 
 The assembler currently implements:
@@ -867,7 +869,84 @@ make trace-bin
 
 The direct forms `./build/vm8 run <program.bin>` and `./build/vm8 trace <program.bin>` use the same external-binary path without first invoking the assembler. Both accept a final `--input <byte>` option. The simulator does not know whether the file came from `vm8asm`, another tool, or manual byte entry; it sees only the bytes. The difference is whether `main.c` gives the CPU run loop a trace observer.
 
-The process-level Bash test exercises this public interface instead of calling C functions directly. It verifies normal external-binary execution, built-in tracing, external-binary tracing, input-to-output transfer, both numeric input forms, and five expected failures: an invalid input value, a missing file, an empty file, a 239-byte file, and a file containing the invalid opcode `0xFF`. Each failure must return a nonzero process status and place the expected diagnostic on `stderr`; successful execution must place the expected CPU state or trace entry on `stdout`.
+The process-level Bash test exercises this public interface instead of calling C functions directly. It verifies normal external-binary execution, built-in tracing, external-binary tracing, input-to-output transfer, an interactive breakpoint-and-step session, both numeric input forms, and five expected failures: an invalid input value, a missing file, an empty file, a 239-byte file, and a file containing the invalid opcode `0xFF`. Each failure must return a nonzero process status and place the expected diagnostic on `stderr`; successful execution must place the expected CPU state or trace entry on `stdout`.
+
+## Interactive terminal monitor
+
+The one-shot `run` and `trace` modes are useful for automated execution. The monitor adds a host-side command loop for inspecting and controlling a running VM8 process:
+
+```bash
+make monitor
+make monitor-bin
+./build/vm8 monitor path/to/program.bin
+```
+
+`make monitor` starts with the built-in demonstration. `make monitor-bin` first assembles `programs/demo.asm` and starts with `build/demo.bin`. The direct command accepts any compatible raw binary. In every case, `main.c` selects and loads the initial program before handing control to the dedicated monitor module.
+
+The monitor commands are:
+
+| Command | Effect |
+| --- | --- |
+| `help` | Print the complete monitor command list. |
+| `registers` | Print registers, `SP`, ports, flags, `PC`, and the cycle count. |
+| `step` | Attempt exactly one instruction and print the result and resulting CPU state. |
+| `run` | Continue until `HALT`, an invalid opcode, a stack error, the instruction limit, or a breakpoint. |
+| `reset` | Clear CPU state and reload the current program image at address zero. |
+| `input <byte>` | Set the virtual input port using a strict decimal or `0x` hexadecimal byte. |
+| `memory <address> [count]` | Display bytes beginning at an 8-bit address; omitting `count` displays 16 bytes. |
+| `load <program.bin>` | Read a new nonempty binary, make it current, reset the CPU, and load it. |
+| `trace` | Report whether monitor tracing is on or off. |
+| `trace on` / `trace off` | Enable or disable a trace entry for each instruction attempted by `run` or `step`. |
+| `breakpoint add <address>` | Add a host-side stop address. |
+| `breakpoint remove <address>` | Remove one host-side stop address. |
+| `breakpoint list` | List active stop addresses in ascending order. |
+| `breakpoint clear` | Remove every stop address. |
+| `quit` | End the monitor session successfully. |
+
+### Current program image and reset
+
+The `Program` passed into the monitor may point to data owned by another module or to a temporary buffer in `main.c`. The monitor therefore copies the initial bytes into its own fixed-capacity array. A `reset` clears the CPU, reloads that saved image, and returns `PC` and the cycle count to zero.
+
+`load` uses a separate candidate buffer first. Only a successful, nonempty, in-capacity read replaces the saved image. If the path is missing, the file is empty, or the binary is too large, the monitor reports the error and preserves the program that was already loaded. This is a small transactional pattern: validate the proposed replacement before changing the current state.
+
+Resetting or loading clears CPU-owned state such as registers, flags, ports, stack state, and the cycle counter. It does not clear the monitor's trace toggle or breakpoint table, because those are host-side debugging settings rather than CPU state.
+
+### Memory inspection
+
+`memory` parses its address with the same strict byte-value parser used by the command-line interface. The optional count must be from 1 through 255. Reads go through `cpu_read_memory`, so addresses `0xEE` and `0xEF` show the current input and output ports rather than hidden RAM bytes.
+
+The display never wraps from `0xFF` back to `0x00`. For example, `memory 0xFE 4` can print only the two existing addresses `0xFE` and `0xFF`. Clamping the count at the end of the address space prevents a convenient inspection command from accidentally presenting wrapped memory as contiguous data.
+
+### Breakpoints, stepping, and tracing
+
+Breakpoints are stored as a 256-element Boolean table in the host process. Index `0x04`, for example, answers whether execution should stop when `PC == 0x04`. The table consumes no byte in VM8 memory and cannot be overwritten by a VM8 `STA` instruction.
+
+`run` checks for a breakpoint before executing the current instruction and again after each successful instruction advances or changes `PC`. Therefore, reaching a breakpoint means that the marked instruction has not run yet. `step` deliberately ignores breakpoints, allowing the user to execute that pending instruction without first removing the breakpoint. The breakpoint remains available if execution later returns to the same address.
+
+The built-in demonstration illustrates this distinction because its `SUB A, B` instruction begins at `0x04`:
+
+```text
+vm8> breakpoint add 0x04
+Breakpoint added at 0x04.
+vm8> trace on
+Trace enabled.
+vm8> run
+Execution trace:
+  ADDR=0x00 OP=0x10 MNEMONIC=LDI ...
+  ADDR=0x02 OP=0x11 MNEMONIC=LDI ...
+Breakpoint reached at 0x04.
+...
+Program counter: 4
+Cycle count: 2
+vm8> step
+Execution trace:
+  ADDR=0x04 OP=0x21 MNEMONIC=SUB ...
+Step result: ok
+```
+
+The two `LDI` instructions ran, so `PC` reached decimal 4 after two cycles. `SUB` did not run until `step`. With tracing enabled, `run` prints one header followed by all attempted instructions in that run, while `step` prints a header and its single attempted instruction. A `step` attempted after `HALT` still reports the halted state but emits no false trace entry, because no instruction was attempted.
+
+The monitor retains the same bounded-execution guarantee as the one-shot runner. A program that never halts and never reaches a breakpoint returns control after at most `CPU_MEMORY_SIZE` attempted instructions instead of trapping the user in an endless command.
 
 ## Current module responsibilities
 
@@ -876,10 +955,13 @@ The process-level Bash test exercises this public interface instead of calling C
 | `include/instruction_set.h`, `src/instruction_set.c` | Shared opcode definitions and read-only lookup from a raw opcode byte to instruction metadata. |
 | `include/cpu.h`, `src/cpu.c` | CPU state, ordinary memory, memory-mapped I/O, stack operations, fetching, decoding, execution, bounded program loading, bounded running, and optional per-step observer delivery. |
 | `include/cpu_trace.h`, `src/cpu_trace.c` | Human-readable formatting of post-instruction CPU snapshots, including `SP`, `IN`, `OUT`, and stack errors. |
+| `include/cpu_state.h`, `src/cpu_state.c` | Reusable formatting of the complete visible CPU state for normal execution and monitor commands. |
+| `include/byte_value.h`, `src/byte_value.c` | Strict conversion of a decimal or `0x` hexadecimal host-side argument into one byte. |
+| `include/monitor.h`, `src/monitor.c` | Interactive command loop, saved program image, CPU control, memory inspection, binary replacement, trace state, and host-side breakpoints. |
 | `include/program.h`, `src/program.c` | Immutable descriptor and current built-in demonstration bytecode. |
 | `include/binary_reader.h`, `src/binary_reader.c` | Bounded raw-binary input with open, read, size, and close validation. |
-| `include/cli.h`, `src/cli.c` | Selection of built-in or external-binary execution, strict virtual-input parsing, optional tracing, and help presentation. |
-| `src/main.c` | Program-source selection, host-input application, optional observer wiring, high-level simulator orchestration, and final state presentation. |
+| `include/cli.h`, `src/cli.c` | Selection of one-shot or monitor execution with a built-in or external program, optional tracing and input, and help presentation. |
+| `src/main.c` | Program-source selection, host-input application, optional observer or monitor wiring, high-level simulator orchestration, and final state presentation. |
 | `assembler/source_line.*` | Comment removal and whitespace normalization. |
 | `assembler/source_reader.*` | Bounded file reading and callback delivery with source locations. |
 | `assembler/symbol_table.*` | Mapping symbol names to 8-bit label addresses or constant values. |
@@ -963,6 +1045,26 @@ Trace an already existing compatible binary directly:
 ./build/vm8 trace path/to/program.bin --input 165
 ```
 
+Open the terminal monitor with the built-in demonstration:
+
+```bash
+make monitor
+```
+
+Assemble the Assembly demonstration and open it in the monitor:
+
+```bash
+make monitor-bin
+```
+
+Open an already existing compatible binary in the monitor:
+
+```bash
+./build/vm8 monitor path/to/program.bin
+```
+
+Run `help` at the `vm8>` prompt to display the complete interactive syntax.
+
 ```bash
 make help
 ```
@@ -973,7 +1075,7 @@ Displays simulator commands and the instruction reference.
 make test
 ```
 
-Assembles the demonstration and runs all automated unit, integration, and process-level tests. Dedicated tests verify every current opcode-to-mnemonic mapping, rejection of an unknown opcode, observer delivery, exact trace formatting, memory-map boundaries, port direction, port reset, and strict CLI input parsing. The assembled-program test reads `build/demo.bin`, loads it into CPU memory, executes it, and verifies the expected registers, flags, program counter, cycle count, and stored data. `tests/test_vm8_process.sh` then launches the real executable and checks normal execution, both trace modes, real input-to-output transfer, invalid input, and binary-file failures.
+Assembles the demonstration and runs all automated unit, integration, and process-level tests. Dedicated tests verify every current opcode-to-mnemonic mapping, rejection of an unknown opcode, observer delivery, exact trace and CPU-state formatting, memory-map boundaries, port direction, port reset, strict host-byte parsing, CLI selection, and the monitor command loop. Monitor tests cover stepping, bounded running, reset, mapped-memory display without wraparound, safe binary replacement, persistent breakpoints and trace state, invalid arguments, end-of-file, and overlong input. The assembled-program test reads `build/demo.bin`, loads it into CPU memory, executes it, and verifies the expected registers, flags, program counter, cycle count, and stored data. `tests/test_vm8_process.sh` then launches the real executable and checks normal execution, both one-shot trace modes, real input-to-output transfer, an interactive breakpoint-and-step session, invalid input, and binary-file failures.
 
 ```bash
 make assembler
@@ -1057,6 +1159,10 @@ make inspect
 - Built-in and file-loaded programs use the same CPU loading and execution functions.
 - An observer receives the instruction address and opcode from before a step together with the CPU state from after that step.
 - The trace is presentation layered on top of CPU execution; the CPU core does not print anything itself.
+- The monitor is also host-side software; its command text, saved program image, trace toggle, and breakpoint table do not consume VM8 memory.
+- `run` stops before executing an address with a breakpoint, while `step` intentionally executes the current instruction even when that address remains marked.
+- Monitor `reset` and successful `load` replace CPU state but preserve debugging settings; a failed `load` preserves the current program image as well.
+- Memory inspection uses CPU address decoding and clamps at `0xFF`, so it reveals mapped ports without wrapping into address zero.
 - The CPU ultimately executes only a byte sequence, regardless of where those bytes originated.
 - Unit tests validate functions in isolation, while the Bash process test validates the compiled program through its public command-line interface.
 - `PC` measures byte addresses, while the simplified cycle counter measures attempted instructions.

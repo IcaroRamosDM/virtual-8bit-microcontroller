@@ -239,6 +239,69 @@ static void test_accepts_trace_modes(void)
   assert_zero_input(&binary_options);
 }
 
+static void test_accepts_monitor_modes(void)
+{
+  char monitor_command[] = "monitor";
+  char binary_path[] = "build/demo.bin";
+
+  const CliOptions built_in_options =
+    parse_one_argument(monitor_command);
+
+  const CliOptions binary_options =
+    parse_two_arguments(
+      monitor_command,
+      binary_path
+    );
+
+  assert(
+    built_in_options.command ==
+    CLI_COMMAND_MONITOR_DEMO
+  );
+
+  assert(built_in_options.binary_path == NULL);
+  assert(!built_in_options.trace_enabled);
+  assert_zero_input(&built_in_options);
+
+  assert(
+    binary_options.command ==
+    CLI_COMMAND_MONITOR_BINARY
+  );
+
+  assert(binary_options.binary_path != NULL);
+
+  assert(
+    strcmp(binary_options.binary_path, binary_path) ==
+    0
+  );
+
+  assert(!binary_options.trace_enabled);
+  assert_zero_input(&binary_options);
+}
+
+static void test_rejects_invalid_monitor_layouts(void)
+{
+  char monitor_command[] = "monitor";
+  char input_option[] = "--input";
+  char binary_path[] = "build/demo.bin";
+  char extra_argument[] = "extra";
+
+  const CliOptions input_options =
+    parse_two_arguments(
+      monitor_command,
+      input_option
+    );
+
+  const CliOptions extra_options =
+    parse_three_arguments(
+      monitor_command,
+      binary_path,
+      extra_argument
+    );
+
+  assert_invalid_options(&input_options);
+  assert_invalid_options(&extra_options);
+}
+
 static void test_accepts_input_values(void)
 {
   char run_command[] = "run";
@@ -465,6 +528,8 @@ int main(void)
   test_accepts_run_alias();
   test_accepts_binary_program_path();
   test_accepts_trace_modes();
+  test_accepts_monitor_modes();
+  test_rejects_invalid_monitor_layouts();
   test_accepts_input_values();
   test_rejects_invalid_input_values();
   test_rejects_invalid_argument_layouts();

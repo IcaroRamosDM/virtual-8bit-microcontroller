@@ -34,6 +34,9 @@ The initial CPU model contains:
 - bounded program execution with explicit termination results;
 - an optional per-instruction observer that receives post-execution CPU snapshots;
 - a human-readable execution trace for built-in and file-loaded programs;
+- a reusable CPU-state formatter shared by normal execution and the monitor;
+- a shared strict 8-bit value parser for command-line and monitor input;
+- an interactive terminal monitor for stepping, running, inspecting state and memory, loading binaries, managing breakpoints, and toggling traces;
 - shared instruction-set metadata that maps raw opcode bytes to decoded mnemonics;
 - an immutable bytecode-program descriptor that keeps its byte pointer and size together;
 - a dedicated module for the built-in demonstration bytecode;
@@ -161,13 +164,76 @@ An arbitrary compatible binary can be selected with `./build/vm8 run <program.bi
 
 ## Project structure
 
-- `src/`: CPU, trace formatter, CLI, binary reader, built-in program, and simulator-entry-point implementations.
+- `src/`: CPU, state and trace formatters, monitor, CLI, binary reader, built-in program, and simulator-entry-point implementations.
 - `include/`: public C headers.
 - `assembler/`: standalone assembler implementation.
 - `programs/`: programs written in the custom Assembly language, including the current demonstration source.
 - `tests/`: automated C unit and integration tests plus Bash process-level tests.
 - `build/`: ignored generated files.
 - `Makefile`: build automation.
+
+## Interactive monitor
+
+Open the monitor with the built-in demonstration:
+
+```bash
+make monitor
+```
+
+Assemble `programs/demo.asm` and open the monitor with the generated binary:
+
+```bash
+make monitor-bin
+```
+
+Open any compatible binary directly:
+
+```bash
+./build/vm8 monitor path/to/program.bin
+```
+
+The monitor accepts the following commands:
+
+| Command | Purpose |
+| --- | --- |
+| `help` | Show the command list and syntax. |
+| `registers` | Show registers, flags, ports, program counter, and cycle count. |
+| `step` | Execute exactly one instruction, even when the current address has a breakpoint. |
+| `run` | Continue until `HALT`, an execution error, the instruction limit, or a breakpoint. |
+| `reset` | Reset the CPU and reload the current program image. |
+| `input <byte>` | Set the virtual input port with a decimal or `0x` hexadecimal byte. |
+| `memory <address> [count]` | Read memory and memory-mapped I/O; the default count is 16 bytes. |
+| `load <program.bin>` | Replace the current program with a valid nonempty binary and reset the CPU. |
+| `trace` | Show whether interactive tracing is enabled. |
+| `trace on` / `trace off` | Enable or disable a trace entry for each attempted instruction. |
+| `breakpoint add <address>` | Stop before executing the instruction at an 8-bit address. |
+| `breakpoint remove <address>` | Remove one breakpoint. |
+| `breakpoint list` | List active breakpoints in ascending address order. |
+| `breakpoint clear` | Remove every breakpoint. |
+| `quit` | Leave the monitor. |
+
+For example, address `0x04` contains `SUB A, B` in the built-in demonstration:
+
+```text
+vm8> breakpoint add 0x04
+Breakpoint added at 0x04.
+vm8> trace on
+Trace enabled.
+vm8> run
+Execution trace:
+  ADDR=0x00 OP=0x10 MNEMONIC=LDI ...
+  ADDR=0x02 OP=0x11 MNEMONIC=LDI ...
+Breakpoint reached at 0x04.
+...
+Program counter: 4
+Cycle count: 2
+vm8> step
+Execution trace:
+  ADDR=0x04 OP=0x21 MNEMONIC=SUB ...
+Step result: ok
+```
+
+The breakpoint stops `run` before `SUB` executes. The following `step` deliberately ignores that breakpoint, executes the instruction, and leaves the breakpoint installed. Trace state and breakpoints also survive `reset` and a successful `load`; they belong to the host-side monitor and consume no VM8 memory. A failed or empty `load` preserves the previous program image.
 
 ## Build
 
@@ -248,11 +314,12 @@ Run the automated tests:
 make test
 ```
 
-The test target assembles `programs/demo.asm` and then builds and runs independent tests for the CPU, CPU observer, instruction-set lookup, trace formatter, CLI, built-in program, binary reader, assembled-program execution, source normalization and reading, symbol table, first pass, byte parsing and resolution, instruction parser and encoder, second pass, and binary writer.
+The test target assembles `programs/demo.asm` and then builds and runs independent tests for the CPU, CPU observer, instruction-set lookup, trace formatter, CPU-state formatter, monitor, shared byte-value parser, CLI, built-in program, binary reader, assembled-program execution, source normalization and reading, symbol table, first pass, byte parsing and resolution, instruction parser and encoder, second pass, and binary writer.
 The CPU tests cover arithmetic, logical operations, unary bit inversion, shifted-out carry bits, nondestructive comparison, every taken and non-taken conditional branch, stack ordering and boundaries, nested subroutine calls and returns, stack error propagation through `CALL` and `RET`, memory-mapped port direction and reset behavior, zero results, and a `JMP`-to-zero loop that verifies bounded execution stops at the configured instruction limit.
 The program-integration test loads and executes the built-in demonstration, then verifies its complete final CPU state and the value stored at data address `0x80`.
 The assembled-program integration test reads `build/demo.bin`, loads it into CPU memory, executes it, verifies the same final CPU state, and checks both the embedded byte at `0x12` and the copied value at `0x80`. This confirms that the human-readable Assembly source and built-in byte array describe behaviorally equivalent programs even though their byte sequences differ.
-The Bash process test launches `build/vm8` exactly as a user would and verifies normal external-binary execution, both trace modes, a five-byte input-to-output program, decimal and hexadecimal host input, invalid input rejection, and the expected failure behavior for a missing file, an empty file, an oversized file, and an invalid opcode.
+The monitor tests verify its command loop, CPU control, memory inspection without address wraparound, program replacement and preservation, breakpoints, interactive tracing, invalid arguments, end-of-file handling, and overlong commands.
+The Bash process test launches `build/vm8` exactly as a user would and verifies normal external-binary execution, both one-shot trace modes, a five-byte input-to-output program, an interactive breakpoint-and-step session, decimal and hexadecimal host input, invalid input rejection, and the expected failure behavior for a missing file, an empty file, an oversized file, and an invalid opcode.
 
 Display simulator and instruction help:
 
