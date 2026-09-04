@@ -1,4 +1,3 @@
-#include <inttypes.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -10,6 +9,8 @@
 #include "cpu.h"
 #include "program.h"
 #include "cpu_trace.h"
+#include "cpu_state.h"
+#include "monitor.h"
 
 int main(int argument_count, char *arguments[])
 {
@@ -22,6 +23,8 @@ int main(int argument_count, char *arguments[])
   {
     case CLI_COMMAND_RUN_DEMO:
     case CLI_COMMAND_RUN_BINARY:
+    case CLI_COMMAND_MONITOR_DEMO:
+    case CLI_COMMAND_MONITOR_BINARY:
       break;
 
     case CLI_COMMAND_HELP:
@@ -36,11 +39,19 @@ int main(int argument_count, char *arguments[])
       return EXIT_FAILURE;
   }
 
+  const bool binary_program_selected =
+    (options.command == CLI_COMMAND_RUN_BINARY) ||
+    (options.command == CLI_COMMAND_MONITOR_BINARY);
+
+  const bool monitor_selected =
+    (options.command == CLI_COMMAND_MONITOR_DEMO) ||
+    (options.command == CLI_COMMAND_MONITOR_BINARY);
+
   uint8_t binary_bytes[CPU_PROGRAM_MEMORY_SIZE] = {0};
   size_t binary_size = 0;
   Program program = program_get_demo();
 
-  if (options.command == CLI_COMMAND_RUN_BINARY)
+  if (binary_program_selected)
   {
     const bool binary_read_succeeded =
       binary_reader_read(
@@ -92,6 +103,21 @@ int main(int argument_count, char *arguments[])
     options.input_port_value
   );
 
+  if (monitor_selected)
+  {
+    const bool monitor_succeeded = monitor_run(
+      &cpu,
+      program,
+      stdin,
+      stdout,
+      stderr
+    );
+
+    return monitor_succeeded
+      ? EXIT_SUCCESS
+      : EXIT_FAILURE;
+  }
+
   CpuStepObserver observer = NULL;
   void *observer_context = NULL;
 
@@ -138,53 +164,7 @@ int main(int argument_count, char *arguments[])
       return EXIT_FAILURE;
   }
 
-  printf(
-    "Register A: 0x%02X\n",
-    (unsigned int)cpu.register_a
-  );
-
-  printf(
-    "Register B: 0x%02X\n",
-    (unsigned int)cpu.register_b
-  );
-
-  printf(
-     "Stack pointer: 0x%02X\n",
-     (unsigned int)cpu.stack_pointer
-  );
-
-  printf(
-    "Input port: 0x%02X\n",
-    (unsigned int)cpu_read_memory(
-      &cpu,
-      CPU_INPUT_PORT_ADDRESS
-    )
-  );
-
-  printf(
-    "Output port: 0x%02X\n",
-    (unsigned int)cpu_get_output_port(&cpu)
-  );
-
-  printf(
-    "Zero flag: %s\n",
-    cpu.zero_flag ? "set" : "clear"
-  );
-
-  printf(
-    "Carry flag: %s\n",
-    cpu.carry_flag ? "set" : "clear"
-  );
-
-  printf(
-    "Program counter: %" PRIu8 "\n",
-    cpu.program_counter
-  );
-
-  printf(
-    "Cycle count: %" PRIu64 "\n",
-    cpu.cycle_count
-  );
+  cpu_state_print(stdout, &cpu);
 
   return EXIT_SUCCESS;
 }

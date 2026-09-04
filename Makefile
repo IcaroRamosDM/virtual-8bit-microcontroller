@@ -16,6 +16,9 @@ CPU_TEST_TARGET := build/test_cpu
 CPU_OBSERVER_TEST_TARGET := build/test_cpu_observer
 INSTRUCTION_SET_TEST_TARGET := build/test_instruction_set
 CPU_TRACE_TEST_TARGET := build/test_cpu_trace
+CPU_STATE_TEST_TARGET := build/test_cpu_state
+MONITOR_TEST_TARGET := build/test_monitor
+BYTE_VALUE_TEST_TARGET := build/test_byte_value
 CLI_TEST_TARGET := build/test_cli
 PROGRAM_TEST_TARGET := build/test_program
 BINARY_READER_TEST_TARGET := build/test_binary_reader
@@ -35,6 +38,9 @@ TEST_TARGETS := \
 	$(CPU_OBSERVER_TEST_TARGET) \
 	$(INSTRUCTION_SET_TEST_TARGET) \
 	$(CPU_TRACE_TEST_TARGET) \
+	$(CPU_STATE_TEST_TARGET) \
+	$(MONITOR_TEST_TARGET) \
+	$(BYTE_VALUE_TEST_TARGET) \
 	$(CLI_TEST_TARGET) \
 	$(PROGRAM_TEST_TARGET) \
 	$(BINARY_READER_TEST_TARGET) \
@@ -58,7 +64,18 @@ CPU_TEST_SOURCES := src/cpu.c tests/test_cpu.c
 CPU_OBSERVER_TEST_SOURCES := src/cpu.c tests/test_cpu_observer.c
 INSTRUCTION_SET_TEST_SOURCES := src/instruction_set.c tests/test_instruction_set.c
 CPU_TRACE_TEST_SOURCES := src/cpu.c src/cpu_trace.c src/instruction_set.c tests/test_cpu_trace.c
-CLI_TEST_SOURCES := src/cli.c tests/test_cli.c
+CPU_STATE_TEST_SOURCES := src/cpu.c src/cpu_state.c tests/test_cpu_state.c
+MONITOR_TEST_SOURCES := \
+	src/binary_reader.c \
+	src/byte_value.c \
+	src/cpu.c \
+	src/cpu_state.c \
+	src/cpu_trace.c \
+	src/instruction_set.c \
+	src/monitor.c \
+	tests/test_monitor.c
+BYTE_VALUE_TEST_SOURCES := src/byte_value.c tests/test_byte_value.c
+CLI_TEST_SOURCES := src/byte_value.c src/cli.c tests/test_cli.c
 PROGRAM_TEST_SOURCES := src/cpu.c src/program.c tests/test_program.c
 BINARY_READER_TEST_SOURCES := src/binary_reader.c tests/test_binary_reader.c
 ASSEMBLED_PROGRAM_TEST_SOURCES := src/binary_reader.c src/cpu.c tests/test_assembled_program.c
@@ -73,7 +90,7 @@ INSTRUCTION_ENCODER_TEST_SOURCES := assembler/byte_literal.c assembler/byte_oper
 SECOND_PASS_TEST_SOURCES := assembler/byte_literal.c assembler/byte_operand.c assembler/instruction_encoder.c assembler/instruction_parser.c assembler/second_pass.c assembler/symbol_table.c tests/test_second_pass.c
 BINARY_WRITER_TEST_SOURCES := assembler/binary_writer.c tests/test_binary_writer.c
 
-.PHONY: all assembler assemble inspect run run-bin trace trace-bin test help clean
+.PHONY: all assembler assemble inspect run run-bin trace trace-bin monitor monitor-bin test help clean
 
 all: $(TARGET)
 
@@ -109,6 +126,18 @@ $(INSTRUCTION_SET_TEST_TARGET): $(INSTRUCTION_SET_TEST_SOURCES) $(HEADERS)
 $(CPU_TRACE_TEST_TARGET): $(CPU_TRACE_TEST_SOURCES) $(HEADERS)
 	mkdir -p build
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(CPU_TRACE_TEST_SOURCES) -o $(CPU_TRACE_TEST_TARGET)
+
+$(CPU_STATE_TEST_TARGET): $(CPU_STATE_TEST_SOURCES) $(HEADERS)
+	mkdir -p build
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(CPU_STATE_TEST_SOURCES) -o $(CPU_STATE_TEST_TARGET)
+
+$(MONITOR_TEST_TARGET): $(MONITOR_TEST_SOURCES) $(HEADERS)
+	mkdir -p build
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(MONITOR_TEST_SOURCES) -o $(MONITOR_TEST_TARGET)
+
+$(BYTE_VALUE_TEST_TARGET): $(BYTE_VALUE_TEST_SOURCES) $(HEADERS)
+	mkdir -p build
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(BYTE_VALUE_TEST_SOURCES) -o $(BYTE_VALUE_TEST_TARGET)
 
 $(CLI_TEST_TARGET): $(CLI_TEST_SOURCES) $(HEADERS)
 	mkdir -p build
@@ -178,11 +207,20 @@ trace: $(TARGET)
 trace-bin: $(TARGET) assemble
 	./$(TARGET) trace $(ASSEMBLER_DEMO_OUTPUT) --input $(INPUT_VALUE)
 
+monitor: $(TARGET)
+	./$(TARGET) monitor
+
+monitor-bin: $(TARGET) assemble
+	./$(TARGET) monitor $(ASSEMBLER_DEMO_OUTPUT)
+
 test: $(TARGET) assemble $(TEST_TARGETS) $(PROCESS_TEST_SCRIPT)
 	./$(CPU_TEST_TARGET)
 	./$(CPU_OBSERVER_TEST_TARGET)
 	./$(INSTRUCTION_SET_TEST_TARGET)
 	./$(CPU_TRACE_TEST_TARGET)
+	./$(CPU_STATE_TEST_TARGET)
+	./$(MONITOR_TEST_TARGET)
+	./$(BYTE_VALUE_TEST_TARGET)
 	./$(CLI_TEST_TARGET)
 	./$(PROGRAM_TEST_TARGET)
 	./$(BINARY_READER_TEST_TARGET)

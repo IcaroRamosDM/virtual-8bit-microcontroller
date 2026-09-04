@@ -9,8 +9,13 @@ readonly EMPTY_BINARY_PATH="build/test_vm8_empty.bin"
 readonly OVERSIZED_BINARY_PATH="build/test_vm8_oversized.bin"
 readonly INVALID_OPCODE_BINARY_PATH="build/test_vm8_invalid_opcode.bin"
 readonly IO_BINARY_PATH="build/test_vm8_io.bin"
+readonly MONITOR_INPUT_PATH="build/test_vm8_monitor_input.txt"
 readonly STDOUT_PATH="build/test_vm8_stdout.txt"
 readonly STDERR_PATH="build/test_vm8_stderr.txt"
+
+readonly MONITOR_BREAKPOINT_ADDRESS="0x04"
+readonly MONITOR_BREAKPOINT_OPCODE="0x21"
+readonly MONITOR_BREAKPOINT_MNEMONIC="SUB"
 
 readonly VM8_PROGRAM_MEMORY_SIZE=238
 readonly OVERSIZED_BINARY_SIZE=$((VM8_PROGRAM_MEMORY_SIZE + 1))
@@ -23,6 +28,7 @@ cleanup()
     "$OVERSIZED_BINARY_PATH" \
     "$INVALID_OPCODE_BINARY_PATH" \
     "$IO_BINARY_PATH" \
+    "$MONITOR_INPUT_PATH" \
     "$STDOUT_PATH" \
     "$STDERR_PATH"
 }
@@ -110,6 +116,53 @@ expect_success \
   "memory-mapped I/O trace" \
   "ADDR=0x02 OP=0x41 MNEMONIC=STA A=0xA5 B=0x00 SP=0x00 IN=0xA5 OUT=0xA5 Z=0 C=0 NEXT=0x04 CYCLES=2 RESULT=ok" \
   "$VM8_EXECUTABLE" trace "$IO_BINARY_PATH" --input 165
+
+printf '%s\n' \
+  "breakpoint add $MONITOR_BREAKPOINT_ADDRESS" \
+  "trace on" \
+  "run" \
+  "step" \
+  "quit" \
+  > "$MONITOR_INPUT_PATH"
+
+if ! "$VM8_EXECUTABLE" monitor \
+  < "$MONITOR_INPUT_PATH" \
+  > "$STDOUT_PATH" \
+  2> "$STDERR_PATH"
+then
+  printf 'Standard output:\n' >&2
+  cat "$STDOUT_PATH" >&2
+  printf 'Standard error:\n' >&2
+  cat "$STDERR_PATH" >&2
+  fail "interactive monitor returned failure"
+fi
+
+if ! grep -Fq -- \
+  "Breakpoint reached at $MONITOR_BREAKPOINT_ADDRESS." \
+  "$STDOUT_PATH"
+then
+  printf 'Standard output:\n' >&2
+  cat "$STDOUT_PATH" >&2
+  fail "interactive monitor did not stop at the breakpoint"
+fi
+
+if ! grep -Fq -- \
+  "ADDR=$MONITOR_BREAKPOINT_ADDRESS OP=$MONITOR_BREAKPOINT_OPCODE MNEMONIC=$MONITOR_BREAKPOINT_MNEMONIC" \
+  "$STDOUT_PATH"
+then
+  printf 'Standard output:\n' >&2
+  cat "$STDOUT_PATH" >&2
+  fail "interactive monitor did not trace the stepped instruction"
+fi
+
+if [[ -s "$STDERR_PATH" ]]
+then
+  printf 'Standard error:\n' >&2
+  cat "$STDERR_PATH" >&2
+  fail "interactive monitor wrote unexpected standard error"
+fi
+
+printf '%s\n' "Passed: interactive monitor"
 
 expect_failure \
   "invalid input value" \
