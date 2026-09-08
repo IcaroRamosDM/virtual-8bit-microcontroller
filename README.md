@@ -404,11 +404,17 @@ make test
 ```
 
 The test target assembles `programs/demo.asm` and `programs/popcount.asm`, then builds and runs independent tests for the CPU, CPU observer, instruction-set lookup, trace formatter, CPU-state formatter, monitor, shared byte-value parser, CLI, built-in program, binary reader, assembled-program execution, popcount firmware, source normalization and reading, symbol table, first pass, byte parsing and resolution, instruction parser and encoder, second pass, and binary writer.
+
 The CPU tests cover arithmetic, logical operations, unary bit inversion, shifted-out carry bits, nondestructive comparison, every taken and non-taken conditional branch, stack ordering and boundaries, nested subroutine calls and returns, stack error propagation through `CALL` and `RET`, memory-mapped port direction and reset behavior, zero results, and a `JMP`-to-zero loop that verifies bounded execution stops at the configured instruction limit.
+
 The program-integration test loads and executes the built-in demonstration, then verifies its complete final CPU state and the value stored at data address `0x80`.
+
 The assembled-program integration test reads `build/demo.bin`, loads it into CPU memory, executes it, verifies the same final CPU state, and checks both the embedded byte at `0x12` and the copied value at `0x80`. This confirms that the human-readable Assembly source and built-in byte array describe behaviorally equivalent programs even though their byte sequences differ.
+
 The popcount integration test reads the generated 44-byte `build/popcount.bin` once and executes it with inputs `0x00`, `0xA5`, and `0xFF`. It verifies the output, registers, flags, stack balance, final scratch memory, program counter, and input-dependent cycle count for every case.
+
 The monitor tests verify its command loop, CPU control, memory inspection without address wraparound, program replacement and preservation, breakpoints, interactive tracing, invalid arguments, end-of-file handling, and overlong commands.
+
 The Bash process test launches `build/vm8` exactly as a user would and verifies normal external-binary execution, both one-shot trace modes, a five-byte input-to-output program, an interactive breakpoint-and-step session, decimal and hexadecimal host input, invalid input rejection, and the expected failure behavior for a missing file, an empty file, an oversized file, and an invalid opcode.
 
 Display simulator and instruction help:
