@@ -494,3 +494,15 @@ make clean
 ## License
 
 This project is licensed under the [MIT License](LICENSE).
+
+---
+
+## Author
+
+**Icaro Ramos Rodrigues dos Santos**
+
+Embedded Systems | Firmware | C | Hardware Design | STM32 | ARM Cortex-M | Linux | Verilog | UVM | Design Verification
+
+GitHub: [https://github.com/IcaroRamosDM](https://github.com/IcaroRamosDM)<br>
+LinkedIn: [https://www.linkedin.com/in/icaro-ramos-r/](https://www.linkedin.com/in/icaro-ramos-r/)<br>
+[icaroelt@gmail.com](mailto:icaroelt@gmail.com)
