@@ -7,9 +7,25 @@ A learning project that implements an 8-bit virtual microcontroller in C and exe
 - [How the system works (English)](docs/HOW_IT_WORKS.md)
 - [How the system works (Brazilian Portuguese)](docs/HOW_IT_WORKS.pt-BR.md)
 
+## Requirements and quick start
+
+Development and verification use Ubuntu on WSL. The project requires GCC with C17 support and GNU Make. The complete test suite also uses Bash and standard Unix tools, including `grep`, `dd`, and `rm`. Binary inspection uses `wc` and `od`.
+
+From the repository root inside Ubuntu:
+
+```bash
+make
+make test
+make run-popcount INPUT_VALUE=0xA5
+```
+
+The last command assembles and runs the final demonstration firmware. Expect `Output port: 0x04`, `Stack pointer: 0x00`, `Program counter: 28`, and `Cycle count: 126`.
+
+To explore the same firmware interactively, run `make monitor-popcount`, then enter `input 0xA5` followed by `run` at the `vm8>` prompt. Use `help` for interactive commands and `quit` to leave the monitor.
+
 ## Development rules
 
-- All repository content must be written in English.
+- Repository content is written in English, with an explicitly maintained Brazilian Portuguese translation of the system guide.
 - Source code is written and edited with Vim.
 - Documentation and other prose are written and edited with Nano.
 - The project is built and tested inside Ubuntu on WSL.
@@ -474,3 +490,7 @@ Remove generated files:
 ```bash
 make clean
 ```
+
+## License
+
+This project is licensed under the [MIT License](LICENSE).
