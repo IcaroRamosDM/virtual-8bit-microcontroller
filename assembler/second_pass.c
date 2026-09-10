@@ -127,6 +127,7 @@ void second_pass_initialize(
     size_t program_capacity
 )
 {
+  result->diagnostics = (AssemblerDiagnostics){0};
   result->symbols = symbols;
   result->program = program;
   result->program_capacity = program_capacity;
@@ -158,8 +159,8 @@ bool second_pass_process_statement(
 
   if (parse_result != INSTRUCTION_PARSE_SUCCESS)
   {
-    fprintf(
-      stderr,
+    assembler_report(
+      &result->diagnostics,
       "%s:%zu: %s: '%s'\n",
       input_path,
       line_number,
@@ -177,8 +178,8 @@ bool second_pass_process_statement(
       EQU_DIRECTIVE_OPERAND_COUNT
     )
     {
-      fprintf(
-        stderr,
+      assembler_report(
+        &result->diagnostics,
         "%s:%zu: invalid %s directive: '%s'\n",
         input_path,
         line_number,
@@ -202,8 +203,8 @@ bool second_pass_process_statement(
       BYTE_DIRECTIVE_OPERAND_COUNT
     )
     {
-      fprintf(
-        stderr,
+      assembler_report(
+        &result->diagnostics,
         "%s:%zu: invalid %s directive: '%s'\n",
         input_path,
         line_number,
@@ -225,8 +226,8 @@ bool second_pass_process_statement(
 
     if (resolve_result != BYTE_OPERAND_RESOLVE_SUCCESS)
     {
-      fprintf(
-        stderr,
+      assembler_report(
+        &result->diagnostics,
         "%s:%zu: %s: '%s'\n",
         input_path,
         line_number,
@@ -254,8 +255,8 @@ bool second_pass_process_statement(
 
     if (encode_result != INSTRUCTION_ENCODE_SUCCESS)
     {
-      fprintf(
-        stderr,
+      assembler_report(
+        &result->diagnostics,
         "%s:%zu: %s: '%s'\n",
         input_path,
         line_number,
@@ -275,8 +276,8 @@ bool second_pass_process_statement(
     )
   )
   {
-    fprintf(
-      stderr,
+    assembler_report(
+      &result->diagnostics,
       "%s:%zu: encoded program exceeds "
       "%zu-byte output capacity\n",
       input_path,

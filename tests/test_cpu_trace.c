@@ -7,6 +7,7 @@
 
 #include "cpu.h"
 #include "cpu_trace.h"
+#include "test_stream.h"
 
 enum
 {
@@ -64,7 +65,7 @@ static void test_prints_trace_entry(void)
     .memory = {0}
   };
 
-  FILE *const output = tmpfile();
+  FILE *const output = test_tmpfile();
 
   assert(output != NULL);
 

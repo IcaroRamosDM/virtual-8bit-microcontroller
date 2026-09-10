@@ -8,6 +8,7 @@
 
 #include "cpu.h"
 #include "monitor.h"
+#include "test_stream.h"
 
 enum
 {
@@ -71,7 +72,7 @@ static Program get_breakpoint_test_program(void)
 
 static FILE *create_input_stream(const char *contents)
 {
-  FILE *const input = tmpfile();
+  FILE *const input = test_tmpfile();
 
   assert(input != NULL);
 
@@ -239,8 +240,8 @@ static void test_rejects_invalid_arguments(void)
   };
 
   FILE *const input = create_input_stream("");
-  FILE *const output = tmpfile();
-  FILE *const error_output = tmpfile();
+  FILE *const output = test_tmpfile();
+  FILE *const error_output = test_tmpfile();
 
   assert(output != NULL);
   assert(error_output != NULL);
@@ -358,8 +359,8 @@ static void test_executes_basic_session(void)
   assert(loaded);
 
   FILE *const input = create_input_stream(commands);
-  FILE *const output = tmpfile();
-  FILE *const error_output = tmpfile();
+  FILE *const output = test_tmpfile();
+  FILE *const error_output = test_tmpfile();
 
   assert(output != NULL);
   assert(error_output != NULL);
@@ -441,8 +442,8 @@ static void test_controls_cpu_execution(void)
   assert(loaded);
 
   FILE *const input = create_input_stream(commands);
-  FILE *const output = tmpfile();
-  FILE *const error_output = tmpfile();
+  FILE *const output = test_tmpfile();
+  FILE *const error_output = test_tmpfile();
 
   assert(output != NULL);
   assert(error_output != NULL);
@@ -500,8 +501,8 @@ static void test_manages_breakpoints_and_trace(void)
   assert(loaded);
 
   FILE *const input = create_input_stream(commands);
-  FILE *const output = tmpfile();
-  FILE *const error_output = tmpfile();
+  FILE *const output = test_tmpfile();
+  FILE *const error_output = test_tmpfile();
 
   assert(output != NULL);
   assert(error_output != NULL);
@@ -595,8 +596,8 @@ static void test_reads_memory_without_address_wraparound(void)
   );
 
   FILE *const input = create_input_stream(commands);
-  FILE *const output = tmpfile();
-  FILE *const error_output = tmpfile();
+  FILE *const output = test_tmpfile();
+  FILE *const error_output = test_tmpfile();
 
   assert(output != NULL);
   assert(error_output != NULL);
@@ -650,8 +651,8 @@ static void test_loads_and_resets_binary_program(void)
   assert(initial_program_loaded);
 
   FILE *const input = create_input_stream(commands);
-  FILE *const output = tmpfile();
-  FILE *const error_output = tmpfile();
+  FILE *const output = test_tmpfile();
+  FILE *const error_output = test_tmpfile();
 
   assert(output != NULL);
   assert(error_output != NULL);
@@ -725,8 +726,8 @@ static void test_preserves_program_after_empty_load(void)
   assert(initial_program_loaded);
 
   FILE *const input = create_input_stream(commands);
-  FILE *const output = tmpfile();
-  FILE *const error_output = tmpfile();
+  FILE *const output = test_tmpfile();
+  FILE *const error_output = test_tmpfile();
 
   assert(output != NULL);
   assert(error_output != NULL);
@@ -810,8 +811,8 @@ static void test_rejects_invalid_command_arguments(void)
   Cpu cpu = {0};
   const Program program = get_test_program();
   FILE *const input = create_input_stream(commands);
-  FILE *const output = tmpfile();
-  FILE *const error_output = tmpfile();
+  FILE *const output = test_tmpfile();
+  FILE *const error_output = test_tmpfile();
 
   assert(output != NULL);
   assert(error_output != NULL);
@@ -845,8 +846,8 @@ static void test_accepts_end_of_file(void)
   Cpu cpu = {0};
   const Program program = get_test_program();
   FILE *const input = create_input_stream("");
-  FILE *const output = tmpfile();
-  FILE *const error_output = tmpfile();
+  FILE *const output = test_tmpfile();
+  FILE *const error_output = test_tmpfile();
 
   assert(output != NULL);
   assert(error_output != NULL);
@@ -880,9 +881,9 @@ static void test_discards_overlong_command(void)
 
   Cpu cpu = {0};
   const Program program = get_test_program();
-  FILE *const input = tmpfile();
-  FILE *const output = tmpfile();
-  FILE *const error_output = tmpfile();
+  FILE *const input = test_tmpfile();
+  FILE *const output = test_tmpfile();
+  FILE *const error_output = test_tmpfile();
 
   assert(input != NULL);
   assert(output != NULL);

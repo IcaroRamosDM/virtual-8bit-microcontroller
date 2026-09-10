@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=VM8 Studio
+GenericName=Assembly workbench
+Comment=Write Assembly and explore a virtual 8-bit microcontroller
+Exec=vm8-studio
+Icon=vm8-studio
+Terminal=false
+Categories=Education;Electronics;
+Keywords=Assembly;Microcontroller;Simulator;Debugger;Firmware;
