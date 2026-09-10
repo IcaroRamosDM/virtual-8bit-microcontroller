@@ -202,8 +202,8 @@ static bool process_label(
 
   if (label_length > SYMBOL_TABLE_MAX_NAME_LENGTH)
   {
-    fprintf(
-      stderr,
+    assembler_report(
+      &result->diagnostics,
       "%s:%zu: label name is too long\n",
       input_path,
       line_number
@@ -224,8 +224,8 @@ static bool process_label(
 
   if (!symbol_name_is_valid(label_name))
   {
-    fprintf(
-      stderr,
+    assembler_report(
+      &result->diagnostics,
       "%s:%zu: invalid label '%s'\n",
       input_path,
       line_number,
@@ -237,8 +237,8 @@ static bool process_label(
 
   if (symbol_name_is_reserved(label_name))
   {
-    fprintf(
-      stderr,
+    assembler_report(
+      &result->diagnostics,
       "%s:%zu: label name '%s' is reserved\n",
       input_path,
       line_number,
@@ -250,8 +250,8 @@ static bool process_label(
 
   if (result->program_size >= CPU_PROGRAM_MEMORY_SIZE)
   {
-    fprintf(
-      stderr,
+    assembler_report(
+      &result->diagnostics,
       "%s:%zu: label '%s' is outside "
       "the program region\n",
       input_path,
@@ -275,8 +275,8 @@ static bool process_label(
       return true;
 
     case SYMBOL_TABLE_ADD_DUPLICATE:
-      fprintf(
-        stderr,
+      assembler_report(
+        &result->diagnostics,
         "%s:%zu: duplicate label '%s'\n",
         input_path,
         line_number,
@@ -285,8 +285,8 @@ static bool process_label(
       return false;
 
     case SYMBOL_TABLE_ADD_FULL:
-      fprintf(
-        stderr,
+      assembler_report(
+        &result->diagnostics,
         "%s:%zu: symbol table is full\n",
         input_path,
         line_number
@@ -294,8 +294,8 @@ static bool process_label(
       return false;
 
     case SYMBOL_TABLE_ADD_EMPTY_NAME:
-      fprintf(
-        stderr,
+      assembler_report(
+        &result->diagnostics,
         "%s:%zu: label name cannot be empty\n",
         input_path,
         line_number
@@ -303,8 +303,8 @@ static bool process_label(
       return false;
 
     case SYMBOL_TABLE_ADD_NAME_TOO_LONG:
-      fprintf(
-        stderr,
+      assembler_report(
+        &result->diagnostics,
         "%s:%zu: label name is too long\n",
         input_path,
         line_number
@@ -321,7 +321,8 @@ static bool parse_directive(
     const char *statement,
     const char *directive_name,
     size_t expected_operand_count,
-    ParsedInstruction *directive
+    ParsedInstruction *directive,
+    const AssemblerDiagnostics *diagnostics
 )
 {
   const InstructionParseResult parse_result =
@@ -335,8 +336,8 @@ static bool parse_directive(
     return true;
   }
 
-  fprintf(
-    stderr,
+  assembler_report(
+    diagnostics,
     "%s:%zu: invalid %s directive: '%s'\n",
     input_path,
     line_number,
@@ -363,7 +364,8 @@ static bool process_equ_directive(
       statement,
       EQU_DIRECTIVE,
       EQU_DIRECTIVE_OPERAND_COUNT,
-      &directive
+      &directive,
+      &result->diagnostics
     )
   )
   {
@@ -378,8 +380,8 @@ static bool process_equ_directive(
     symbol_name_is_reserved(name)
   )
   {
-    fprintf(
-      stderr,
+    assembler_report(
+      &result->diagnostics,
       "%s:%zu: invalid or reserved constant name '%s'\n",
       input_path,
       line_number,
@@ -399,8 +401,8 @@ static bool process_equ_directive(
 
   if (literal_result != BYTE_LITERAL_PARSE_SUCCESS)
   {
-    fprintf(
-      stderr,
+    assembler_report(
+      &result->diagnostics,
       "%s:%zu: constant value must be "
       "an 8-bit literal: '%s'\n",
       input_path,
@@ -416,8 +418,8 @@ static bool process_equ_directive(
 
   if (add_result != SYMBOL_TABLE_ADD_SUCCESS)
   {
-    fprintf(
-      stderr,
+    assembler_report(
+      &result->diagnostics,
       "%s:%zu: could not define constant '%s'\n",
       input_path,
       line_number,
@@ -446,7 +448,8 @@ static bool process_byte_directive(
       statement,
       BYTE_DIRECTIVE,
       BYTE_DIRECTIVE_OPERAND_COUNT,
-      &directive
+      &directive,
+      &result->diagnostics
     )
   )
   {
@@ -458,8 +461,8 @@ static bool process_byte_directive(
     CPU_PROGRAM_MEMORY_SIZE
   )
   {
-    fprintf(
-      stderr,
+    assembler_report(
+      &result->diagnostics,
       "%s:%zu: program exceeds "
       "%d-byte program region\n",
       input_path,
@@ -491,8 +494,8 @@ static bool process_instruction(
     )
   )
   {
-    fprintf(
-      stderr,
+    assembler_report(
+      &result->diagnostics,
       "%s:%zu: unknown instruction '%s'\n",
       input_path,
       line_number,
@@ -507,8 +510,8 @@ static bool process_instruction(
     CPU_PROGRAM_MEMORY_SIZE
   )
   {
-    fprintf(
-      stderr,
+    assembler_report(
+      &result->diagnostics,
       "%s:%zu: program exceeds "
       "%d-byte program region\n",
       input_path,
@@ -526,6 +529,7 @@ static bool process_instruction(
 
 void first_pass_initialize(FirstPassResult *result)
 {
+  result->diagnostics = (AssemblerDiagnostics){0};
   symbol_table_initialize(&result->symbols);
 
   result->statement_count = 0;

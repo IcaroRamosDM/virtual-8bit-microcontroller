@@ -26,6 +26,24 @@ Machine code containing only bytes
 
 The CPU never reads words such as `LDI`, `start`, or `memory_demo`. Those words exist only in the source file and inside the assembler. The final program presented to the CPU contains only numeric bytes.
 
+## The graphical application: VM8 Studio
+
+VM8 Studio adds a C++17/FLTK desktop interface around the same C17 CPU and assembler. It is available as a Windows x64 `.exe`, a Linux x86-64 AppImage, and an Ubuntu/Debian `.deb` installer. The Linux packages target glibc 2.36+ and an X11 or XWayland desktop; the `.deb` adds a searchable **VM8 Studio** application-menu entry and does not need FUSE. End users do not need WSL, a compiler, or an Internet connection. The development workflow through Vim, Make, and the CLI remains available independently.
+
+The integrated path is: **editor text -> two-pass assembler in host memory -> byte image -> simulated CPU**. The assembler does not call an external program or require an intermediate disk file. The source line associated with each byte is recorded outside simulated memory, allowing the interface to highlight instructions and set breakpoints without using any of the VM8's 238 program/data bytes. A failed assembly reports a line-specific error and does not silently run older bytecode.
+
+For a practical example, open **Examples > Popcount**, use Input `0xA5`, and click **Assemble**, then **Run**. The assembled image occupies 44 bytes, while the executed loop takes 126 instruction cycles and writes `0x04` to the output port. The GUI shows PC as `0x1C`, equivalent to the CLI's decimal 28. **Step** executes one instruction; **Pause** stops automatic execution; **Reset** reloads the program. A single Run has a 10,000-instruction safety limit.
+
+Studio displays **Virtual time** and **Real elapsed** separately. Virtual time is `instruction cycles / active frequency in Hz`. The default **Clock (Hz)** is `1000000` (1 MHz), so Popcount's 126 cycles represent `126 / 1000000 = 0.000126` seconds, displayed as `126.000 us` (microseconds). Apply `1000` Hz on the clock row to recalculate the same cycles as `126.000 ms`, or `2000000` Hz for `63.000 us`. Apply accepts decimal integers from 1 through 1000000000 Hz; **Active** confirms the value in use. Editing the field without Apply does not change the active clock. Changing it recalculates all accumulated cycles, not a history of frequency changes. The CPU still counts one cycle per attempted instruction, including HALT and errors; byte length is independent of that count.
+
+**Real elapsed** uses a monotonic host stopwatch: Run accumulates active time, including Speed delays and GUI/trace work performed while running. Pause, HALT, errors, breakpoints, the safety limit and source edits stop it; Run resumes accumulation. Step adds only its CPU-step and trace-formatting interval, not your waiting time between clicks or the subsequent screen refresh. This is not a CPU-only benchmark. **Speed** changes visualization pacing, not the virtual clock. Try Observe and Fast on the same Popcount input, resetting between runs: both produce 126 cycles and 126 us at 1 MHz, while Fast normally has a shorter real elapsed time.
+
+Reset, successful assembly, New, Open and loading an example clear both times but retain the active clock for this session. Failed assembly keeps the paused CPU/time snapshot and prevents stale bytecode execution. Applying Input or clearing the log does not reset time. Restarting Studio restores the 1 MHz default. The display uses ns, us, ms or s; rounded decimals are not an accuracy guarantee. This simple virtual timing model does not claim physical hardware timing or real-time execution at the selected frequency.
+
+The **Assembled bytes** tab shows the real bytes and source lines, and the assembly message gives the byte count: these provide the same basic inspections as `od` and `wc` without opening a terminal. The shell examples later in this guide still apply when using `.bin` files through the CLI. **File > Export binary** is optional and produces VM8 bytecode, not a desktop executable.
+
+Press **F1** for searchable offline help, including every instruction's syntax, opcode, compact effect, explanation, flags, and examples. The reference is embedded from the existing CLI help during the build. See [the Studio usage guide](STUDIO.md) for file operations, shortcuts, breakpoints, compatibility, and rebuilding.
+
 ## Current implementation boundary
 
 The CPU simulator is operational. It can run the 18-byte built-in demonstration stored in `src/program.c` or a compatible raw binary selected on the command line. The current Assembly demonstration generates a 19-byte binary because it includes one embedded data byte after `HALT`. Either source can run normally or with a human-readable instruction trace.

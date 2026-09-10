@@ -262,483 +262,494 @@ CliOptions cli_parse_arguments(
   return cli_invalid_options();
 }
 
-void cli_print_help(void)
+static void cli_help_puts(FILE *stream, const char *text)
 {
-  puts("VM8 virtual 8-bit microcontroller simulator");
-  puts("");
+  (void)fputs(text, stream);
+  (void)fputc('\n', stream);
+}
 
-  puts("Commands:");
-  puts("  make run        Run the built-in demonstration.");
-  puts("  make run-bin    Assemble and run programs/demo.asm.");
-  puts("  make run-popcount  Assemble and run the popcount firmware.");
-  puts("  make trace      Run the built-in demo with a trace.");
-  puts("  make trace-bin  Assemble and trace programs/demo.asm.");
-  puts("  make trace-popcount  Assemble and trace the popcount firmware.");
-  puts("  make monitor    Open the monitor with the built-in demo.");
-  puts("  make monitor-bin  Assemble and monitor programs/demo.asm.");
-  puts("  make monitor-popcount  Assemble and monitor the popcount firmware.");
-  puts("  make test       Build and run the test suite.");
-  puts("  make assembler  Build the assembler executable.");
-  puts("  make assemble   Run the assembler on programs/demo.asm.");
-  puts("  make assemble-popcount  Assemble programs/popcount.asm.");
-  puts("  make inspect    Assemble and inspect the demo binary.");
-  puts("  make inspect-popcount  Assemble and inspect the popcount binary.");
-  puts("  make help       Build and display this help.");
-  puts("  make clean      Remove generated build files.");
-  puts("");
+void cli_write_help(FILE *stream)
+{
+  cli_help_puts(stream, "VM8 virtual 8-bit microcontroller simulator");
+  cli_help_puts(stream, "");
 
-  puts("Direct executable commands:");
-  puts("  ./build/vm8");
-  puts("  ./build/vm8 run [--input <byte>]");
-  puts("  ./build/vm8 run <program.bin> [--input <byte>]");
-  puts("  ./build/vm8 trace [--input <byte>]");
-  puts("  ./build/vm8 trace <program.bin> [--input <byte>]");
-  puts("  ./build/vm8 help");
-  puts("  ./build/vm8 --help");
-  puts("  ./build/vm8 monitor");
-  puts("  ./build/vm8 monitor <program.bin>");
-  puts(
+  cli_help_puts(stream, "Commands:");
+  cli_help_puts(stream, "  make run        Run the built-in demonstration.");
+  cli_help_puts(stream, "  make run-bin    Assemble and run programs/demo.asm.");
+  cli_help_puts(stream, "  make run-popcount  Assemble and run the popcount firmware.");
+  cli_help_puts(stream, "  make trace      Run the built-in demo with a trace.");
+  cli_help_puts(stream, "  make trace-bin  Assemble and trace programs/demo.asm.");
+  cli_help_puts(stream, "  make trace-popcount  Assemble and trace the popcount firmware.");
+  cli_help_puts(stream, "  make monitor    Open the monitor with the built-in demo.");
+  cli_help_puts(stream, "  make monitor-bin  Assemble and monitor programs/demo.asm.");
+  cli_help_puts(stream, "  make monitor-popcount  Assemble and monitor the popcount firmware.");
+  cli_help_puts(stream, "  make test       Build and run the test suite.");
+  cli_help_puts(stream, "  make assembler  Build the assembler executable.");
+  cli_help_puts(stream, "  make assemble   Run the assembler on programs/demo.asm.");
+  cli_help_puts(stream, "  make assemble-popcount  Assemble programs/popcount.asm.");
+  cli_help_puts(stream, "  make inspect    Assemble and inspect the demo binary.");
+  cli_help_puts(stream, "  make inspect-popcount  Assemble and inspect the popcount binary.");
+  cli_help_puts(stream, "  make help       Build and display this help.");
+  cli_help_puts(stream, "  make clean      Remove generated build files.");
+  cli_help_puts(stream, "");
+
+  cli_help_puts(stream, "Direct executable commands:");
+  cli_help_puts(stream, "  ./build/vm8");
+  cli_help_puts(stream, "  ./build/vm8 run [--input <byte>]");
+  cli_help_puts(stream, "  ./build/vm8 run <program.bin> [--input <byte>]");
+  cli_help_puts(stream, "  ./build/vm8 trace [--input <byte>]");
+  cli_help_puts(stream, "  ./build/vm8 trace <program.bin> [--input <byte>]");
+  cli_help_puts(stream, "  ./build/vm8 help");
+  cli_help_puts(stream, "  ./build/vm8 --help");
+  cli_help_puts(stream, "  ./build/vm8 monitor");
+  cli_help_puts(stream, "  ./build/vm8 monitor <program.bin>");
+  cli_help_puts(stream,
     "  ./build/vm8asm <input.asm> <output.bin>  "
     "Assemble source into raw binary."
   );
-  puts("");
+  cli_help_puts(stream, "");
 
-  puts("Virtual input:");
-  puts(
+  cli_help_puts(stream, "Virtual input:");
+  cli_help_puts(stream,
     "  <byte> accepts decimal or 0x-prefixed hexadecimal "
     "from 0 through 255."
   );
-  puts("  The default input value is 0x00.");
-  puts("  When present, --input <byte> must be the final option.");
-  puts("  Make example: make run INPUT_VALUE=0xA5");
-  puts("  Direct example: ./build/vm8 run firmware.bin --input 165");
-  puts("");
+  cli_help_puts(stream, "  The default input value is 0x00.");
+  cli_help_puts(stream, "  When present, --input <byte> must be the final option.");
+  cli_help_puts(stream, "  Make example: make run INPUT_VALUE=0xA5");
+  cli_help_puts(stream, "  Direct example: ./build/vm8 run firmware.bin --input 165");
+  cli_help_puts(stream, "");
 
-  puts("Popcount firmware:");
-  puts("  Reads the byte at input port 0xEE.");
-  puts("  Counts its set bits and writes the result from 0 through 8");
-  puts("  to output port 0xEF.");
-  puts("  Run example: make run-popcount INPUT_VALUE=0xA5");
-  puts("  Trace example: make trace-popcount INPUT_VALUE=0xA5");
-  puts("  Monitor example: make monitor-popcount");
-  puts("");
+  cli_help_puts(stream, "Popcount firmware:");
+  cli_help_puts(stream, "  Reads the byte at input port 0xEE.");
+  cli_help_puts(stream, "  Counts its set bits and writes the result from 0 through 8");
+  cli_help_puts(stream, "  to output port 0xEF.");
+  cli_help_puts(stream, "  Run example: make run-popcount INPUT_VALUE=0xA5");
+  cli_help_puts(stream, "  Trace example: make trace-popcount INPUT_VALUE=0xA5");
+  cli_help_puts(stream, "  Monitor example: make monitor-popcount");
+  cli_help_puts(stream, "");
 
-  puts("Interactive monitor:");
-  puts("  Start the built-in demo with 'make monitor'.");
-  puts("  Assemble and open programs/demo.asm with 'make monitor-bin'.");
-  puts("  Assemble and open the popcount firmware with");
-  puts("  'make monitor-popcount'.");
-  puts(
+  cli_help_puts(stream, "Interactive monitor:");
+  cli_help_puts(stream, "  Start the built-in demo with 'make monitor'.");
+  cli_help_puts(stream, "  Assemble and open programs/demo.asm with 'make monitor-bin'.");
+  cli_help_puts(stream, "  Assemble and open the popcount firmware with");
+  cli_help_puts(stream, "  'make monitor-popcount'.");
+  cli_help_puts(stream,
     "  Commands: help, registers, step, run, reset, input, memory, "
     "load,"
   );
-  puts("            trace, breakpoint, and quit.");
-  puts(
+  cli_help_puts(stream, "            trace, breakpoint, and quit.");
+  cli_help_puts(stream,
     "  Breakpoints stop before the marked instruction; "
     "step executes it."
   );
-  puts("  Run 'help' inside the monitor for complete command syntax.");
-  puts("");
+  cli_help_puts(stream, "  Run 'help' inside the monitor for complete command syntax.");
+  cli_help_puts(stream, "");
 
-  puts("Supported instructions:");
+  cli_help_puts(stream, "Supported instructions:");
 
-  printf(
+  fprintf(stream,
     "  NOP             Opcode: 0x%02X | Size: 1 byte\n",
     (unsigned int)OPCODE_NOP
   );
-  puts("    Effect: Performs no data operation.");
+  cli_help_puts(stream, "    Effect: Performs no data operation.");
 
-  printf(
+  fprintf(stream,
     "  HALT            Opcode: 0x%02X | Size: 1 byte\n",
     (unsigned int)OPCODE_HALT
   );
-  puts("    Effect: Stops program execution.");
+  cli_help_puts(stream, "    Effect: Stops program execution.");
 
-  printf(
+  fprintf(stream,
     "  LDI A, imm8     Opcode: 0x%02X | Size: 2 bytes\n",
     (unsigned int)OPCODE_LOAD_IMMEDIATE_A
   );
-  puts("    Effect: A <- imm8; Z <- (A == 0); C unchanged.");
-  puts("    Explanation: Loads the next 8-bit value into register A.");
-  puts("    Flags: Z is set if the value is zero; C is unchanged.");
-  puts("    Assembly example: LDI A, 0xA5");
-  printf(
+  cli_help_puts(stream, "    Effect: A <- imm8; Z <- (A == 0); C unchanged.");
+  cli_help_puts(stream, "    Explanation: Loads the next 8-bit value into register A.");
+  cli_help_puts(stream, "    Flags: Z is set if the value is zero; C is unchanged.");
+  cli_help_puts(stream, "    Assembly example: LDI A, 0xA5");
+  fprintf(stream,
     "    Encoding example: 0x%02X 0xA5\n",
     (unsigned int)OPCODE_LOAD_IMMEDIATE_A
   );
-  puts("");
+  cli_help_puts(stream, "");
 
 
-  printf(
+  fprintf(stream,
     "  LDI B, imm8     Opcode: 0x%02X | Size: 2 bytes\n",
     (unsigned int)OPCODE_LOAD_IMMEDIATE_B
   );
-  puts("    Effect: B <- imm8; Z <- (B == 0); C unchanged.");
-  puts("    Explanation: Loads the next 8-bit value into register B.");
-  puts("    Flags: Z is set if the value is zero; C is unchanged.");
-  puts("    Assembly example: LDI B, 0x5A");
-  printf(
+  cli_help_puts(stream, "    Effect: B <- imm8; Z <- (B == 0); C unchanged.");
+  cli_help_puts(stream, "    Explanation: Loads the next 8-bit value into register B.");
+  cli_help_puts(stream, "    Flags: Z is set if the value is zero; C is unchanged.");
+  cli_help_puts(stream, "    Assembly example: LDI B, 0x5A");
+  fprintf(stream,
     "    Encoding example: 0x%02X 0x5A\n",
     (unsigned int)OPCODE_LOAD_IMMEDIATE_B
   );
-  puts("");
+  cli_help_puts(stream, "");
 
-  printf(
+  fprintf(stream,
     "  ADD A, B        Opcode: 0x%02X | Size: 1 byte\n",
     (unsigned int)OPCODE_ADD_A_B
   );
-  puts("    Effect: A <- (A + B) mod 256; Z <- (A == 0); C <- carry.");
-  puts("    Explanation: Adds register B to register A.");
-  puts("    The 8-bit result is stored in A; B is unchanged.");
-  puts("    Flags: Z reports a zero result; C reports unsigned overflow.");
-  puts("    Assembly example: ADD A, B");
-  printf(
+  cli_help_puts(stream, "    Effect: A <- (A + B) mod 256; Z <- (A == 0); C <- carry.");
+  cli_help_puts(stream, "    Explanation: Adds register B to register A.");
+  cli_help_puts(stream, "    The 8-bit result is stored in A; B is unchanged.");
+  cli_help_puts(stream, "    Flags: Z reports a zero result; C reports unsigned overflow.");
+  cli_help_puts(stream, "    Assembly example: ADD A, B");
+  fprintf(stream,
     "    Encoding: 0x%02X\n",
     (unsigned int)OPCODE_ADD_A_B
   );
-  puts("");
+  cli_help_puts(stream, "");
 
-  printf(
+  fprintf(stream,
     "  SUB A, B        Opcode: 0x%02X | Size: 1 byte\n",
     (unsigned int)OPCODE_SUB_A_B
   );
-  puts("    Effect: A <- (A - B) mod 256; Z <- (A == 0); C <- borrow.");
-  puts("    Explanation: Subtracts register B from register A.");
-  puts("    The 8-bit result is stored in A; B is unchanged.");
-  puts(
+  cli_help_puts(stream, "    Effect: A <- (A - B) mod 256; Z <- (A == 0); C <- borrow.");
+  cli_help_puts(stream, "    Explanation: Subtracts register B from register A.");
+  cli_help_puts(stream, "    The 8-bit result is stored in A; B is unchanged.");
+  cli_help_puts(stream,
     "    Flags: Z reports a zero result; "
     "C is set when the original A is less than B."
   );
-  puts("    Assembly example: SUB A, B");
-  printf(
+  cli_help_puts(stream, "    Assembly example: SUB A, B");
+  fprintf(stream,
     "    Encoding: 0x%02X\n",
     (unsigned int)OPCODE_SUB_A_B
   );
-  puts("");
+  cli_help_puts(stream, "");
 
-  printf(
+  fprintf(stream,
     "  AND A, B        Opcode: 0x%02X | Size: 1 byte\n",
     (unsigned int)OPCODE_AND_A_B
   );
-  puts("    Effect: A <- A & B; Z <- (A == 0); C <- 0.");
-  puts("    Explanation: Performs a bitwise AND between A and B.");
-  puts("    The result is stored in A; B is unchanged.");
-  puts("    Flags: Z reports a zero result; C is cleared.");
-  puts("    Assembly example: AND A, B");
-  printf(
+  cli_help_puts(stream, "    Effect: A <- A & B; Z <- (A == 0); C <- 0.");
+  cli_help_puts(stream, "    Explanation: Performs a bitwise AND between A and B.");
+  cli_help_puts(stream, "    The result is stored in A; B is unchanged.");
+  cli_help_puts(stream, "    Flags: Z reports a zero result; C is cleared.");
+  cli_help_puts(stream, "    Assembly example: AND A, B");
+  fprintf(stream,
     "    Encoding: 0x%02X\n",
     (unsigned int)OPCODE_AND_A_B
   );
-  puts("");
+  cli_help_puts(stream, "");
 
-  printf(
+  fprintf(stream,
     "  OR A, B         Opcode: 0x%02X | Size: 1 byte\n",
     (unsigned int)OPCODE_OR_A_B
   );
-  puts("    Effect: A <- A | B; Z <- (A == 0); C <- 0.");
-  puts("    Explanation: Performs a bitwise OR between A and B.");
-  puts("    The result is stored in A; B is unchanged.");
-  puts("    Flags: Z reports a zero result; C is cleared.");
-  puts("    Assembly example: OR A, B");
-  printf(
+  cli_help_puts(stream, "    Effect: A <- A | B; Z <- (A == 0); C <- 0.");
+  cli_help_puts(stream, "    Explanation: Performs a bitwise OR between A and B.");
+  cli_help_puts(stream, "    The result is stored in A; B is unchanged.");
+  cli_help_puts(stream, "    Flags: Z reports a zero result; C is cleared.");
+  cli_help_puts(stream, "    Assembly example: OR A, B");
+  fprintf(stream,
     "    Encoding: 0x%02X\n",
     (unsigned int)OPCODE_OR_A_B
   );
-  puts("");
+  cli_help_puts(stream, "");
 
-  printf(
+  fprintf(stream,
     "  XOR A, B        Opcode: 0x%02X | Size: 1 byte\n",
     (unsigned int)OPCODE_XOR_A_B
   );
-  puts("    Effect: A <- A ^ B; Z <- (A == 0); C <- 0.");
-  puts("    Explanation: Performs a bitwise XOR between A and B.");
-  puts("    The result is stored in A; B is unchanged.");
-  puts("    Flags: Z reports a zero result; C is cleared.");
-  puts("    Assembly example: XOR A, B");
-  printf(
+  cli_help_puts(stream, "    Effect: A <- A ^ B; Z <- (A == 0); C <- 0.");
+  cli_help_puts(stream, "    Explanation: Performs a bitwise XOR between A and B.");
+  cli_help_puts(stream, "    The result is stored in A; B is unchanged.");
+  cli_help_puts(stream, "    Flags: Z reports a zero result; C is cleared.");
+  cli_help_puts(stream, "    Assembly example: XOR A, B");
+  fprintf(stream,
     "    Encoding: 0x%02X\n",
     (unsigned int)OPCODE_XOR_A_B
   );
-  puts("");
+  cli_help_puts(stream, "");
 
-  printf(
+  fprintf(stream,
     "  NOT A           Opcode: 0x%02X | Size: 1 byte\n",
     (unsigned int)OPCODE_NOT_A
   );
-  puts("    Effect: A <- ~A; Z <- (A == 0); C <- 0.");
-  puts("    Explanation: Inverts every bit in register A.");
-  puts("    Register B is unchanged.");
-  puts("    Flags: Z reports a zero result; C is cleared.");
-  puts("    Assembly example: NOT A");
-  printf(
+  cli_help_puts(stream, "    Effect: A <- ~A; Z <- (A == 0); C <- 0.");
+  cli_help_puts(stream, "    Explanation: Inverts every bit in register A.");
+  cli_help_puts(stream, "    Register B is unchanged.");
+  cli_help_puts(stream, "    Flags: Z reports a zero result; C is cleared.");
+  cli_help_puts(stream, "    Assembly example: NOT A");
+  fprintf(stream,
     "    Encoding: 0x%02X\n",
     (unsigned int)OPCODE_NOT_A
   );
-  puts("");
+  cli_help_puts(stream, "");
 
-  printf(
+  fprintf(stream,
     "  SHL A           Opcode: 0x%02X | Size: 1 byte\n",
     (unsigned int)OPCODE_SHIFT_LEFT_A
   );
-  puts(
+  cli_help_puts(stream,
     "    Effect: C <- old A[7]; "
     "A <- (A << 1) mod 256; Z <- (A == 0)."
   );
-  puts("    Explanation: Shifts A left and inserts zero into bit 0.");
-  puts("    The former bit 7 moves into C; B is unchanged.");
-  puts("    Assembly example: SHL A");
-  printf(
+  cli_help_puts(stream, "    Explanation: Shifts A left and inserts zero into bit 0.");
+  cli_help_puts(stream, "    The former bit 7 moves into C; B is unchanged.");
+  cli_help_puts(stream, "    Assembly example: SHL A");
+  fprintf(stream,
     "    Encoding: 0x%02X\n",
     (unsigned int)OPCODE_SHIFT_LEFT_A
   );
-  puts("");
+  cli_help_puts(stream, "");
 
-  printf(
+  fprintf(stream,
     "  SHR A           Opcode: 0x%02X | Size: 1 byte\n",
     (unsigned int)OPCODE_SHIFT_RIGHT_A
   );
-  puts("    Effect: C <- old A[0]; A <- A >> 1; Z <- (A == 0).");
-  puts("    Explanation: Shifts A right and inserts zero into bit 7.");
-  puts("    The former bit 0 moves into C; B is unchanged.");
-  puts("    Assembly example: SHR A");
-  printf(
+  cli_help_puts(stream, "    Effect: C <- old A[0]; A <- A >> 1; Z <- (A == 0).");
+  cli_help_puts(stream, "    Explanation: Shifts A right and inserts zero into bit 7.");
+  cli_help_puts(stream, "    The former bit 0 moves into C; B is unchanged.");
+  cli_help_puts(stream, "    Assembly example: SHR A");
+  fprintf(stream,
     "    Encoding: 0x%02X\n",
     (unsigned int)OPCODE_SHIFT_RIGHT_A
   );
-  puts("");
+  cli_help_puts(stream, "");
 
-  printf(
+  fprintf(stream,
     "  CMP A, B        Opcode: 0x%02X | Size: 1 byte\n",
     (unsigned int)OPCODE_COMPARE_A_B
   );
-  puts("    Effect: Z <- (A == B); C <- (A < B); A and B unchanged.");
-  puts("    Explanation: Compares unsigned A with B as if calculating A - B.");
-  puts("    The subtraction result is discarded.");
-  puts("    Flags: Z reports equality; C reports an unsigned borrow.");
-  puts("    Assembly example: CMP A, B");
-  printf(
+  cli_help_puts(stream, "    Effect: Z <- (A == B); C <- (A < B); A and B unchanged.");
+  cli_help_puts(stream, "    Explanation: Compares unsigned A with B as if calculating A - B.");
+  cli_help_puts(stream, "    The subtraction result is discarded.");
+  cli_help_puts(stream, "    Flags: Z reports equality; C reports an unsigned borrow.");
+  cli_help_puts(stream, "    Assembly example: CMP A, B");
+  fprintf(stream,
     "    Encoding: 0x%02X\n",
     (unsigned int)OPCODE_COMPARE_A_B
   );
-  puts("");
+  cli_help_puts(stream, "");
 
-  printf(
+  fprintf(stream,
     "  JZ addr8        Opcode: 0x%02X | Size: 2 bytes\n",
     (unsigned int)OPCODE_JUMP_IF_ZERO
   );
-  puts("    Effect: PC <- addr8 if Z == 1; otherwise execution continues.");
-  puts("    Explanation: Jumps to an absolute 8-bit address when Z is set.");
-  puts("    Registers and flags are unchanged.");
-  puts("    Assembly example: JZ 0x80");
-  printf(
+  cli_help_puts(stream, "    Effect: PC <- addr8 if Z == 1; otherwise execution continues.");
+  cli_help_puts(stream, "    Explanation: Jumps to an absolute 8-bit address when Z is set.");
+  cli_help_puts(stream, "    Registers and flags are unchanged.");
+  cli_help_puts(stream, "    Assembly example: JZ 0x80");
+  fprintf(stream,
     "    Encoding example: 0x%02X 0x80\n",
     (unsigned int)OPCODE_JUMP_IF_ZERO
   );
-  puts("");
+  cli_help_puts(stream, "");
 
-  printf(
+  fprintf(stream,
     "  JNZ addr8       Opcode: 0x%02X | Size: 2 bytes\n",
     (unsigned int)OPCODE_JUMP_IF_NOT_ZERO
   );
-  puts("    Effect: PC <- addr8 if Z == 0; otherwise execution continues.");
-  puts("    Explanation: Jumps to an absolute address when Z is clear.");
-  puts("    Registers and flags are unchanged.");
-  puts("    Assembly example: JNZ 0x80");
-  printf(
+  cli_help_puts(stream, "    Effect: PC <- addr8 if Z == 0; otherwise execution continues.");
+  cli_help_puts(stream, "    Explanation: Jumps to an absolute address when Z is clear.");
+  cli_help_puts(stream, "    Registers and flags are unchanged.");
+  cli_help_puts(stream, "    Assembly example: JNZ 0x80");
+  fprintf(stream,
     "    Encoding example: 0x%02X 0x80\n",
     (unsigned int)OPCODE_JUMP_IF_NOT_ZERO
   );
-  puts("");
+  cli_help_puts(stream, "");
 
-  printf(
+  fprintf(stream,
     "  JC addr8        Opcode: 0x%02X | Size: 2 bytes\n",
     (unsigned int)OPCODE_JUMP_IF_CARRY
   );
-  puts("    Effect: PC <- addr8 if C == 1; otherwise execution continues.");
-  puts("    Explanation: Jumps to an absolute address when C is set.");
-  puts("    After CMP, this means that unsigned A is less than B.");
-  puts("    Registers and flags are unchanged.");
-  puts("    Assembly example: JC 0x80");
-  printf(
+  cli_help_puts(stream, "    Effect: PC <- addr8 if C == 1; otherwise execution continues.");
+  cli_help_puts(stream, "    Explanation: Jumps to an absolute address when C is set.");
+  cli_help_puts(stream, "    After CMP, this means that unsigned A is less than B.");
+  cli_help_puts(stream, "    Registers and flags are unchanged.");
+  cli_help_puts(stream, "    Assembly example: JC 0x80");
+  fprintf(stream,
     "    Encoding example: 0x%02X 0x80\n",
     (unsigned int)OPCODE_JUMP_IF_CARRY
   );
-  puts("");
+  cli_help_puts(stream, "");
 
-  printf(
+  fprintf(stream,
     "  JMP addr8       Opcode: 0x%02X | Size: 2 bytes\n",
     (unsigned int)OPCODE_JUMP
   );
-  puts("    Effect: PC <- addr8.");
-  puts(
+  cli_help_puts(stream, "    Effect: PC <- addr8.");
+  cli_help_puts(stream,
     "    Explanation: Jumps unconditionally "
     "to an absolute 8-bit address."
   );
-  puts("    Registers and flags are unchanged.");
-  puts("    Assembly example: JMP 0x80");
-  printf(
+  cli_help_puts(stream, "    Registers and flags are unchanged.");
+  cli_help_puts(stream, "    Assembly example: JMP 0x80");
+  fprintf(stream,
     "    Encoding example: 0x%02X 0x80\n",
     (unsigned int)OPCODE_JUMP
   );
-  puts("");
+  cli_help_puts(stream, "");
 
-  printf(
+  fprintf(stream,
     "  LDA addr8       Opcode: 0x%02X | Size: 2 bytes\n",
     (unsigned int)OPCODE_LOAD_A_FROM_MEMORY
   );
-  puts("    Effect: A <- memory[addr8]; Z <- (A == 0); C unchanged.");
-  puts(
+  cli_help_puts(stream, "    Effect: A <- memory[addr8]; Z <- (A == 0); C unchanged.");
+  cli_help_puts(stream,
     "    Explanation: Loads register A "
     "from an absolute memory address."
   );
-  puts("    Register B and memory are unchanged.");
-  puts("    Assembly example: LDA 0x80");
-  printf(
+  cli_help_puts(stream, "    Register B and memory are unchanged.");
+  cli_help_puts(stream, "    Assembly example: LDA 0x80");
+  fprintf(stream,
     "    Encoding example: 0x%02X 0x80\n",
     (unsigned int)OPCODE_LOAD_A_FROM_MEMORY
   );
-  puts("");
+  cli_help_puts(stream, "");
 
-  printf(
+  fprintf(stream,
     "  STA addr8       Opcode: 0x%02X | Size: 2 bytes\n",
     (unsigned int)OPCODE_STORE_A_TO_MEMORY
   );
-  puts("    Effect: memory[addr8] <- A; registers and flags unchanged.");
-  puts(
+  cli_help_puts(stream, "    Effect: memory[addr8] <- A; registers and flags unchanged.");
+  cli_help_puts(stream,
     "    Explanation: Stores register A "
     "at an absolute memory address."
   );
-  puts("    Assembly example: STA 0x80");
-  printf(
+  cli_help_puts(stream, "    Assembly example: STA 0x80");
+  fprintf(stream,
     "    Encoding example: 0x%02X 0x80\n",
     (unsigned int)OPCODE_STORE_A_TO_MEMORY
   );
-  puts("");
+  cli_help_puts(stream, "");
 
-  printf(
+  fprintf(stream,
     "  PUSH A          Opcode: 0x%02X | Size: 1 byte\n",
     (unsigned int)OPCODE_PUSH_A
   );
-  puts(
+  cli_help_puts(stream,
     "    Effect: SP <- 0xFF if empty, otherwise SP - 1; "
     "memory[SP] <- A."
   );
-  puts("    Explanation: Pushes A onto the downward-growing stack.");
-  puts("    Registers A and B and flags Z and C are unchanged.");
-  puts("    Pushing past address 0xF0 causes stack overflow.");
-  puts("    Assembly example: PUSH A");
-  printf(
+  cli_help_puts(stream, "    Explanation: Pushes A onto the downward-growing stack.");
+  cli_help_puts(stream, "    Registers A and B and flags Z and C are unchanged.");
+  cli_help_puts(stream, "    Pushing past address 0xF0 causes stack overflow.");
+  cli_help_puts(stream, "    Assembly example: PUSH A");
+  fprintf(stream,
     "    Encoding: 0x%02X\n",
     (unsigned int)OPCODE_PUSH_A
   );
-  puts("");
+  cli_help_puts(stream, "");
 
-  printf(
+  fprintf(stream,
     "  POP A           Opcode: 0x%02X | Size: 1 byte\n",
     (unsigned int)OPCODE_POP_A
   );
-  puts(
+  cli_help_puts(stream,
     "    Effect: A <- memory[SP]; SP <- 0x00 if SP was 0xFF, "
     "otherwise SP + 1."
   );
-  puts("    Explanation: Pops the newest stack byte into A.");
-  puts("    Z <- (A == 0); C unchanged; B and memory unchanged.");
-  puts("    Popping when SP is 0x00 causes stack underflow.");
-  puts("    Assembly example: POP A");
-  printf(
+  cli_help_puts(stream, "    Explanation: Pops the newest stack byte into A.");
+  cli_help_puts(stream, "    Z <- (A == 0); C unchanged; B and memory unchanged.");
+  cli_help_puts(stream, "    Popping when SP is 0x00 causes stack underflow.");
+  cli_help_puts(stream, "    Assembly example: POP A");
+  fprintf(stream,
     "    Encoding: 0x%02X\n",
     (unsigned int)OPCODE_POP_A
   );
-  puts("");
+  cli_help_puts(stream, "");
 
-  printf(
+  fprintf(stream,
     "  CALL addr8      Opcode: 0x%02X | Size: 2 bytes\n",
     (unsigned int)OPCODE_CALL
   );
-  puts("    Effect: Push address after addr8; PC <- addr8.");
-  puts(
+  cli_help_puts(stream, "    Effect: Push address after addr8; PC <- addr8.");
+  cli_help_puts(stream,
     "    Explanation: Saves the return address, then jumps "
     "to an absolute address."
   );
-  puts("    Registers A and B and flags Z and C are unchanged.");
-  puts("    A full stack causes stack overflow.");
-  puts("    Assembly example: CALL subroutine");
-  printf(
+  cli_help_puts(stream, "    Registers A and B and flags Z and C are unchanged.");
+  cli_help_puts(stream, "    A full stack causes stack overflow.");
+  cli_help_puts(stream, "    Assembly example: CALL subroutine");
+  fprintf(stream,
     "    Encoding example: 0x%02X 0x80\n",
     (unsigned int)OPCODE_CALL
   );
-  puts("");
+  cli_help_puts(stream, "");
 
-  printf(
+  fprintf(stream,
     "  RET             Opcode: 0x%02X | Size: 1 byte\n",
     (unsigned int)OPCODE_RETURN
   );
-  puts("    Effect: PC <- newest stack byte.");
-  puts(
+  cli_help_puts(stream, "    Effect: PC <- newest stack byte.");
+  cli_help_puts(stream,
     "    Explanation: Pops the saved return address "
     "and resumes execution there."
   );
-  puts("    Registers A and B and flags Z and C are unchanged.");
-  puts("    An empty stack causes stack underflow.");
-  puts("    Assembly example: RET");
-  printf(
+  cli_help_puts(stream, "    Registers A and B and flags Z and C are unchanged.");
+  cli_help_puts(stream, "    An empty stack causes stack underflow.");
+  cli_help_puts(stream, "    Assembly example: RET");
+  fprintf(stream,
     "    Encoding: 0x%02X\n",
     (unsigned int)OPCODE_RETURN
   );
-  puts("");
+  cli_help_puts(stream, "");
 
-  puts("Memory map:");
-  printf(
+  cli_help_puts(stream, "Memory map:");
+  fprintf(stream,
     "  Program binaries may use 0x00 through 0x%02X "
     "(%u bytes).\n",
     (unsigned int)(CPU_PROGRAM_MEMORY_SIZE - 1),
     (unsigned int)CPU_PROGRAM_MEMORY_SIZE
   );
-  printf(
+  fprintf(stream,
     "  Input port: 0x%02X (read-only to VM8 software).\n",
     (unsigned int)CPU_INPUT_PORT_ADDRESS
   );
-  printf(
+  fprintf(stream,
     "  Output port: 0x%02X (readable and writable latch).\n",
     (unsigned int)CPU_OUTPUT_PORT_ADDRESS
   );
-  printf(
+  fprintf(stream,
     "  The %u-byte stack uses addresses 0x%02X through "
     "0x%02X.\n",
     (unsigned int)CPU_STACK_CAPACITY,
     (unsigned int)CPU_STACK_LOW_ADDRESS,
     (unsigned int)CPU_STACK_HIGH_ADDRESS
   );
-  puts("  SP = 0x00 represents an empty stack.");
-  puts("");
+  cli_help_puts(stream, "  SP = 0x00 represents an empty stack.");
+  cli_help_puts(stream, "");
 
-  puts("Assembler directives:");
-  puts("  .EQU NAME, value  Define a named 8-bit constant; emits no bytes.");
-  puts("    NAME is case-sensitive and shares a namespace with labels.");
-  puts("    value must be a decimal or 0x hexadecimal literal from 0 to 255.");
-  puts("    Example: .EQU DATA_ADDRESS, 0x80");
-  puts("  .BYTE value       Emit exactly one raw byte.");
-  puts("    value may be a byte literal, a named constant, or a label.");
-  puts("    Examples: .BYTE 0xA5 and .BYTE DATA_ADDRESS");
-  puts("");
+  cli_help_puts(stream, "Assembler directives:");
+  cli_help_puts(stream, "  .EQU NAME, value  Define a named 8-bit constant; emits no bytes.");
+  cli_help_puts(stream, "    NAME is case-sensitive and shares a namespace with labels.");
+  cli_help_puts(stream, "    value must be a decimal or 0x hexadecimal literal from 0 to 255.");
+  cli_help_puts(stream, "    Example: .EQU DATA_ADDRESS, 0x80");
+  cli_help_puts(stream, "  .BYTE value       Emit exactly one raw byte.");
+  cli_help_puts(stream, "    value may be a byte literal, a named constant, or a label.");
+  cli_help_puts(stream, "    Examples: .BYTE 0xA5 and .BYTE DATA_ADDRESS");
+  cli_help_puts(stream, "");
 
-  puts("Simulator workflow:");
-  puts("  Run the built-in demonstration with: make run");
-  puts("  Assemble and run programs/demo.asm with: make run-bin");
-  puts("  Run the popcount firmware with: make run-popcount INPUT_VALUE=0xA5");
-  puts("  Run another binary with: ./build/vm8 run <program.bin>");
-  puts("  Trace the built-in demonstration with: make trace");
-  puts("  Assemble and trace programs/demo.asm with make trace-bin");
-  puts("  Trace the popcount firmware with: make trace-popcount INPUT_VALUE=0xA5");
-  puts("");
+  cli_help_puts(stream, "Simulator workflow:");
+  cli_help_puts(stream, "  Run the built-in demonstration with: make run");
+  cli_help_puts(stream, "  Assemble and run programs/demo.asm with: make run-bin");
+  cli_help_puts(stream, "  Run the popcount firmware with: make run-popcount INPUT_VALUE=0xA5");
+  cli_help_puts(stream, "  Run another binary with: ./build/vm8 run <program.bin>");
+  cli_help_puts(stream, "  Trace the built-in demonstration with: make trace");
+  cli_help_puts(stream, "  Assemble and trace programs/demo.asm with make trace-bin");
+  cli_help_puts(stream, "  Trace the popcount firmware with: make trace-popcount INPUT_VALUE=0xA5");
+  cli_help_puts(stream, "");
 
-  puts("Assembler workflow:");
-  puts("  Write assembly source in programs/demo.asm.");
-  puts("  Build the assembler with: make assembler");
-  puts("  Generate build/demo.bin with: make assemble");
-  puts("  Generate build/popcount.bin with: make assemble-popcount");
-  puts("  Display its size and raw bytes with: make inspect");
-  puts("  Inspect the popcount binary with: make inspect-popcount");
-  puts("  Size only: wc -c build/demo.bin");
-  puts("  Bytes only: od -An -tx1 -v build/demo.bin");
+  cli_help_puts(stream, "Assembler workflow:");
+  cli_help_puts(stream, "  Write assembly source in programs/demo.asm.");
+  cli_help_puts(stream, "  Build the assembler with: make assembler");
+  cli_help_puts(stream, "  Generate build/demo.bin with: make assemble");
+  cli_help_puts(stream, "  Generate build/popcount.bin with: make assemble-popcount");
+  cli_help_puts(stream, "  Display its size and raw bytes with: make inspect");
+  cli_help_puts(stream, "  Inspect the popcount binary with: make inspect-popcount");
+  cli_help_puts(stream, "  Size only: wc -c build/demo.bin");
+  cli_help_puts(stream, "  Bytes only: od -An -tx1 -v build/demo.bin");
+}
+
+void cli_print_help(void)
+{
+  cli_write_help(stdout);
 }

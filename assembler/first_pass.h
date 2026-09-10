@@ -4,9 +4,11 @@
 #include <stddef.h>
 
 #include "symbol_table.h"
+#include "diagnostics.h"
 
 typedef struct FirstPassResult
 {
+  AssemblerDiagnostics diagnostics;
   SymbolTable symbols;
   size_t statement_count;
   size_t program_size;

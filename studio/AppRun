@@ -1,0 +1,7 @@
+#!/bin/sh
+# This launcher runs inside the mounted AppImage; it needs no project checkout.
+set -eu
+VM8_APPDIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+export LD_LIBRARY_PATH="$VM8_APPDIR/usr/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+export FONTCONFIG_FILE="$VM8_APPDIR/usr/share/fonts.conf"
+exec "$VM8_APPDIR/usr/bin/vm8-studio" "$@"

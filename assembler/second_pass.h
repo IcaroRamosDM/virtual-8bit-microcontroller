@@ -5,9 +5,11 @@
 #include <stdint.h>
 
 #include "symbol_table.h"
+#include "diagnostics.h"
 
 typedef struct SecondPassResult
 {
+  AssemblerDiagnostics diagnostics;
   const SymbolTable *symbols;
   uint8_t *program;
   size_t program_capacity;

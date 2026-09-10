@@ -2,14 +2,35 @@
 
 A learning project that implements an 8-bit virtual microcontroller in C and executes programs written in a custom Assembly language.
 
+## VM8 Studio: graphical desktop application
+
+Write Assembly, assemble, run, step, and inspect the simulated CPU in one offline application. VM8 Studio includes an editor with line numbers and syntax colors, breakpoints, registers, memory, bytecode inspection, virtual input/output, an execution log, two examples, and searchable help with detailed instruction explanations.
+
+Download the desktop files from [GitHub Releases](https://github.com/IcaroRamosDM/virtual-8bit-microcontroller/releases). Choose the Windows executable, the Ubuntu/Debian installer, or the portable Linux AppImage. The paths below are the corresponding local build outputs.
+
+- **Windows x64:** copy `build/studio-windows/vm8-studio.exe` and double-click it.
+- **Ubuntu/Debian x86-64:** open `build/studio-linux/vm8-studio_1.1.0-1_amd64.deb` with the graphical software installer, install it, then search for **VM8 Studio** in the application menu. No terminal is needed for normal use.
+- **Linux x86-64:** copy `build/studio-linux/VM8_Studio-x86_64.AppImage`, enable execution if needed, and double-click it. The portable build targets glibc 2.36+ with X11 or XWayland; it is not Ubuntu-specific.
+
+No compiler, terminal, WSL, Python, or Internet connection is needed by the person running Studio. The application embeds the assembler, simulator, examples, reference, and license. Source files can be opened and saved anywhere writable. The separate command-line programs below remain available for terminal workflows.
+
+To try it, leave the included Popcount example and Input `0xA5` selected, then click **Assemble** and **Run**. Expect output `0x04` and `126` cycles. At the default **Clock (Hz)** value of `1000000` (1 MHz), **Virtual time** is `126.000 us`. **Real elapsed** separately measures active Run/Step time on your computer, excluding pauses but including Run's visualization delays. The clock calculates virtual time; **Speed** controls visualization pacing. Press **F1** for the complete offline help, including **Clock and execution time**.
+
+See [VM8 Studio: usage, compatibility, and rebuilding](docs/STUDIO.md) for practical editing/debugging examples, platform limitations, and the `make studio-windows`, `make studio-test`, and `make studio-appimage` targets. The [release guide](docs/RELEASING.md) describes validation and distribution; building locally does not publish anything.
+
 ## Detailed documentation
 
 - [How the system works (English)](docs/HOW_IT_WORKS.md)
 - [How the system works (Brazilian Portuguese)](docs/HOW_IT_WORKS.pt-BR.md)
+- [VM8 Studio graphical application](docs/STUDIO.md)
+- [VM8 Studio Android privacy policy](docs/PRIVACY_POLICY.md)
+- [Running and rebuilding the Linux and Windows executables](docs/RUNNING_BINARIES.md)
+- [Desktop release checklist](docs/RELEASING.md)
+- [Version history](CHANGELOG.md)
 
-## Requirements and quick start
+## Command-line development: requirements and quick start
 
-Development and verification use Ubuntu on WSL. The project requires GCC with C17 support and GNU Make. The complete test suite also uses Bash and standard Unix tools, including `grep`, `dd`, and `rm`. Binary inspection uses `wc` and `od`.
+Development and verification work on Ubuntu/Linux, including native Ubuntu 24.04 and Ubuntu under WSL 2. The project requires GCC with C17 support and GNU Make. The complete test suite also uses Bash and standard Unix tools, including `grep`, `dd`, and `rm`. Binary inspection uses `wc` and `od`.
 
 From the repository root inside Ubuntu:
 
@@ -23,12 +44,46 @@ The last command assembles and runs the final demonstration firmware. Expect `Ou
 
 To explore the same firmware interactively, run `make monitor-popcount`, then enter `input 0xA5` followed by `run` at the `vm8>` prompt. Use `help` for interactive commands and `quit` to leave the monitor.
 
+## Separate Linux and Windows command-line executables
+
+The simulator and assembler can also be built as separate native executables for Linux and Windows. These remain terminal applications; Windows execution does not require WSL, and the simulated CPU remains 8-bit on either host.
+
+From the repository root inside Ubuntu/Linux, install the Windows cross-compiler once if needed and build both versions:
+
+```bash
+sudo apt install --no-install-recommends gcc-mingw-w64-x86-64-win32
+make release
+```
+
+Use `make linux` or `make windows` to build only one platform. The output folders contain the executables, both demonstration binaries and Assembly sources, the MIT License, and a usage guide:
+
+| Folder | Executables | Host |
+| --- | --- | --- |
+| `build/linux/` | `vm8`, `vm8asm` | Linux; the prepared build targets x86-64 with glibc 2.34 or newer. |
+| `build/windows/` | `vm8.exe`, `vm8asm.exe` | Windows x64; no separate MinGW runtime installation is needed. |
+
+For example, in PowerShell from the repository root:
+
+```powershell
+.\build\windows\vm8.exe run .\build\windows\popcount.bin --input 0xA5
+.\build\windows\vm8.exe monitor .\build\windows\popcount.bin
+```
+
+On Linux from the repository root:
+
+```bash
+./build/linux/vm8 run ./build/linux/popcount.bin --input 0xA5
+./build/linux/vm8 monitor ./build/linux/popcount.bin
+```
+
+Expect `Output port: 0x04` and `Cycle count: 126` for the first command on either platform. See the [binary usage guide](docs/RUNNING_BINARIES.md) for complete examples, rebuilding, and compatibility notes. Generated binaries remain ignored by Git; `make release` does not create or publish a GitHub release.
+
 ## Development rules
 
 - Repository content is written in English, with an explicitly maintained Brazilian Portuguese translation of the system guide.
 - Source code is written and edited with Vim.
 - Documentation and other prose are written and edited with Nano.
-- The project is built and tested inside Ubuntu on WSL.
+- The project is built and tested on Ubuntu/Linux; WSL 2 is optional.
 - Each cohesive feature or productive development session is recorded with a focused Git commit.
 
 ## Current architecture
@@ -183,9 +238,12 @@ An arbitrary compatible binary can be selected with `./build/vm8 run <program.bi
 
 - `src/`: CPU, state and trace formatters, monitor, CLI, binary reader, built-in program, and simulator-entry-point implementations.
 - `include/`: public C headers.
-- `assembler/`: standalone assembler implementation.
+- `assembler/`: two-pass assembler and shared in-memory assembly entry point.
+- `studio/`: C++17 desktop interface, offline help, timing, icon, and Linux launcher.
+- `tools/`: desktop dependency builds, portable packaging, and Linux installation.
+- `docs/`: system guides, desktop usage, rebuilding, and release instructions.
 - `programs/`: programs written in the custom Assembly language, including the introductory demonstration and final popcount firmware.
-- `tests/`: automated C unit and integration tests plus Bash process-level tests.
+- `tests/`: C unit/integration tests, Bash process tests, C++ timing tests, and Python desktop-installation tests.
 - `build/`: ignored generated files.
 - `Makefile`: build automation.
 

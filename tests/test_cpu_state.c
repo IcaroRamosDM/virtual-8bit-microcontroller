@@ -8,6 +8,7 @@
 
 #include "cpu.h"
 #include "cpu_state.h"
+#include "test_stream.h"
 
 enum
 {
@@ -58,7 +59,7 @@ static void test_prints_cpu_state(void)
     STATE_OUTPUT_PORT
   );
 
-  FILE *const output = tmpfile();
+  FILE *const output = test_tmpfile();
 
   assert(output != NULL);
 

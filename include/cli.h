@@ -2,6 +2,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdio.h>
 
 typedef enum CliCommand
 {
@@ -27,3 +28,4 @@ CliOptions cli_parse_arguments(
 );
 
 void cli_print_help(void);
+void cli_write_help(FILE *stream);

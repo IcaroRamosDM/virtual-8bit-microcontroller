@@ -1,5 +1,12 @@
 build/
+*.jks
+*.keystore
+*.p12
+*.pfx
+*signing*.properties
 *.o
 *.swp
 *.swo
 *~
+__pycache__/
+*.py[cod]
