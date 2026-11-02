@@ -12,30 +12,18 @@ static bool text_is_symbol_name(const char *text)
     return false;
   }
 
-  const unsigned char first_character =
-    (unsigned char)*text;
+  const unsigned char first_character = (unsigned char)*text;
 
-  if (
-    !isalpha(first_character) &&
-    (*text != '_')
-  )
+  if (!isalpha(first_character) && (*text != '_'))
   {
     return false;
   }
 
-  for (
-    const char *character = text + 1;
-    *character != '\0';
-    ++character
-  )
+  for (const char *character = text + 1; *character != '\0'; ++character)
   {
-    const unsigned char current_character =
-      (unsigned char)*character;
+    const unsigned char current_character = (unsigned char)*character;
 
-    if (
-      !isalnum(current_character) &&
-      (*character != '_')
-    )
+    if (!isalnum(current_character) && (*character != '_'))
     {
       return false;
     }
@@ -44,14 +32,10 @@ static bool text_is_symbol_name(const char *text)
   return true;
 }
 
-ByteOperandResolveResult byte_operand_resolve(
-    const char *text,
-    const SymbolTable *symbols,
-    uint8_t *value
-)
+ByteOperandResolveResult
+byte_operand_resolve(const char *text, const SymbolTable *symbols, uint8_t *value)
 {
-  const ByteLiteralParseResult literal_result =
-    byte_literal_parse(text, value);
+  const ByteLiteralParseResult literal_result = byte_literal_parse(text, value);
 
   switch (literal_result)
   {

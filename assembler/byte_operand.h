@@ -13,8 +13,5 @@ typedef enum ByteOperandResolveResult
   BYTE_OPERAND_RESOLVE_UNDEFINED_SYMBOL
 } ByteOperandResolveResult;
 
-ByteOperandResolveResult byte_operand_resolve(
-    const char *text,
-    const SymbolTable *symbols,
-    uint8_t *value
-);
+ByteOperandResolveResult
+byte_operand_resolve(const char *text, const SymbolTable *symbols, uint8_t *value);

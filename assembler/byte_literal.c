@@ -10,40 +10,24 @@ enum
   HEXADECIMAL_FIRST_ALPHA_DIGIT_VALUE = 10
 };
 
-static bool character_to_digit(
-    char character,
-    unsigned int *digit
-)
+static bool character_to_digit(char character, unsigned int *digit)
 {
-  if (
-    (character >= '0') &&
-    (character <= '9')
-  )
+  if ((character >= '0') && (character <= '9'))
   {
     *digit = (unsigned int)(character - '0');
     return true;
   }
 
-  if (
-    (character >= 'a') &&
-    (character <= 'f')
-  )
+  if ((character >= 'a') && (character <= 'f'))
   {
-    *digit =
-      HEXADECIMAL_FIRST_ALPHA_DIGIT_VALUE +
-      (unsigned int)(character - 'a');
+    *digit = HEXADECIMAL_FIRST_ALPHA_DIGIT_VALUE + (unsigned int)(character - 'a');
 
     return true;
   }
 
-  if (
-    (character >= 'A') &&
-    (character <= 'F')
-  )
+  if ((character >= 'A') && (character <= 'F'))
   {
-    *digit =
-      HEXADECIMAL_FIRST_ALPHA_DIGIT_VALUE +
-      (unsigned int)(character - 'A');
+    *digit = HEXADECIMAL_FIRST_ALPHA_DIGIT_VALUE + (unsigned int)(character - 'A');
 
     return true;
   }
@@ -51,10 +35,7 @@ static bool character_to_digit(
   return false;
 }
 
-ByteLiteralParseResult byte_literal_parse(
-    const char *text,
-    uint8_t *value
-)
+ByteLiteralParseResult byte_literal_parse(const char *text, uint8_t *value)
 {
   if (*text == '\0')
   {
@@ -64,10 +45,7 @@ ByteLiteralParseResult byte_literal_parse(
   unsigned int base = DECIMAL_BASE;
   const char *digits = text;
 
-  if (
-    (text[0] == '0') &&
-    (text[1] == 'x')
-  )
+  if ((text[0] == '0') && (text[1] == 'x'))
   {
     base = HEXADECIMAL_BASE;
     digits += 2;
@@ -80,32 +58,21 @@ ByteLiteralParseResult byte_literal_parse(
 
   unsigned int accumulated_value = 0;
 
-  for (
-    const char *character = digits;
-    *character != '\0';
-    ++character
-  )
+  for (const char *character = digits; *character != '\0'; ++character)
   {
     unsigned int digit = 0;
 
-    if (
-      !character_to_digit(*character, &digit) ||
-      (digit >= base)
-    )
+    if (!character_to_digit(*character, &digit) || (digit >= base))
     {
       return BYTE_LITERAL_PARSE_INVALID;
     }
 
-    if (
-      accumulated_value >
-      ((unsigned int)UINT8_MAX - digit) / base
-    )
+    if (accumulated_value > ((unsigned int)UINT8_MAX - digit) / base)
     {
       return BYTE_LITERAL_PARSE_OUT_OF_RANGE;
     }
 
-    accumulated_value =
-      (accumulated_value * base) + digit;
+    accumulated_value = (accumulated_value * base) + digit;
   }
 
   *value = (uint8_t)accumulated_value;

@@ -35,6 +35,4 @@ typedef struct InstructionMetadata
   const char *mnemonic;
 } InstructionMetadata;
 
-const InstructionMetadata *instruction_set_find_by_opcode(
-    uint8_t opcode
-);
+const InstructionMetadata *instruction_set_find_by_opcode(uint8_t opcode);

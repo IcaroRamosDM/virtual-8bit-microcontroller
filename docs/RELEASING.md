@@ -7,14 +7,17 @@ binaries and dependency caches stay under the ignored `build/` directory.
 ## Prepare a version
 
 Update `PACKAGE_VERSION` in `tools/linux_desktop.py`, the installer filename in
-`README.md` and `docs/STUDIO.md`, and `CHANGELOG.md`. The current desktop release
-is `v1.1.0`, with Debian package version `1.1.0-1`. Preserve existing published tags.
+`README.md` and `docs/STUDIO.md`, and `CHANGELOG.md`. Desktop release `v1.1.1`
+uses Debian package version
+`1.1.1-1`. For the next release, choose an unused version and update the examples
+below. Preserve existing published tags.
 
 Install the build prerequisites in [the Studio guide](STUDIO.md). From the
 repository root, run:
 
 ```bash
-make test
+make format-check
+make test studio-timing-test studio-file-test studio-build-tools-test
 make studio-test
 make studio-windows
 make studio-appimage
@@ -47,12 +50,16 @@ APPIMAGE_EXTRACT_AND_RUN=1 xvfb-run -a -s '-screen 0 1024x768x24' \
 
 Inspect the screenshots and confirm that registers and both timing lines are
 readable. Check installer metadata with
-`dpkg-deb --info build/studio-linux/vm8-studio_1.1.0-1_amd64.deb`.
+`dpkg-deb --info build/studio-linux/vm8-studio_1.1.1-1_amd64.deb`.
 A desktop installation should open through the **VM8 Studio** application-menu
-entry. For a private installation on the build host, use `make studio-install-user`.
+entry. Check the icon in the menu and taskbar, and launch the AppImage directly
+to check its running-window icon. A generic package-file thumbnail is separate
+from the application icon. For a private installation on the build host, use
+`make studio-install-user`.
 
 Cross-compilation is not a native Windows execution test. On Windows x64,
-open `vm8-studio.exe`, assemble and run Popcount with input `0xA5`, and expect
+check the executable icon in Explorer and the running-window/taskbar icon.
+Open `vm8-studio.exe`, assemble and run Popcount with input `0xA5`, and expect
 output `0x04` and 126 cycles. Also exercise file open/save, breakpoints, step,
 pause, reset, timing, and F1 Help. The native timing tests can be built with
 `make studio-timing-windows-build` and run on Windows as described in the
@@ -61,22 +68,24 @@ pause, reset, timing, and F1 Help. The native timing tests can be built with
 ## Collect release assets
 
 Keep a dedicated directory containing only the finished files for the selected
-version. For `v1.1.0`:
+version. If a candidate directory already exists, preserve it before collecting
+new files; never silently reuse old binaries. For `v1.1.1`:
 
 ```bash
-mkdir -p build/releases/v1.1.0
-cp build/studio-windows/vm8-studio.exe build/releases/v1.1.0/
-cp build/studio-linux/VM8_Studio-x86_64.AppImage build/releases/v1.1.0/
-cp build/studio-linux/vm8-studio_1.1.0-1_amd64.deb build/releases/v1.1.0/
+test ! -e build/releases/v1.1.1
+mkdir -p build/releases/v1.1.1
+cp build/studio-windows/vm8-studio.exe build/releases/v1.1.1/
+cp build/studio-linux/VM8_Studio-x86_64.AppImage build/releases/v1.1.1/
+cp build/studio-linux/vm8-studio_1.1.1-1_amd64.deb build/releases/v1.1.1/
 (
-  cd build/releases/v1.1.0
+  cd build/releases/v1.1.1
   sha256sum vm8-studio.exe VM8_Studio-x86_64.AppImage \
-    vm8-studio_1.1.0-1_amd64.deb > SHA256SUMS
+    vm8-studio_1.1.1-1_amd64.deb > SHA256SUMS
   sha256sum --check SHA256SUMS
 )
 ```
 
-Write `build/releases/v1.1.0/RELEASE_NOTES.md` from the changelog, with download
+Write `build/releases/v1.1.1/RELEASE_NOTES.md` from the changelog, with download
 choices, compatibility requirements, and actual verification results. Attach
 only the three application files and `SHA256SUMS`; the notes become the release
 body. Keep bundled component notices and the AppImage runtime's corresponding
@@ -91,19 +100,19 @@ reviewed source, test, build-script, and documentation paths. Then review
 focused English Conventional Commit message. Confirm that the working tree
 contains no remaining release changes.
 
-Create an annotated `v1.1.0` tag on the verified commit, push that commit and tag,
+Create an annotated `v1.1.1` tag on the verified commit, push that commit and tag,
 and create a GitHub Release from the existing tag. Upload the exact files from
-`build/releases/v1.1.0/`. The GitHub web interface supports these steps, or an
+`build/releases/v1.1.1/`. The GitHub web interface supports these steps, or an
 authenticated GitHub CLI can upload the assets:
 
 ```bash
-gh release create v1.1.0 --verify-tag --latest \
-  --title 'VM8 Studio v1.1.0' \
-  --notes-file build/releases/v1.1.0/RELEASE_NOTES.md \
-  build/releases/v1.1.0/vm8-studio.exe \
-  build/releases/v1.1.0/VM8_Studio-x86_64.AppImage \
-  build/releases/v1.1.0/vm8-studio_1.1.0-1_amd64.deb \
-  build/releases/v1.1.0/SHA256SUMS
+gh release create v1.1.1 --verify-tag --latest \
+  --title 'VM8 Studio v1.1.1' \
+  --notes-file build/releases/v1.1.1/RELEASE_NOTES.md \
+  build/releases/v1.1.1/vm8-studio.exe \
+  build/releases/v1.1.1/VM8_Studio-x86_64.AppImage \
+  build/releases/v1.1.1/vm8-studio_1.1.1-1_amd64.deb \
+  build/releases/v1.1.1/SHA256SUMS
 ```
 
 After publishing, check the tag's commit, the asset names and sizes, and the

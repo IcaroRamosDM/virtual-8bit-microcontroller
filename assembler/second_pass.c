@@ -25,14 +25,10 @@ static bool statement_is_label(const char *statement)
 {
   const size_t statement_length = strlen(statement);
 
-  return
-    (statement_length > 0) &&
-    (statement[statement_length - 1] == ':');
+  return (statement_length > 0) && (statement[statement_length - 1] == ':');
 }
 
-static const char *parse_result_message(
-    InstructionParseResult result
-)
+static const char *parse_result_message(InstructionParseResult result)
 {
   switch (result)
   {
@@ -61,9 +57,7 @@ static const char *parse_result_message(
   return "unknown instruction syntax error";
 }
 
-static const char *encode_result_message(
-    InstructionEncodeResult result
-)
+static const char *encode_result_message(InstructionEncodeResult result)
 {
   switch (result)
   {
@@ -95,9 +89,7 @@ static const char *encode_result_message(
   return "unknown instruction encoding error";
 }
 
-static const char *byte_operand_result_message(
-    ByteOperandResolveResult result
-)
+static const char *byte_operand_result_message(ByteOperandResolveResult result)
 {
   switch (result)
   {
@@ -120,12 +112,10 @@ static const char *byte_operand_result_message(
   return "unknown byte operand error";
 }
 
-void second_pass_initialize(
-    SecondPassResult *result,
-    const SymbolTable *symbols,
-    uint8_t *program,
-    size_t program_capacity
-)
+void second_pass_initialize(SecondPassResult *result,
+                            const SymbolTable *symbols,
+                            uint8_t *program,
+                            size_t program_capacity)
 {
   result->diagnostics = (AssemblerDiagnostics){0};
   result->symbols = symbols;
@@ -135,12 +125,10 @@ void second_pass_initialize(
   result->instruction_count = 0;
 }
 
-bool second_pass_process_statement(
-    const char *input_path,
-    size_t line_number,
-    const char *statement,
-    void *context
-)
+bool second_pass_process_statement(const char *input_path,
+                                   size_t line_number,
+                                   const char *statement,
+                                   void *context)
 {
   SecondPassResult *result = context;
 
@@ -151,41 +139,30 @@ bool second_pass_process_statement(
 
   ParsedInstruction instruction;
 
-  const InstructionParseResult parse_result =
-    instruction_parse(
-      statement,
-      &instruction
-    );
+  const InstructionParseResult parse_result = instruction_parse(statement, &instruction);
 
   if (parse_result != INSTRUCTION_PARSE_SUCCESS)
   {
-    assembler_report(
-      &result->diagnostics,
-      "%s:%zu: %s: '%s'\n",
-      input_path,
-      line_number,
-      parse_result_message(parse_result),
-      statement
-    );
+    assembler_report(&result->diagnostics,
+                     "%s:%zu: %s: '%s'\n",
+                     input_path,
+                     line_number,
+                     parse_result_message(parse_result),
+                     statement);
 
     return false;
   }
 
   if (strcmp(instruction.mnemonic, EQU_DIRECTIVE) == 0)
   {
-    if (
-      instruction.operand_count !=
-      EQU_DIRECTIVE_OPERAND_COUNT
-    )
+    if (instruction.operand_count != EQU_DIRECTIVE_OPERAND_COUNT)
     {
-      assembler_report(
-        &result->diagnostics,
-        "%s:%zu: invalid %s directive: '%s'\n",
-        input_path,
-        line_number,
-        EQU_DIRECTIVE,
-        statement
-      );
+      assembler_report(&result->diagnostics,
+                       "%s:%zu: invalid %s directive: '%s'\n",
+                       input_path,
+                       line_number,
+                       EQU_DIRECTIVE,
+                       statement);
 
       return false;
     }
@@ -198,19 +175,14 @@ bool second_pass_process_statement(
 
   if (strcmp(instruction.mnemonic, BYTE_DIRECTIVE) == 0)
   {
-    if (
-      instruction.operand_count !=
-      BYTE_DIRECTIVE_OPERAND_COUNT
-    )
+    if (instruction.operand_count != BYTE_DIRECTIVE_OPERAND_COUNT)
     {
-      assembler_report(
-        &result->diagnostics,
-        "%s:%zu: invalid %s directive: '%s'\n",
-        input_path,
-        line_number,
-        BYTE_DIRECTIVE,
-        statement
-      );
+      assembler_report(&result->diagnostics,
+                       "%s:%zu: invalid %s directive: '%s'\n",
+                       input_path,
+                       line_number,
+                       BYTE_DIRECTIVE,
+                       statement);
 
       return false;
     }
@@ -218,81 +190,60 @@ bool second_pass_process_statement(
     uint8_t value = 0;
 
     const ByteOperandResolveResult resolve_result =
-      byte_operand_resolve(
-        instruction.operands[BYTE_VALUE_OPERAND_INDEX],
-        result->symbols,
-        &value
-      );
+        byte_operand_resolve(instruction.operands[BYTE_VALUE_OPERAND_INDEX],
+                             result->symbols,
+                             &value);
 
     if (resolve_result != BYTE_OPERAND_RESOLVE_SUCCESS)
     {
-      assembler_report(
-        &result->diagnostics,
-        "%s:%zu: %s: '%s'\n",
-        input_path,
-        line_number,
-        byte_operand_result_message(resolve_result),
-        instruction.operands[BYTE_VALUE_OPERAND_INDEX]
-      );
+      assembler_report(&result->diagnostics,
+                       "%s:%zu: %s: '%s'\n",
+                       input_path,
+                       line_number,
+                       byte_operand_result_message(resolve_result),
+                       instruction.operands[BYTE_VALUE_OPERAND_INDEX]);
 
       return false;
     }
 
-    encoded_instruction.bytes[FIRST_ENCODED_BYTE_INDEX] =
-      value;
-    encoded_instruction.size =
-      BYTE_DIRECTIVE_ENCODED_SIZE;
+    encoded_instruction.bytes[FIRST_ENCODED_BYTE_INDEX] = value;
+    encoded_instruction.size = BYTE_DIRECTIVE_ENCODED_SIZE;
     counts_as_instruction = false;
   }
   else
   {
     const InstructionEncodeResult encode_result =
-      instruction_encode(
-        &instruction,
-        result->symbols,
-        &encoded_instruction
-      );
+        instruction_encode(&instruction, result->symbols, &encoded_instruction);
 
     if (encode_result != INSTRUCTION_ENCODE_SUCCESS)
     {
-      assembler_report(
-        &result->diagnostics,
-        "%s:%zu: %s: '%s'\n",
-        input_path,
-        line_number,
-        encode_result_message(encode_result),
-        statement
-      );
+      assembler_report(&result->diagnostics,
+                       "%s:%zu: %s: '%s'\n",
+                       input_path,
+                       line_number,
+                       encode_result_message(encode_result),
+                       statement);
 
       return false;
     }
   }
 
-  if (
-    (result->program_size > result->program_capacity) ||
-    (
-      encoded_instruction.size >
-      result->program_capacity - result->program_size
-    )
-  )
+  if ((result->program_size > result->program_capacity) ||
+      (encoded_instruction.size > result->program_capacity - result->program_size))
   {
-    assembler_report(
-      &result->diagnostics,
-      "%s:%zu: encoded program exceeds "
-      "%zu-byte output capacity\n",
-      input_path,
-      line_number,
-      result->program_capacity
-    );
+    assembler_report(&result->diagnostics,
+                     "%s:%zu: encoded program exceeds "
+                     "%zu-byte output capacity\n",
+                     input_path,
+                     line_number,
+                     result->program_capacity);
 
     return false;
   }
 
-  memcpy(
-    result->program + result->program_size,
-    encoded_instruction.bytes,
-    encoded_instruction.size
-  );
+  memcpy(result->program + result->program_size,
+         encoded_instruction.bytes,
+         encoded_instruction.size);
 
   result->program_size += encoded_instruction.size;
   if (counts_as_instruction)

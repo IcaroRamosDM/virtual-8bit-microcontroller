@@ -14,10 +14,7 @@
 
 int main(int argument_count, char *arguments[])
 {
-  const CliOptions options = cli_parse_arguments(
-    argument_count,
-    arguments
-  );
+  const CliOptions options = cli_parse_arguments(argument_count, arguments);
 
   switch (options.command)
   {
@@ -32,20 +29,15 @@ int main(int argument_count, char *arguments[])
       return EXIT_SUCCESS;
 
     case CLI_COMMAND_INVALID:
-      fputs(
-        "Invalid command or arguments. Run 'make help'.\n",
-        stderr
-      );
+      fputs("Invalid command or arguments. Run 'make help'.\n", stderr);
       return EXIT_FAILURE;
   }
 
-  const bool binary_program_selected =
-    (options.command == CLI_COMMAND_RUN_BINARY) ||
-    (options.command == CLI_COMMAND_MONITOR_BINARY);
+  const bool binary_program_selected = (options.command == CLI_COMMAND_RUN_BINARY) ||
+                                       (options.command == CLI_COMMAND_MONITOR_BINARY);
 
-  const bool monitor_selected =
-    (options.command == CLI_COMMAND_MONITOR_DEMO) ||
-    (options.command == CLI_COMMAND_MONITOR_BINARY);
+  const bool monitor_selected = (options.command == CLI_COMMAND_MONITOR_DEMO) ||
+                                (options.command == CLI_COMMAND_MONITOR_BINARY);
 
   uint8_t binary_bytes[CPU_PROGRAM_MEMORY_SIZE] = {0};
   size_t binary_size = 0;
@@ -54,12 +46,7 @@ int main(int argument_count, char *arguments[])
   if (binary_program_selected)
   {
     const bool binary_read_succeeded =
-      binary_reader_read(
-        options.binary_path,
-        binary_bytes,
-        sizeof binary_bytes,
-        &binary_size
-      );
+        binary_reader_read(options.binary_path, binary_bytes, sizeof binary_bytes, &binary_size);
 
     if (!binary_read_succeeded)
     {
@@ -68,29 +55,18 @@ int main(int argument_count, char *arguments[])
 
     if (binary_size == 0)
     {
-      fprintf(
-        stderr,
-        "%s: binary program is empty\n",
-        options.binary_path
-      );
+      fprintf(stderr, "%s: binary program is empty\n", options.binary_path);
 
       return EXIT_FAILURE;
     }
 
-    program = (Program){
-      .bytes = binary_bytes,
-      .size = binary_size
-    };
+    program = (Program){.bytes = binary_bytes, .size = binary_size};
   }
 
   const uint64_t instruction_limit = CPU_MEMORY_SIZE;
   Cpu cpu = {0};
 
-  const bool program_loaded = cpu_load_program(
-    &cpu,
-    program.bytes,
-    program.size
-  );
+  const bool program_loaded = cpu_load_program(&cpu, program.bytes, program.size);
 
   if (!program_loaded)
   {
@@ -98,24 +74,13 @@ int main(int argument_count, char *arguments[])
     return EXIT_FAILURE;
   }
 
-  cpu_set_input_port(
-    &cpu,
-    options.input_port_value
-  );
+  cpu_set_input_port(&cpu, options.input_port_value);
 
   if (monitor_selected)
   {
-    const bool monitor_succeeded = monitor_run(
-      &cpu,
-      program,
-      stdin,
-      stdout,
-      stderr
-    );
+    const bool monitor_succeeded = monitor_run(&cpu, program, stdin, stdout, stderr);
 
-    return monitor_succeeded
-      ? EXIT_SUCCESS
-      : EXIT_FAILURE;
+    return monitor_succeeded ? EXIT_SUCCESS : EXIT_FAILURE;
   }
 
   CpuStepObserver observer = NULL;
@@ -129,12 +94,7 @@ int main(int argument_count, char *arguments[])
   }
 
   const CpuRunResult result =
-    cpu_run_with_observer(
-      &cpu,
-      instruction_limit,
-      observer,
-      observer_context
-    );
+      cpu_run_with_observer(&cpu, instruction_limit, observer, observer_context);
 
   puts("Virtual 8-bit microcontroller simulator");
 
@@ -149,10 +109,7 @@ int main(int argument_count, char *arguments[])
       return EXIT_FAILURE;
 
     case CPU_RUN_INSTRUCTION_LIMIT_REACHED:
-      fputs(
-        "Execution result: instruction limit reached\n",
-        stderr
-      );
+      fputs("Execution result: instruction limit reached\n", stderr);
       return EXIT_FAILURE;
 
     case CPU_RUN_STACK_OVERFLOW:

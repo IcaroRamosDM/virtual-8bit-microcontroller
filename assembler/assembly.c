@@ -7,12 +7,11 @@
 #include "source_line.h"
 #include "source_reader.h"
 
-static bool process_text(
-    const char *source,
-    FirstPassResult *first,
-    SecondPassResult *second,
-    AssemblyImage *image,
-    AssemblerDiagnostics diagnostics)
+static bool process_text(const char *source,
+                         FirstPassResult *first,
+                         SecondPassResult *second,
+                         AssemblyImage *image,
+                         AssemblerDiagnostics diagnostics)
 {
   const char *cursor = source;
   size_t line_number = 0;
@@ -29,8 +28,10 @@ static bool process_text(
     if (length > SOURCE_READER_MAX_LINE_LENGTH)
     {
       image->error_line = line_number;
-      assembler_report(&diagnostics, "Editor:%zu: source line exceeds %d characters\n",
-          line_number, SOURCE_READER_MAX_LINE_LENGTH);
+      assembler_report(&diagnostics,
+                       "Editor:%zu: source line exceeds %d characters\n",
+                       line_number,
+                       SOURCE_READER_MAX_LINE_LENGTH);
       return false;
     }
 
@@ -74,10 +75,7 @@ static bool process_text(
   return true;
 }
 
-bool assembly_compile(
-    const char *source,
-    AssemblyImage *image,
-    AssemblerDiagnostics diagnostics)
+bool assembly_compile(const char *source, AssemblyImage *image, AssemblerDiagnostics diagnostics)
 {
   if (image == NULL)
   {
@@ -86,8 +84,9 @@ bool assembly_compile(
   *image = (AssemblyImage){0};
   if (source == NULL || strlen(source) > ASSEMBLY_SOURCE_CAPACITY)
   {
-    assembler_report(&diagnostics, "Editor: source is missing or exceeds %d bytes\n",
-        ASSEMBLY_SOURCE_CAPACITY);
+    assembler_report(&diagnostics,
+                     "Editor: source is missing or exceeds %d bytes\n",
+                     ASSEMBLY_SOURCE_CAPACITY);
     return false;
   }
 

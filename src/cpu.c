@@ -56,35 +56,20 @@ uint8_t cpu_get_output_port(const Cpu *cpu)
   return cpu->output_port;
 }
 
-static void cpu_store_alu_flags(
-    Cpu *cpu,
-    uint8_t result,
-    bool carry_flag
-)
+static void cpu_store_alu_flags(Cpu *cpu, uint8_t result, bool carry_flag)
 {
   cpu->zero_flag = (result == 0);
   cpu->carry_flag = carry_flag;
 }
 
-static void cpu_store_alu_result(
-    Cpu *cpu,
-    uint8_t result,
-    bool carry_flag
-)
+static void cpu_store_alu_result(Cpu *cpu, uint8_t result, bool carry_flag)
 {
   cpu->register_a = result;
 
-  cpu_store_alu_flags(
-    cpu,
-    result,
-    carry_flag
-  );
+  cpu_store_alu_flags(cpu, result, carry_flag);
 }
 
-static void cpu_jump_if(
-    Cpu *cpu,
-    bool condition
-)
+static void cpu_jump_if(Cpu *cpu, bool condition)
 {
   const uint8_t target_address = cpu_fetch_byte(cpu);
 
@@ -94,15 +79,10 @@ static void cpu_jump_if(
   }
 }
 
-static CpuStepResult cpu_stack_push(
-    Cpu *cpu,
-    uint8_t value
-)
+static CpuStepResult cpu_stack_push(Cpu *cpu, uint8_t value)
 {
-  if (
-    (cpu->stack_pointer != CPU_STACK_EMPTY_POINTER) &&
-    (cpu->stack_pointer <= CPU_STACK_LOW_ADDRESS)
-  )
+  if ((cpu->stack_pointer != CPU_STACK_EMPTY_POINTER) &&
+      (cpu->stack_pointer <= CPU_STACK_LOW_ADDRESS))
   {
     cpu->halted = true;
     return CPU_STEP_STACK_OVERFLOW;
@@ -117,19 +97,12 @@ static CpuStepResult cpu_stack_push(
     --cpu->stack_pointer;
   }
 
-  cpu_write_memory(
-    cpu,
-    cpu->stack_pointer,
-    value
-  );
+  cpu_write_memory(cpu, cpu->stack_pointer, value);
 
   return CPU_STEP_OK;
 }
 
-static CpuStepResult cpu_stack_pop(
-    Cpu *cpu,
-    uint8_t *value
-)
+static CpuStepResult cpu_stack_pop(Cpu *cpu, uint8_t *value)
 {
   if (cpu->stack_pointer < CPU_STACK_LOW_ADDRESS)
   {
@@ -137,10 +110,7 @@ static CpuStepResult cpu_stack_pop(
     return CPU_STEP_STACK_UNDERFLOW;
   }
 
-  *value = cpu_read_memory(
-    cpu,
-    cpu->stack_pointer
-  );
+  *value = cpu_read_memory(cpu, cpu->stack_pointer);
 
   if (cpu->stack_pointer == CPU_STACK_HIGH_ADDRESS)
   {
@@ -182,15 +152,9 @@ CpuStepResult cpu_step(Cpu *cpu)
 
     case OPCODE_ADD_A_B:
     {
-      const uint16_t sum =
-        (uint16_t)cpu->register_a +
-        (uint16_t)cpu->register_b;
+      const uint16_t sum = (uint16_t)cpu->register_a + (uint16_t)cpu->register_b;
 
-      cpu_store_alu_result(
-        cpu,
-        (uint8_t)sum,
-        sum > UINT8_MAX
-      );
+      cpu_store_alu_result(cpu, (uint8_t)sum, sum > UINT8_MAX);
 
       return CPU_STEP_OK;
     }
@@ -198,120 +162,72 @@ CpuStepResult cpu_step(Cpu *cpu)
     {
       const uint8_t original_a = cpu->register_a;
       const bool borrow = original_a < cpu->register_b;
-      const uint8_t difference =
-        (uint8_t)(original_a - cpu->register_b);
+      const uint8_t difference = (uint8_t)(original_a - cpu->register_b);
 
-      cpu_store_alu_result(
-        cpu,
-        difference,
-        borrow
-      );
+      cpu_store_alu_result(cpu, difference, borrow);
 
       return CPU_STEP_OK;
     }
 
     case OPCODE_AND_A_B:
-      cpu_store_alu_result(
-        cpu,
-        (uint8_t)(cpu->register_a & cpu->register_b),
-        false
-      );
+      cpu_store_alu_result(cpu, (uint8_t)(cpu->register_a & cpu->register_b), false);
       return CPU_STEP_OK;
 
     case OPCODE_OR_A_B:
-      cpu_store_alu_result(
-        cpu,
-        (uint8_t)(cpu->register_a | cpu->register_b),
-        false
-      );
+      cpu_store_alu_result(cpu, (uint8_t)(cpu->register_a | cpu->register_b), false);
       return CPU_STEP_OK;
 
     case OPCODE_XOR_A_B:
-      cpu_store_alu_result(
-        cpu,
-        (uint8_t)(cpu->register_a ^ cpu->register_b),
-        false
-      );
+      cpu_store_alu_result(cpu, (uint8_t)(cpu->register_a ^ cpu->register_b), false);
       return CPU_STEP_OK;
 
     case OPCODE_NOT_A:
-      cpu_store_alu_result(
-        cpu,
-        (uint8_t)(~cpu->register_a),
-        false
-      );
+      cpu_store_alu_result(cpu, (uint8_t)(~cpu->register_a), false);
       return CPU_STEP_OK;
 
     case OPCODE_SHIFT_LEFT_A:
     {
-      const bool shifted_bit =
-        (cpu->register_a & UINT8_C(0x80)) != 0;
+      const bool shifted_bit = (cpu->register_a & UINT8_C(0x80)) != 0;
 
-      const uint8_t result =
-        (uint8_t)(cpu->register_a << 1);
+      const uint8_t result = (uint8_t)(cpu->register_a << 1);
 
-      cpu_store_alu_result(
-        cpu,
-        result,
-        shifted_bit
-      );
+      cpu_store_alu_result(cpu, result, shifted_bit);
 
       return CPU_STEP_OK;
     }
 
     case OPCODE_SHIFT_RIGHT_A:
     {
-      const bool shifted_bit =
-        (cpu->register_a & UINT8_C(0x01)) != 0;
+      const bool shifted_bit = (cpu->register_a & UINT8_C(0x01)) != 0;
 
-      const uint8_t result =
-        (uint8_t)(cpu->register_a >> 1);
+      const uint8_t result = (uint8_t)(cpu->register_a >> 1);
 
-      cpu_store_alu_result(
-        cpu,
-        result,
-        shifted_bit
-      );
+      cpu_store_alu_result(cpu, result, shifted_bit);
 
       return CPU_STEP_OK;
     }
 
     case OPCODE_COMPARE_A_B:
     {
-      const uint8_t difference =
-        (uint8_t)(cpu->register_a - cpu->register_b);
+      const uint8_t difference = (uint8_t)(cpu->register_a - cpu->register_b);
 
-      const bool borrow =
-        cpu->register_a < cpu->register_b;
+      const bool borrow = cpu->register_a < cpu->register_b;
 
-      cpu_store_alu_flags(
-        cpu,
-        difference,
-        borrow
-      );
+      cpu_store_alu_flags(cpu, difference, borrow);
 
       return CPU_STEP_OK;
     }
 
     case OPCODE_JUMP_IF_ZERO:
-      cpu_jump_if(
-        cpu,
-        cpu->zero_flag
-      );
+      cpu_jump_if(cpu, cpu->zero_flag);
       return CPU_STEP_OK;
 
     case OPCODE_JUMP_IF_NOT_ZERO:
-      cpu_jump_if(
-        cpu,
-        !cpu->zero_flag
-      );
+      cpu_jump_if(cpu, !cpu->zero_flag);
       return CPU_STEP_OK;
 
     case OPCODE_JUMP_IF_CARRY:
-      cpu_jump_if(
-        cpu,
-        cpu->carry_flag
-      );
+      cpu_jump_if(cpu, cpu->carry_flag);
       return CPU_STEP_OK;
 
     case OPCODE_JUMP:
@@ -343,20 +259,13 @@ CpuStepResult cpu_step(Cpu *cpu)
     }
 
     case OPCODE_PUSH_A:
-      return cpu_stack_push(
-        cpu,
-        cpu->register_a
-      );
+      return cpu_stack_push(cpu, cpu->register_a);
 
     case OPCODE_POP_A:
     {
       uint8_t value = 0;
 
-      const CpuStepResult result =
-        cpu_stack_pop(
-          cpu,
-          &value
-        );
+      const CpuStepResult result = cpu_stack_pop(cpu, &value);
 
       if (result != CPU_STEP_OK)
       {
@@ -374,11 +283,7 @@ CpuStepResult cpu_step(Cpu *cpu)
       const uint8_t target_address = cpu_fetch_byte(cpu);
       const uint8_t return_address = cpu->program_counter;
 
-      const CpuStepResult result =
-        cpu_stack_push(
-          cpu,
-          return_address
-        );
+      const CpuStepResult result = cpu_stack_push(cpu, return_address);
 
       if (result != CPU_STEP_OK)
       {
@@ -394,11 +299,7 @@ CpuStepResult cpu_step(Cpu *cpu)
     {
       uint8_t return_address = 0;
 
-      const CpuStepResult result =
-        cpu_stack_pop(
-          cpu,
-          &return_address
-        );
+      const CpuStepResult result = cpu_stack_pop(cpu, &return_address);
 
       if (result != CPU_STEP_OK)
       {
@@ -420,11 +321,7 @@ CpuStepResult cpu_step(Cpu *cpu)
   }
 }
 
-bool cpu_load_program(
-    Cpu *cpu,
-    const uint8_t *program,
-    size_t program_size
-)
+bool cpu_load_program(Cpu *cpu, const uint8_t *program, size_t program_size)
 {
   if (program_size > CPU_PROGRAM_MEMORY_SIZE)
   {
@@ -443,43 +340,28 @@ bool cpu_load_program(
 
   return true;
 }
-CpuRunResult cpu_run_with_observer(
-    Cpu *cpu,
-    uint64_t instruction_limit,
-    CpuStepObserver observer,
-    void *observer_context
-)
+CpuRunResult cpu_run_with_observer(Cpu *cpu,
+                                   uint64_t instruction_limit,
+                                   CpuStepObserver observer,
+                                   void *observer_context)
 {
   if (cpu->halted)
   {
     return CPU_RUN_HALTED;
   }
 
-  for (
-    uint64_t executed_instructions = 0;
-    executed_instructions < instruction_limit;
-    ++executed_instructions
-  )
+  for (uint64_t executed_instructions = 0; executed_instructions < instruction_limit;
+       ++executed_instructions)
   {
-    const uint8_t instruction_address =
-      cpu->program_counter;
+    const uint8_t instruction_address = cpu->program_counter;
 
-    const uint8_t opcode = cpu_read_memory(
-      cpu,
-      instruction_address
-    );
+    const uint8_t opcode = cpu_read_memory(cpu, instruction_address);
 
     const CpuStepResult step_result = cpu_step(cpu);
 
     if (observer != NULL)
     {
-      observer(
-        instruction_address,
-        opcode,
-        cpu,
-        step_result,
-        observer_context
-      );
+      observer(instruction_address, opcode, cpu, step_result, observer_context);
     }
 
     switch (step_result)
@@ -504,15 +386,7 @@ CpuRunResult cpu_run_with_observer(
   return CPU_RUN_INSTRUCTION_LIMIT_REACHED;
 }
 
-CpuRunResult cpu_run(
-    Cpu *cpu,
-    uint64_t instruction_limit
-)
+CpuRunResult cpu_run(Cpu *cpu, uint64_t instruction_limit)
 {
-  return cpu_run_with_observer(
-    cpu,
-    instruction_limit,
-    NULL,
-    NULL
-  );
+  return cpu_run_with_observer(cpu, instruction_limit, NULL, NULL);
 }

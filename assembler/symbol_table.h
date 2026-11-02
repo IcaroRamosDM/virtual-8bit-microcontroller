@@ -8,8 +8,7 @@ enum
 {
   SYMBOL_TABLE_CAPACITY = 256,
   SYMBOL_TABLE_MAX_NAME_LENGTH = 255,
-  SYMBOL_TABLE_NAME_BUFFER_SIZE =
-    SYMBOL_TABLE_MAX_NAME_LENGTH + 1
+  SYMBOL_TABLE_NAME_BUFFER_SIZE = SYMBOL_TABLE_MAX_NAME_LENGTH + 1
 };
 
 typedef enum SymbolTableAddResult
@@ -35,14 +34,6 @@ typedef struct SymbolTable
 
 void symbol_table_initialize(SymbolTable *table);
 
-SymbolTableAddResult symbol_table_add(
-    SymbolTable *table,
-    const char *name,
-    uint8_t value
-);
+SymbolTableAddResult symbol_table_add(SymbolTable *table, const char *name, uint8_t value);
 
-bool symbol_table_find(
-    const SymbolTable *table,
-    const char *name,
-    uint8_t *value
-);
+bool symbol_table_find(const SymbolTable *table, const char *name, uint8_t *value);

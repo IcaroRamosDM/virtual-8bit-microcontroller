@@ -5,6 +5,7 @@ GenericName=Assembly workbench
 Comment=Write Assembly and explore a virtual 8-bit microcontroller
 Exec=vm8-studio
 Icon=vm8-studio
+StartupWMClass=Vm8-studio
 Terminal=false
 Categories=Education;Electronics;
 Keywords=Assembly;Microcontroller;Simulator;Debugger;Firmware;

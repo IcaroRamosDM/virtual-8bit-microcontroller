@@ -17,16 +17,12 @@ typedef struct SecondPassResult
   size_t instruction_count;
 } SecondPassResult;
 
-void second_pass_initialize(
-    SecondPassResult *result,
-    const SymbolTable *symbols,
-    uint8_t *program,
-    size_t program_capacity
-);
+void second_pass_initialize(SecondPassResult *result,
+                            const SymbolTable *symbols,
+                            uint8_t *program,
+                            size_t program_capacity);
 
-bool second_pass_process_statement(
-    const char *input_path,
-    size_t line_number,
-    const char *statement,
-    void *context
-);
+bool second_pass_process_statement(const char *input_path,
+                                   size_t line_number,
+                                   const char *statement,
+                                   void *context);

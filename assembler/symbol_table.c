@@ -7,11 +7,7 @@ void symbol_table_initialize(SymbolTable *table)
   table->count = 0;
 }
 
-bool symbol_table_find(
-    const SymbolTable *table,
-    const char *name,
-    uint8_t *value
-)
+bool symbol_table_find(const SymbolTable *table, const char *name, uint8_t *value)
 {
   for (size_t index = 0; index < table->count; ++index)
   {
@@ -31,11 +27,7 @@ bool symbol_table_find(
   return false;
 }
 
-SymbolTableAddResult symbol_table_add(
-    SymbolTable *table,
-    const char *name,
-    uint8_t value
-)
+SymbolTableAddResult symbol_table_add(SymbolTable *table, const char *name, uint8_t value)
 {
   if (*name == '\0')
   {
@@ -61,11 +53,7 @@ SymbolTableAddResult symbol_table_add(
 
   Symbol *symbol = &table->symbols[table->count];
 
-  memcpy(
-    symbol->name,
-    name,
-    name_length + 1
-  );
+  memcpy(symbol->name, name, name_length + 1);
 
   symbol->value = value;
 

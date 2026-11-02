@@ -1,6 +1,13 @@
 CC := gcc
 .DEFAULT_GOAL := all
 
+.PHONY: format format-check
+format:
+	python3 -B tools/format_source.py
+
+format-check:
+	python3 -B tools/format_source.py --check
+
 CPPFLAGS := -Iinclude -Iassembler
 C_STANDARD := -std=c17
 WARNINGS := -Wall -Wextra -Wpedantic -Werror
@@ -135,7 +142,7 @@ studio-appimage:
 	python3 tools/package_studio.py all
 
 # Reuse the finished AppImage; desktop setup does not rebuild the C core or GUI.
-.PHONY: studio-deb studio-install-user studio-desktop-test
+.PHONY: studio-deb studio-install-user studio-desktop-test studio-build-tools-test
 studio-deb:
 	python3 tools/linux_desktop.py deb
 
@@ -144,6 +151,9 @@ studio-install-user:
 
 studio-desktop-test:
 	python3 -B -m unittest discover -s tests -p 'test_linux_desktop.py' -v
+
+studio-build-tools-test:
+	python3 -B -m unittest discover -s tests -p 'test_build_tools.py' -v
 
 STUDIO_TIMING_SOURCES := studio/timing.cpp tests/test_studio_timing.cpp
 STUDIO_TIMING_FLAGS := -std=c++17 $(WARNINGS) -O2
@@ -161,7 +171,23 @@ studio-timing-test: build/test_studio_timing
 
 studio-timing-windows-build: build/windows-tests/test_studio_timing.exe
 
-studio-test: studio-linux studio-timing-test
+STUDIO_FILE_SOURCES := studio/file_io.cpp tests/test_studio_file_io.cpp
+
+.PHONY: studio-file-test studio-file-windows-build
+build/test_studio_file_io: $(STUDIO_FILE_SOURCES) studio/file_io.h Makefile
+	mkdir -p build
+	$(CXX) -Istudio $(STUDIO_TIMING_FLAGS) $(STUDIO_FILE_SOURCES) -o $@
+
+build/windows-tests/test_studio_file_io.exe: $(STUDIO_FILE_SOURCES) studio/file_io.h Makefile
+	mkdir -p build/windows-tests
+	$(WINDOWS_CXX) -Istudio $(STUDIO_TIMING_FLAGS) -static $(STUDIO_FILE_SOURCES) -o $@
+
+studio-file-test: build/test_studio_file_io
+	./build/test_studio_file_io
+
+studio-file-windows-build: build/windows-tests/test_studio_file_io.exe
+
+studio-test: studio-linux studio-timing-test studio-file-test
 	mkdir -p build/studio-smoke
 	./build/studio-linux/vm8-studio --self-test
 	xvfb-run -a -s '-screen 0 1600x1000x24' ./build/studio-linux/vm8-studio --ui-smoke-test build/studio-smoke
@@ -384,6 +410,8 @@ help: $(TARGET)
 	@printf '  make studio-deb       Package the existing AppImage as an Ubuntu/Debian installer\n'
 	@printf '  make studio-install-user  Install Studio in your account, with menu and desktop icons\n'
 	@printf '  make studio-desktop-test  Test Linux installer and launcher behavior\n'
+	@printf '  make studio-build-tools-test  Test download and packaging failure recovery\n'
+	@printf '  make studio-file-test  Test safe source and bytecode file replacement\n'
 	@printf '  make studio-test      Test GUI actions on a virtual display\n'
 	@printf '  make studio-timing-test  Test virtual clock and real stopwatch without a display\n'
 	@printf '  make studio-timing-windows-build  Build the native Windows stopwatch tests\n'
@@ -396,6 +424,7 @@ help: $(TARGET)
 	@printf '  make release  Build both platforms, examples, license, and usage guide\n'
 	@printf '  make windows-test-build  Compile C tests for execution on Windows\n'
 	@printf '  Guide: docs/RUNNING_BINARIES.md\n'
+	@printf '\nSource maintenance: make format-check; make format (see docs/CODING_STYLE.md)\n'
 
 clean:
 	$(RM) -r build

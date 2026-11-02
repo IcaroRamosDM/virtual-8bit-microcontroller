@@ -10,8 +10,7 @@
 static void test_demo_program_executes_expected_flow(void)
 {
   const size_t expected_program_size = 18;
-  const uint8_t expected_program_counter =
-    (uint8_t)expected_program_size;
+  const uint8_t expected_program_counter = (uint8_t)expected_program_size;
   const uint8_t data_address = UINT8_C(0x80);
   const uint8_t expected_memory_value = UINT8_C(0x5A);
   const uint8_t expected_register_a = expected_memory_value;
@@ -24,18 +23,11 @@ static void test_demo_program_executes_expected_flow(void)
   assert(program.bytes != NULL);
   assert(program.size == expected_program_size);
 
-  const bool loaded = cpu_load_program(
-    &cpu,
-    program.bytes,
-    program.size
-  );
+  const bool loaded = cpu_load_program(&cpu, program.bytes, program.size);
 
   assert(loaded);
 
-  const CpuRunResult result = cpu_run(
-    &cpu,
-    instruction_limit
-  );
+  const CpuRunResult result = cpu_run(&cpu, instruction_limit);
 
   assert(result == CPU_RUN_HALTED);
   assert(cpu.halted);
@@ -44,10 +36,7 @@ static void test_demo_program_executes_expected_flow(void)
   assert(cpu.stack_pointer == CPU_STACK_EMPTY_POINTER);
   assert(!cpu.zero_flag);
   assert(!cpu.carry_flag);
-  assert(
-    cpu_read_memory(&cpu, data_address) ==
-    expected_memory_value
-  );
+  assert(cpu_read_memory(&cpu, data_address) == expected_memory_value);
   assert(cpu.program_counter == expected_program_counter);
   assert(cpu.cycle_count == expected_cycle_count);
 }

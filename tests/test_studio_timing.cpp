@@ -4,13 +4,28 @@
 #include <cstdio>
 #include <limits>
 
-namespace {
+namespace
+{
 void test_clock_parser()
 {
   std::uint32_t value = vm8::DEFAULT_CLOCK_HZ;
-  for (const auto *invalid : {"", "0", "000", "-1", "+1", "1.5", "1 MHz",
-      "1e6", "0x10", " 100", "100 ", "1,000", "1000000001", "4294967296",
-      "18446744073709551616", "100\n"}) {
+  for (const auto *invalid : {"",
+                              "0",
+                              "000",
+                              "-1",
+                              "+1",
+                              "1.5",
+                              "1 MHz",
+                              "1e6",
+                              "0x10",
+                              " 100",
+                              "100 ",
+                              "1,000",
+                              "1000000001",
+                              "4294967296",
+                              "18446744073709551616",
+                              "100\n"})
+  {
     assert(!vm8::parse_clock_hz(invalid, value));
     assert(value == vm8::DEFAULT_CLOCK_HZ);
   }
@@ -25,8 +40,8 @@ void test_virtual_time()
   constexpr std::uint64_t POPCOUNT_CYCLES = 126;
   constexpr double TOLERANCE_SECONDS = 1e-12;
   assert(vm8::virtual_seconds(0, vm8::DEFAULT_CLOCK_HZ) == 0.0);
-  assert(std::abs(vm8::virtual_seconds(POPCOUNT_CYCLES, vm8::DEFAULT_CLOCK_HZ) -
-      126e-6) < TOLERANCE_SECONDS);
+  assert(std::abs(vm8::virtual_seconds(POPCOUNT_CYCLES, vm8::DEFAULT_CLOCK_HZ) - 126e-6) <
+         TOLERANCE_SECONDS);
   assert(std::abs(vm8::virtual_seconds(POPCOUNT_CYCLES, 1000) - 0.126) < TOLERANCE_SECONDS);
   assert(vm8::virtual_seconds(POPCOUNT_CYCLES, 1) == 126.0);
   assert(vm8::virtual_seconds(std::numeric_limits<std::uint64_t>::max(), 1) > 1e19);

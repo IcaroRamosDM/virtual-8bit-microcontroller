@@ -6,10 +6,10 @@ A learning project that implements an 8-bit virtual microcontroller in C and exe
 
 Write Assembly, assemble, run, step, and inspect the simulated CPU in one offline application. VM8 Studio includes an editor with line numbers and syntax colors, breakpoints, registers, memory, bytecode inspection, virtual input/output, an execution log, two examples, and searchable help with detailed instruction explanations.
 
-Download the desktop files from [GitHub Releases](https://github.com/IcaroRamosDM/virtual-8bit-microcontroller/releases). Choose the Windows executable, the Ubuntu/Debian installer, or the portable Linux AppImage. The paths below are the corresponding local build outputs.
+Download **VM8 Studio 1.1.1** from [GitHub Releases](https://github.com/IcaroRamosDM/virtual-8bit-microcontroller/releases/tag/v1.1.1). Choose the Windows executable, the Ubuntu/Debian installer, or the portable Linux AppImage. The paths below are the corresponding local build outputs.
 
 - **Windows x64:** copy `build/studio-windows/vm8-studio.exe` and double-click it.
-- **Ubuntu/Debian x86-64:** open `build/studio-linux/vm8-studio_1.1.0-1_amd64.deb` with the graphical software installer, install it, then search for **VM8 Studio** in the application menu. No terminal is needed for normal use.
+- **Ubuntu/Debian x86-64:** open `build/studio-linux/vm8-studio_1.1.1-1_amd64.deb` with the graphical software installer, install it, then search for **VM8 Studio** in the application menu. No terminal is needed for normal use.
 - **Linux x86-64:** copy `build/studio-linux/VM8_Studio-x86_64.AppImage`, enable execution if needed, and double-click it. The portable build targets glibc 2.36+ with X11 or XWayland; it is not Ubuntu-specific.
 
 No compiler, terminal, WSL, Python, or Internet connection is needed by the person running Studio. The application embeds the assembler, simulator, examples, reference, and license. Source files can be opened and saved anywhere writable. The separate command-line programs below remain available for terminal workflows.
@@ -17,6 +17,10 @@ No compiler, terminal, WSL, Python, or Internet connection is needed by the pers
 To try it, leave the included Popcount example and Input `0xA5` selected, then click **Assemble** and **Run**. Expect output `0x04` and `126` cycles. At the default **Clock (Hz)** value of `1000000` (1 MHz), **Virtual time** is `126.000 us`. **Real elapsed** separately measures active Run/Step time on your computer, excluding pauses but including Run's visualization delays. The clock calculates virtual time; **Speed** controls visualization pacing. Press **F1** for the complete offline help, including **Clock and execution time**.
 
 See [VM8 Studio: usage, compatibility, and rebuilding](docs/STUDIO.md) for practical editing/debugging examples, platform limitations, and the `make studio-windows`, `make studio-test`, and `make studio-appimage` targets. The [release guide](docs/RELEASING.md) describes validation and distribution; building locally does not publish anything.
+
+## VM8 Studio for Android
+
+The mobile application is available on [Google Play](https://play.google.com/store/apps/details?id=com.icaroramos.vm8studio). Desktop and Android releases are distributed separately; desktop version numbers do not describe the version currently delivered by Google Play.
 
 ## Detailed documentation
 
@@ -80,6 +84,7 @@ Expect `Output port: 0x04` and `Cycle count: 126` for the first command on eithe
 
 ## Development rules
 
+- Keep source readable and follow the [coding style and validation guide](docs/CODING_STYLE.md).
 - Repository content is written in English, with an explicitly maintained Brazilian Portuguese translation of the system guide.
 - Source code is written and edited with Vim.
 - Documentation and other prose are written and edited with Nano.

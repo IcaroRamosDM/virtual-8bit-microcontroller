@@ -15,12 +15,10 @@
 enum
 {
   MONITOR_COMMAND_MAX_LENGTH = 255,
-  MONITOR_LINE_BUFFER_SIZE =
-    MONITOR_COMMAND_MAX_LENGTH + 2,
+  MONITOR_LINE_BUFFER_SIZE = MONITOR_COMMAND_MAX_LENGTH + 2,
   MONITOR_INSTRUCTION_LIMIT = CPU_MEMORY_SIZE,
   MONITOR_MEMORY_BYTES_PER_ROW = 16,
-  MONITOR_DEFAULT_MEMORY_COUNT =
-    MONITOR_MEMORY_BYTES_PER_ROW
+  MONITOR_DEFAULT_MEMORY_COUNT = MONITOR_MEMORY_BYTES_PER_ROW
 };
 
 static const char HELP_COMMAND[] = "help";
@@ -50,10 +48,7 @@ static char *monitor_trim(char *text)
 
   char *end = text + strlen(text);
 
-  while (
-    (end > text) &&
-    isspace((unsigned char)end[-1])
-  )
+  while ((end > text) && isspace((unsigned char)end[-1]))
   {
     --end;
   }
@@ -67,10 +62,7 @@ static char *monitor_split_argument(char *command)
 {
   char *cursor = command;
 
-  while (
-    (cursor[0] != '\0') &&
-    !isspace((unsigned char)cursor[0])
-  )
+  while ((cursor[0] != '\0') && !isspace((unsigned char)cursor[0]))
   {
     ++cursor;
   }
@@ -86,24 +78,60 @@ static char *monitor_split_argument(char *command)
   return monitor_trim(cursor);
 }
 
-static bool monitor_discard_remaining_line(FILE *input)
+typedef enum MonitorInputResult
 {
-  int character = 0;
+  MONITOR_INPUT_READY,
+  MONITOR_INPUT_END,
+  MONITOR_INPUT_TOO_LONG,
+  MONITOR_INPUT_BINARY,
+  MONITOR_INPUT_ERROR
+} MonitorInputResult;
 
-  do
+static MonitorInputResult monitor_read_command(FILE *input, char *line)
+{
+  size_t length = 0;
+  bool too_long = false;
+  bool binary = false;
+  int character;
+  // Consume an invalid line completely so the next command starts at a new line.
+  while ((character = fgetc(input)) != EOF && character != '\n')
   {
-    character = fgetc(input);
+    binary = binary || character == '\0';
+    if (length < MONITOR_LINE_BUFFER_SIZE - 1)
+    {
+      line[length++] = (char)character;
+    }
+    else
+    {
+      too_long = true;
+    }
   }
-  while ((character != '\n') && (character != EOF));
-
-  return ferror(input) == 0;
+  if (ferror(input))
+  {
+    return MONITOR_INPUT_ERROR;
+  }
+  if (character == EOF && length == 0)
+  {
+    return MONITOR_INPUT_END;
+  }
+  if (binary)
+  {
+    return MONITOR_INPUT_BINARY;
+  }
+  if (length > 0 && line[length - 1] == '\r')
+  {
+    --length;
+  }
+  if (too_long || length > MONITOR_COMMAND_MAX_LENGTH)
+  {
+    return MONITOR_INPUT_TOO_LONG;
+  }
+  line[length] = '\0';
+  return MONITOR_INPUT_READY;
 }
 
-static bool monitor_reject_unexpected_argument(
-    const char *argument,
-    const char *usage,
-    FILE *error_output
-)
+static bool
+monitor_reject_unexpected_argument(const char *argument, const char *usage, FILE *error_output)
 {
   if (argument == NULL)
   {
@@ -115,9 +143,7 @@ static bool monitor_reject_unexpected_argument(
   return true;
 }
 
-static const char *monitor_step_result_name(
-    CpuStepResult result
-)
+static const char *monitor_step_result_name(CpuStepResult result)
 {
   switch (result)
   {
@@ -142,41 +168,31 @@ static const char *monitor_step_result_name(
 
 static void monitor_print_help(FILE *output)
 {
-  fputs(
-    "Monitor commands:\n"
-    "  help                         Show this command list.\n"
-    "  registers                    Show the current CPU state.\n"
-    "  step                         Execute one instruction.\n"
-    "  run                          Run until HALT, an error, or the limit.\n"
-    "  reset                        Reset and reload the current program.\n"
-    "  input <byte>                 Set the virtual input port.\n"
-    "  memory <address> [count]     Show memory bytes.\n"
-    "  load <program.bin>           Load a binary and reset the CPU.\n"
-    "  trace                        Show the trace status.\n"
-    "  trace on|off                 Enable or disable tracing.\n"
-    "  breakpoint add <address>     Add a breakpoint.\n"
-    "  breakpoint remove <address>  Remove a breakpoint.\n"
-    "  breakpoint list              List all breakpoints.\n"
-    "  breakpoint clear             Remove all breakpoints.\n"
-    "  quit                         Leave the monitor.\n",
-    output
-  );
+  fputs("Monitor commands:\n"
+        "  help                         Show this command list.\n"
+        "  registers                    Show the current CPU state.\n"
+        "  step                         Execute one instruction.\n"
+        "  run                          Run until HALT, an error, or the limit.\n"
+        "  reset                        Reset and reload the current program.\n"
+        "  input <byte>                 Set the virtual input port.\n"
+        "  memory <address> [count]     Show memory bytes.\n"
+        "  load <program.bin>           Load a binary and reset the CPU.\n"
+        "  trace                        Show the trace status.\n"
+        "  trace on|off                 Enable or disable tracing.\n"
+        "  breakpoint add <address>     Add a breakpoint.\n"
+        "  breakpoint remove <address>  Remove a breakpoint.\n"
+        "  breakpoint list              List all breakpoints.\n"
+        "  breakpoint clear             Remove all breakpoints.\n"
+        "  quit                         Leave the monitor.\n",
+        output);
 }
 
-static void monitor_execute_step(
-    Cpu *cpu,
-    bool trace_enabled,
-    FILE *output
-)
+static void monitor_execute_step(Cpu *cpu, bool trace_enabled, FILE *output)
 {
   const bool instruction_was_attempted = !cpu->halted;
-  const uint8_t instruction_address =
-    cpu->program_counter;
+  const uint8_t instruction_address = cpu->program_counter;
 
-  const uint8_t opcode = cpu_read_memory(
-    cpu,
-    instruction_address
-  );
+  const uint8_t opcode = cpu_read_memory(cpu, instruction_address);
 
   const CpuStepResult result = cpu_step(cpu);
 
@@ -184,44 +200,25 @@ static void monitor_execute_step(
   {
     cpu_trace_print_header(output);
 
-    cpu_trace_observer(
-      instruction_address,
-      opcode,
-      cpu,
-      result,
-      output
-    );
+    cpu_trace_observer(instruction_address, opcode, cpu, result, output);
   }
 
-  fprintf(
-    output,
-    "Step result: %s\n",
-    monitor_step_result_name(result)
-  );
+  fprintf(output, "Step result: %s\n", monitor_step_result_name(result));
 
   cpu_state_print(output, cpu);
 }
 
-static void monitor_print_breakpoint_stop(
-    const Cpu *cpu,
-    FILE *output
-)
+static void monitor_print_breakpoint_stop(const Cpu *cpu, FILE *output)
 {
-  fprintf(
-    output,
-    "Breakpoint reached at 0x%02X.\n",
-    (unsigned int)cpu->program_counter
-  );
+  fprintf(output, "Breakpoint reached at 0x%02X.\n", (unsigned int)cpu->program_counter);
 
   cpu_state_print(output, cpu);
 }
 
-static void monitor_execute_run(
-    Cpu *cpu,
-    const bool breakpoints[CPU_MEMORY_SIZE],
-    bool trace_enabled,
-    FILE *output
-)
+static void monitor_execute_run(Cpu *cpu,
+                                const bool breakpoints[CPU_MEMORY_SIZE],
+                                bool trace_enabled,
+                                FILE *output)
 {
   if (cpu->halted)
   {
@@ -241,40 +238,23 @@ static void monitor_execute_run(
     cpu_trace_print_header(output);
   }
 
-  for (
-    uint64_t executed_instructions = 0;
-    executed_instructions < MONITOR_INSTRUCTION_LIMIT;
-    ++executed_instructions
-  )
+  for (uint64_t executed_instructions = 0; executed_instructions < MONITOR_INSTRUCTION_LIMIT;
+       ++executed_instructions)
   {
-    const uint8_t instruction_address =
-      cpu->program_counter;
+    const uint8_t instruction_address = cpu->program_counter;
 
-    const uint8_t opcode = cpu_read_memory(
-      cpu,
-      instruction_address
-    );
+    const uint8_t opcode = cpu_read_memory(cpu, instruction_address);
 
     const CpuStepResult result = cpu_step(cpu);
 
     if (trace_enabled)
     {
-      cpu_trace_observer(
-        instruction_address,
-        opcode,
-        cpu,
-        result,
-        output
-      );
+      cpu_trace_observer(instruction_address, opcode, cpu, result, output);
     }
 
     if (result != CPU_STEP_OK)
     {
-      fprintf(
-        output,
-        "Execution result: %s\n",
-        monitor_step_result_name(result)
-      );
+      fprintf(output, "Execution result: %s\n", monitor_step_result_name(result));
 
       cpu_state_print(output, cpu);
       return;
@@ -287,35 +267,20 @@ static void monitor_execute_run(
     }
   }
 
-  fputs(
-    "Execution result: instruction limit reached\n",
-    output
-  );
+  fputs("Execution result: instruction limit reached\n", output);
 
   cpu_state_print(output, cpu);
 }
 
-static bool monitor_reset_cpu(
-    Cpu *cpu,
-    Program program,
-    FILE *output,
-    FILE *error_output
-)
+static bool monitor_reset_cpu(Cpu *cpu, Program program, FILE *output, FILE *error_output)
 {
   cpu_reset(cpu);
 
-  const bool loaded = cpu_load_program(
-    cpu,
-    program.bytes,
-    program.size
-  );
+  const bool loaded = cpu_load_program(cpu, program.bytes, program.size);
 
   if (!loaded)
   {
-    fputs(
-      "Monitor could not reload the program.\n",
-      error_output
-    );
+    fputs("Monitor could not reload the program.\n", error_output);
 
     return false;
   }
@@ -325,67 +290,42 @@ static bool monitor_reset_cpu(
   return true;
 }
 
-static void monitor_set_input(
-    Cpu *cpu,
-    const char *argument,
-    FILE *output,
-    FILE *error_output
-)
+static void monitor_set_input(Cpu *cpu, const char *argument, FILE *output, FILE *error_output)
 {
   uint8_t value = 0;
 
-  if (
-    (argument == NULL) ||
-    !byte_value_parse(argument, &value)
-  )
+  if ((argument == NULL) || !byte_value_parse(argument, &value))
   {
-    fputs(
-      "Usage: input <byte>\n"
-      "The byte must be decimal or 0x-prefixed hexadecimal.\n",
-      error_output
-    );
+    fputs("Usage: input <byte>\n"
+          "The byte must be decimal or 0x-prefixed hexadecimal.\n",
+          error_output);
 
     return;
   }
 
   cpu_set_input_port(cpu, value);
 
-  fprintf(
-    output,
-    "Input port set to 0x%02X.\n",
-    (unsigned int)value
-  );
+  fprintf(output, "Input port set to 0x%02X.\n", (unsigned int)value);
 }
 
-static void monitor_print_memory(
-    Cpu *cpu,
-    char *argument,
-    FILE *output,
-    FILE *error_output
-)
+static void monitor_print_memory(Cpu *cpu, char *argument, FILE *output, FILE *error_output)
 {
   if (argument == NULL)
   {
-    fputs(
-      "Usage: memory <address> [count]\n",
-      error_output
-    );
+    fputs("Usage: memory <address> [count]\n", error_output);
 
     return;
   }
 
-  char *const count_text =
-    monitor_split_argument(argument);
+  char *const count_text = monitor_split_argument(argument);
 
   uint8_t start_address = 0;
 
   if (!byte_value_parse(argument, &start_address))
   {
-    fputs(
-      "Usage: memory <address> [count]\n"
-      "The address must be an 8-bit value.\n",
-      error_output
-    );
+    fputs("Usage: memory <address> [count]\n"
+          "The address must be an 8-bit value.\n",
+          error_output);
 
     return;
   }
@@ -396,16 +336,11 @@ static void monitor_print_memory(
   {
     uint8_t parsed_count = 0;
 
-    if (
-      !byte_value_parse(count_text, &parsed_count) ||
-      (parsed_count == 0)
-    )
+    if (!byte_value_parse(count_text, &parsed_count) || (parsed_count == 0))
     {
-      fputs(
-        "Usage: memory <address> [count]\n"
-        "The count must be from 1 through 255.\n",
-        error_output
-      );
+      fputs("Usage: memory <address> [count]\n"
+            "The count must be from 1 through 255.\n",
+            error_output);
 
       return;
     }
@@ -414,8 +349,7 @@ static void monitor_print_memory(
   }
 
   const size_t start = start_address;
-  const size_t available_byte_count =
-    CPU_MEMORY_SIZE - start;
+  const size_t available_byte_count = CPU_MEMORY_SIZE - start;
 
   if (byte_count > available_byte_count)
   {
@@ -433,36 +367,21 @@ static void monitor_print_memory(
         fputc('\n', output);
       }
 
-      fprintf(
-        output,
-        "0x%02X:",
-        (unsigned int)current_address
-      );
+      fprintf(output, "0x%02X:", (unsigned int)current_address);
     }
 
-    fprintf(
-      output,
-      " %02X",
-      (unsigned int)cpu_read_memory(
-        cpu,
-        (uint8_t)current_address
-      )
-    );
+    fprintf(output, " %02X", (unsigned int)cpu_read_memory(cpu, (uint8_t)current_address));
   }
 
   fputc('\n', output);
 }
 
-static void monitor_load_program(
-    Cpu *cpu,
-    Program *current_program,
-    uint8_t current_program_bytes[
-      CPU_PROGRAM_MEMORY_SIZE
-    ],
-    const char *binary_path,
-    FILE *output,
-    FILE *error_output
-)
+static void monitor_load_program(Cpu *cpu,
+                                 Program *current_program,
+                                 uint8_t current_program_bytes[CPU_PROGRAM_MEMORY_SIZE],
+                                 const char *binary_path,
+                                 FILE *output,
+                                 FILE *error_output)
 {
   if ((binary_path == NULL) || (binary_path[0] == '\0'))
   {
@@ -473,12 +392,8 @@ static void monitor_load_program(
   uint8_t candidate_bytes[CPU_PROGRAM_MEMORY_SIZE] = {0};
   size_t candidate_size = 0;
 
-  const bool read_succeeded = binary_reader_read(
-    binary_path,
-    candidate_bytes,
-    sizeof candidate_bytes,
-    &candidate_size
-  );
+  const bool read_succeeded =
+      binary_reader_read(binary_path, candidate_bytes, sizeof candidate_bytes, &candidate_size);
 
   if (!read_succeeded)
   {
@@ -487,66 +402,35 @@ static void monitor_load_program(
 
   if (candidate_size == 0)
   {
-    fprintf(
-      error_output,
-      "%s: binary program is empty\n",
-      binary_path
-    );
+    fprintf(error_output, "%s: binary program is empty\n", binary_path);
 
     return;
   }
 
   cpu_reset(cpu);
 
-  const bool loaded = cpu_load_program(
-    cpu,
-    candidate_bytes,
-    candidate_size
-  );
+  const bool loaded = cpu_load_program(cpu, candidate_bytes, candidate_size);
 
   if (!loaded)
   {
-    fputs(
-      "Monitor could not load the new program.\n",
-      error_output
-    );
+    fputs("Monitor could not load the new program.\n", error_output);
 
     return;
   }
 
-  memcpy(
-    current_program_bytes,
-    candidate_bytes,
-    candidate_size
-  );
+  memcpy(current_program_bytes, candidate_bytes, candidate_size);
 
-  *current_program = (Program){
-    .bytes = current_program_bytes,
-    .size = candidate_size
-  };
+  *current_program = (Program){.bytes = current_program_bytes, .size = candidate_size};
 
-  fprintf(
-    output,
-    "Loaded %zu byte(s) from '%s'; CPU reset.\n",
-    candidate_size,
-    binary_path
-  );
+  fprintf(output, "Loaded %zu byte(s) from '%s'; CPU reset.\n", candidate_size, binary_path);
 }
 
-static void monitor_manage_trace(
-    const char *argument,
-    bool *trace_enabled,
-    FILE *output,
-    FILE *error_output
-)
+static void
+monitor_manage_trace(const char *argument, bool *trace_enabled, FILE *output, FILE *error_output)
 {
   if (argument == NULL)
   {
-    fprintf(
-      output,
-      "Trace is %s.\n",
-      *trace_enabled ? "on" : "off"
-    );
+    fprintf(output, "Trace is %s.\n", *trace_enabled ? "on" : "off");
 
     return;
   }
@@ -568,24 +452,17 @@ static void monitor_manage_trace(
   fputs("Usage: trace [on|off]\n", error_output);
 }
 
-static void monitor_print_breakpoint_usage(
-    FILE *error_output
-)
+static void monitor_print_breakpoint_usage(FILE *error_output)
 {
-  fputs(
-    "Usage:\n"
-    "  breakpoint add <address>\n"
-    "  breakpoint remove <address>\n"
-    "  breakpoint list\n"
-    "  breakpoint clear\n",
-    error_output
-  );
+  fputs("Usage:\n"
+        "  breakpoint add <address>\n"
+        "  breakpoint remove <address>\n"
+        "  breakpoint list\n"
+        "  breakpoint clear\n",
+        error_output);
 }
 
-static void monitor_list_breakpoints(
-    const bool breakpoints[CPU_MEMORY_SIZE],
-    FILE *output
-)
+static void monitor_list_breakpoints(const bool breakpoints[CPU_MEMORY_SIZE], FILE *output)
 {
   bool found = false;
 
@@ -599,11 +476,7 @@ static void monitor_list_breakpoints(
         found = true;
       }
 
-      fprintf(
-        output,
-        "  0x%02X\n",
-        (unsigned int)address
-      );
+      fprintf(output, "  0x%02X\n", (unsigned int)address);
     }
   }
 
@@ -613,10 +486,7 @@ static void monitor_list_breakpoints(
   }
 }
 
-static void monitor_clear_breakpoints(
-    bool breakpoints[CPU_MEMORY_SIZE],
-    FILE *output
-)
+static void monitor_clear_breakpoints(bool breakpoints[CPU_MEMORY_SIZE], FILE *output)
 {
   for (size_t address = 0; address < CPU_MEMORY_SIZE; ++address)
   {
@@ -626,12 +496,10 @@ static void monitor_clear_breakpoints(
   fputs("All breakpoints cleared.\n", output);
 }
 
-static void monitor_manage_breakpoint(
-    char *argument,
-    bool breakpoints[CPU_MEMORY_SIZE],
-    FILE *output,
-    FILE *error_output
-)
+static void monitor_manage_breakpoint(char *argument,
+                                      bool breakpoints[CPU_MEMORY_SIZE],
+                                      FILE *output,
+                                      FILE *error_output)
 {
   if (argument == NULL)
   {
@@ -639,8 +507,7 @@ static void monitor_manage_breakpoint(
     return;
   }
 
-  char *const address_text =
-    monitor_split_argument(argument);
+  char *const address_text = monitor_split_argument(argument);
 
   if (strcmp(argument, BREAKPOINT_LIST_ARGUMENT) == 0)
   {
@@ -676,10 +543,7 @@ static void monitor_manage_breakpoint(
 
   if (!byte_value_parse(address_text, &address))
   {
-    fputs(
-      "Breakpoint address must be an 8-bit value.\n",
-      error_output
-    );
+    fputs("Breakpoint address must be an 8-bit value.\n", error_output);
 
     return;
   }
@@ -688,22 +552,14 @@ static void monitor_manage_breakpoint(
   {
     if (breakpoints[address])
     {
-      fprintf(
-        output,
-        "Breakpoint already set at 0x%02X.\n",
-        (unsigned int)address
-      );
+      fprintf(output, "Breakpoint already set at 0x%02X.\n", (unsigned int)address);
 
       return;
     }
 
     breakpoints[address] = true;
 
-    fprintf(
-      output,
-      "Breakpoint added at 0x%02X.\n",
-      (unsigned int)address
-    );
+    fprintf(output, "Breakpoint added at 0x%02X.\n", (unsigned int)address);
 
     return;
   }
@@ -712,22 +568,14 @@ static void monitor_manage_breakpoint(
   {
     if (!breakpoints[address])
     {
-      fprintf(
-        output,
-        "No breakpoint set at 0x%02X.\n",
-        (unsigned int)address
-      );
+      fprintf(output, "No breakpoint set at 0x%02X.\n", (unsigned int)address);
 
       return;
     }
 
     breakpoints[address] = false;
 
-    fprintf(
-      output,
-      "Breakpoint removed from 0x%02X.\n",
-      (unsigned int)address
-    );
+    fprintf(output, "Breakpoint removed from 0x%02X.\n", (unsigned int)address);
 
     return;
   }
@@ -735,44 +583,22 @@ static void monitor_manage_breakpoint(
   monitor_print_breakpoint_usage(error_output);
 }
 
-bool monitor_run(
-    Cpu *cpu,
-    Program program,
-    FILE *input,
-    FILE *output,
-    FILE *error_output
-)
+bool monitor_run(Cpu *cpu, Program program, FILE *input, FILE *output, FILE *error_output)
 {
-  if (
-    (cpu == NULL) ||
-    (input == NULL) ||
-    (output == NULL) ||
-    (error_output == NULL) ||
-    ((program.bytes == NULL) && (program.size != 0)) ||
-    (program.size > CPU_PROGRAM_MEMORY_SIZE)
-  )
+  if ((cpu == NULL) || (input == NULL) || (output == NULL) || (error_output == NULL) ||
+      ((program.bytes == NULL) && (program.size != 0)) || (program.size > CPU_PROGRAM_MEMORY_SIZE))
   {
     return false;
   }
 
-  uint8_t current_program_bytes[
-    CPU_PROGRAM_MEMORY_SIZE
-  ] = {0};
+  uint8_t current_program_bytes[CPU_PROGRAM_MEMORY_SIZE] = {0};
 
   if (program.size != 0)
   {
-    memcpy(
-        current_program_bytes,
-        program.bytes,
-        program.size
-    );
+    memcpy(current_program_bytes, program.bytes, program.size);
   }
 
-  Program current_program =
-  {
-    .bytes = current_program_bytes,
-    .size = program.size
-  };
+  Program current_program = {.bytes = current_program_bytes, .size = program.size};
 
   bool trace_enabled = false;
   bool breakpoints[CPU_MEMORY_SIZE] = {false};
@@ -787,39 +613,29 @@ bool monitor_run(
     fputs("vm8> ", output);
     fflush(output);
 
-    if (fgets(line, sizeof line, input) == NULL)
+    const MonitorInputResult input_result = monitor_read_command(input, line);
+    if (input_result == MONITOR_INPUT_END)
     {
-      if (feof(input))
-      {
-        fputc('\n', output);
-        return true;
-      }
-
+      fputc('\n', output);
+      return true;
+    }
+    if (input_result == MONITOR_INPUT_ERROR)
+    {
       fputs("Monitor input error.\n", error_output);
       return false;
     }
-
-    if (
-      (strchr(line, '\n') == NULL) &&
-      !feof(input)
-    )
+    if (input_result == MONITOR_INPUT_TOO_LONG)
     {
-      if (!monitor_discard_remaining_line(input))
-      {
-        fputs("Monitor input error.\n", error_output);
-        return false;
-      }
-
-      fprintf(
-        error_output,
-        "Monitor command exceeds %u characters.\n",
-        (unsigned int)MONITOR_COMMAND_MAX_LENGTH
-      );
-
+      fprintf(error_output,
+              "Monitor command exceeds %u characters.\n",
+              (unsigned int)MONITOR_COMMAND_MAX_LENGTH);
       continue;
     }
-
-    line[strcspn(line, "\r\n")] = '\0';
+    if (input_result == MONITOR_INPUT_BINARY)
+    {
+      fputs("Monitor command contains a NUL byte.\n", error_output);
+      continue;
+    }
 
     char *const command = monitor_trim(line);
 
@@ -828,18 +644,11 @@ bool monitor_run(
       continue;
     }
 
-    char *const argument =
-      monitor_split_argument(command);
+    char *const argument = monitor_split_argument(command);
 
     if (strcmp(command, HELP_COMMAND) == 0)
     {
-      if (
-        monitor_reject_unexpected_argument(
-          argument,
-          HELP_COMMAND,
-          error_output
-        )
-      )
+      if (monitor_reject_unexpected_argument(argument, HELP_COMMAND, error_output))
       {
         continue;
       }
@@ -850,13 +659,7 @@ bool monitor_run(
 
     if (strcmp(command, REGISTERS_COMMAND) == 0)
     {
-      if (
-        monitor_reject_unexpected_argument(
-          argument,
-          REGISTERS_COMMAND,
-          error_output
-        )
-      )
+      if (monitor_reject_unexpected_argument(argument, REGISTERS_COMMAND, error_output))
       {
         continue;
       }
@@ -867,68 +670,34 @@ bool monitor_run(
 
     if (strcmp(command, STEP_COMMAND) == 0)
     {
-      if (
-        monitor_reject_unexpected_argument(
-          argument,
-          STEP_COMMAND,
-          error_output
-        )
-      )
+      if (monitor_reject_unexpected_argument(argument, STEP_COMMAND, error_output))
       {
         continue;
       }
 
-      monitor_execute_step(
-          cpu,
-          trace_enabled,
-          output
-      );
+      monitor_execute_step(cpu, trace_enabled, output);
       continue;
     }
 
     if (strcmp(command, RUN_COMMAND) == 0)
     {
-      if (
-        monitor_reject_unexpected_argument(
-          argument,
-          RUN_COMMAND,
-          error_output
-        )
-      )
+      if (monitor_reject_unexpected_argument(argument, RUN_COMMAND, error_output))
       {
         continue;
       }
 
-      monitor_execute_run(
-          cpu,
-          breakpoints,
-          trace_enabled,
-          output
-      );
+      monitor_execute_run(cpu, breakpoints, trace_enabled, output);
       continue;
     }
 
     if (strcmp(command, RESET_COMMAND) == 0)
     {
-      if (
-        monitor_reject_unexpected_argument(
-          argument,
-          RESET_COMMAND,
-          error_output
-        )
-      )
+      if (monitor_reject_unexpected_argument(argument, RESET_COMMAND, error_output))
       {
         continue;
       }
 
-      if (
-        !monitor_reset_cpu(
-          cpu,
-          current_program,
-          output,
-          error_output
-        )
-      )
+      if (!monitor_reset_cpu(cpu, current_program, output, error_output))
       {
         return false;
       }
@@ -938,75 +707,47 @@ bool monitor_run(
 
     if (strcmp(command, INPUT_COMMAND) == 0)
     {
-      monitor_set_input(
-        cpu,
-        argument,
-        output,
-        error_output
-      );
+      monitor_set_input(cpu, argument, output, error_output);
 
       continue;
     }
 
     if (strcmp(command, MEMORY_COMMAND) == 0)
     {
-      monitor_print_memory(
-        cpu,
-        argument,
-        output,
-        error_output
-      );
+      monitor_print_memory(cpu, argument, output, error_output);
 
       continue;
     }
 
     if (strcmp(command, LOAD_COMMAND) == 0)
     {
-      monitor_load_program(
-        cpu,
-        &current_program,
-        current_program_bytes,
-        argument,
-        output,
-        error_output
-      );
+      monitor_load_program(cpu,
+                           &current_program,
+                           current_program_bytes,
+                           argument,
+                           output,
+                           error_output);
 
       continue;
     }
 
     if (strcmp(command, TRACE_COMMAND) == 0)
     {
-      monitor_manage_trace(
-        argument,
-        &trace_enabled,
-        output,
-        error_output
-      );
+      monitor_manage_trace(argument, &trace_enabled, output, error_output);
 
       continue;
     }
 
     if (strcmp(command, BREAKPOINT_COMMAND) == 0)
     {
-      monitor_manage_breakpoint(
-        argument,
-        breakpoints,
-        output,
-        error_output
-      );
+      monitor_manage_breakpoint(argument, breakpoints, output, error_output);
 
       continue;
     }
 
     if (strcmp(command, QUIT_COMMAND) == 0)
     {
-      if (
-        monitor_reject_unexpected_argument(
-          argument,
-          QUIT_COMMAND,
-          error_output
-        )
-      )
+      if (monitor_reject_unexpected_argument(argument, QUIT_COMMAND, error_output))
       {
         continue;
       }
@@ -1015,10 +756,6 @@ bool monitor_run(
       return true;
     }
 
-    fprintf(
-      error_output,
-      "Unknown monitor command: '%s'. Type 'help'.\n",
-      command
-    );
+    fprintf(error_output, "Unknown monitor command: '%s'. Type 'help'.\n", command);
   }
 }

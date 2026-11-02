@@ -1,5 +1,6 @@
 #include "app.h"
 #include "assets.h"
+#include "file_io.h"
 #include <FL/Fl.H>
 #include <FL/Fl_Native_File_Chooser.H>
 #include <FL/Fl_Image_Surface.H>
@@ -15,8 +16,10 @@
 #include <cstring>
 #include <memory>
 
-namespace vm8 {
-namespace {
+namespace vm8
+{
+namespace
+{
 constexpr int MARGIN = 18, GAP = 14, TOOLBAR_Y = 100, CONTENT_Y = 179;
 constexpr int LOG_HEIGHT = 187, FOOTER_HEIGHT = 34;
 constexpr int LOG_CAPACITY = 65536;
@@ -31,13 +34,13 @@ const Fl_Color BLUE = fl_rgb_color(124, 188, 255);
 const Fl_Color YELLOW = fl_rgb_color(240, 206, 128);
 const Fl_Color RED = fl_rgb_color(255, 126, 126);
 const Fl_Text_Display::Style_Table_Entry SYNTAX[] = {
-  {FOREGROUND, FL_COURIER, 16, 0, EDITOR},
-  {MUTED, FL_COURIER_ITALIC, 16, 0, EDITOR},
-  {BLUE, FL_COURIER_BOLD, 16, 0, EDITOR},
-  {YELLOW, FL_COURIER, 16, 0, EDITOR},
-  {ACCENT, FL_COURIER, 16, 0, EDITOR},
-  {FOREGROUND, FL_COURIER_BOLD, 16, Fl_Text_Display::ATTR_BGCOLOR_EXT, fl_rgb_color(29, 68, 66)},
-  {FOREGROUND, FL_COURIER_BOLD, 16, Fl_Text_Display::ATTR_BGCOLOR_EXT, fl_rgb_color(72, 45, 48)},
+    {FOREGROUND, FL_COURIER, 16, 0, EDITOR},
+    {MUTED, FL_COURIER_ITALIC, 16, 0, EDITOR},
+    {BLUE, FL_COURIER_BOLD, 16, 0, EDITOR},
+    {YELLOW, FL_COURIER, 16, 0, EDITOR},
+    {ACCENT, FL_COURIER, 16, 0, EDITOR},
+    {FOREGROUND, FL_COURIER_BOLD, 16, Fl_Text_Display::ATTR_BGCOLOR_EXT, fl_rgb_color(29, 68, 66)},
+    {FOREGROUND, FL_COURIER_BOLD, 16, Fl_Text_Display::ATTR_BGCOLOR_EXT, fl_rgb_color(72, 45, 48)},
 };
 
 std::string text_of(const Fl_Text_Buffer &buffer)
@@ -85,6 +88,9 @@ bool capture(Fl_Window &window, const std::string &path)
 
 void configure_theme()
 {
+  Fl_Window::default_xclass("vm8-studio");
+  const Fl_PNG_Image icon("vm8-studio", studio_icon_png, sizeof studio_icon_png);
+  Fl_Window::default_icon(&icon);
   Fl::scheme("gtk+");
 #ifndef _WIN32
   // Use the bundled chooser instead of optional GTK/KDE helper processes.
@@ -117,8 +123,13 @@ App::App() : Fl_Double_Window(1480, 920, "VM8 Studio")
   menu_->box(FL_FLAT_BOX);
   menu_->color(BACKGROUND);
   menu_->textsize(14);
-  const auto menu = [this](const char *label, int shortcut, Action action, int flags = 0) {
-    menu_->add(label, shortcut, action_callback, reinterpret_cast<void *>(static_cast<intptr_t>(action)), flags);
+  const auto menu = [this](const char *label, int shortcut, Action action, int flags = 0)
+  {
+    menu_->add(label,
+               shortcut,
+               action_callback,
+               reinterpret_cast<void *>(static_cast<intptr_t>(action)),
+               flags);
   };
   menu("&File/&New", FL_CTRL + 'n', Action::New);
   menu("&File/&Open...", FL_CTRL + 'o', Action::Open);
@@ -138,17 +149,25 @@ App::App() : Fl_Double_Window(1480, 920, "VM8 Studio")
   menu("E&xamples/&Popcount", 0, Action::Popcount);
   menu("&Help/&Offline reference", FL_F + 1, Action::Help);
 
-  const char *labels[] = {"Assemble", "Run  /  F5", "Pause", "Step  /  F10", "Reset", "Breakpoint", "Help  /  F1"};
-  const Action actions[] = {Action::Assemble, Action::Run, Action::Pause, Action::Step,
-                            Action::Reset, Action::Breakpoint, Action::Help};
-  for (size_t i = 0; i < controls_.size(); ++i) {
+  const char *labels[] =
+      {"Assemble", "Run  /  F5", "Pause", "Step  /  F10", "Reset", "Breakpoint", "Help  /  F1"};
+  const Action actions[] = {Action::Assemble,
+                            Action::Run,
+                            Action::Pause,
+                            Action::Step,
+                            Action::Reset,
+                            Action::Breakpoint,
+                            Action::Help};
+  for (size_t i = 0; i < controls_.size(); ++i)
+  {
     controls_[i] = new Fl_Button(0, TOOLBAR_Y, 100, 36, labels[i]);
     controls_[i]->box(FL_FLAT_BOX);
     controls_[i]->color(i < 2 ? ACCENT : PANEL);
     controls_[i]->labelcolor(i < 2 ? EDITOR : FOREGROUND);
     controls_[i]->labelfont(FL_HELVETICA_BOLD);
     controls_[i]->labelsize(13);
-    controls_[i]->callback(action_callback, reinterpret_cast<void *>(static_cast<intptr_t>(actions[i])));
+    controls_[i]->callback(action_callback,
+                           reinterpret_cast<void *>(static_cast<intptr_t>(actions[i])));
   }
   editor_title_ = heading("SOURCE / ASSEMBLY");
   cpu_title_ = heading("LIVE CPU / REGISTERS AND PORTS");
@@ -161,10 +180,17 @@ App::App() : Fl_Double_Window(1480, 920, "VM8 Studio")
   editor_->linenumber_fgcolor(MUTED);
   editor_->linenumber_bgcolor(PANEL);
   editor_->cursor_color(ACCENT);
-  editor_->highlight_data(&styles_, SYNTAX, sizeof SYNTAX / sizeof SYNTAX[0], 'A', nullptr, nullptr);
-  source_.add_modify_callback([](int, int inserted, int deleted, int, const char *, void *p) {
-    if (inserted || deleted) static_cast<App *>(p)->changed();
-  }, this);
+  editor_
+      ->highlight_data(&styles_, SYNTAX, sizeof SYNTAX / sizeof SYNTAX[0], 'A', nullptr, nullptr);
+  source_.add_modify_callback(
+      [](int, int inserted, int deleted, int, const char *, void *p)
+      {
+        if (inserted || deleted)
+        {
+          static_cast<App *>(p)->changed();
+        }
+      },
+      this);
   log_title_ = heading("EVENT LOG / EXECUTION TRACE");
   trace_ = new Fl_Check_Button(0, 0, 80, 25, "Trace");
   trace_->value(1);
@@ -172,7 +198,8 @@ App::App() : Fl_Double_Window(1480, 920, "VM8 Studio")
   trace_->selection_color(ACCENT);
   clear_log_ = new Fl_Button(0, 0, 64, 25, "Clear");
   clear_log_->box(FL_FLAT_BOX);
-  clear_log_->callback(action_callback, reinterpret_cast<void *>(static_cast<intptr_t>(Action::ClearLog)));
+  clear_log_->callback(action_callback,
+                       reinterpret_cast<void *>(static_cast<intptr_t>(Action::ClearLog)));
   log_display_ = new Fl_Text_Display(0, 0, 1, 1);
   format_display(log_display_, &log_, 13);
   state_display_ = new Fl_Text_Display(0, 0, 1, 1);
@@ -180,7 +207,8 @@ App::App() : Fl_Double_Window(1480, 920, "VM8 Studio")
   timing_display_ = new Fl_Text_Display(0, 0, 1, 1);
   format_display(timing_display_, &timing_, 15);
   timing_display_->textcolor(ACCENT);
-  timing_display_->tooltip("Virtual time = cycles / active clock. Real elapsed = active Run/Step time, excluding pauses. Press F1 for details.");
+  timing_display_->tooltip(
+      "Virtual time = cycles / active clock. Real elapsed = active Run/Step time, excluding pauses. Press F1 for details.");
   input_ = new Fl_Input(0, 0, 86, 32, "Input (0xEE)");
   input_->value("0xA5");
   input_->labelsize(12);
@@ -195,19 +223,23 @@ App::App() : Fl_Double_Window(1480, 920, "VM8 Studio")
   speed_->textsize(12);
   speed_->add("Observe|Normal|Fast");
   speed_->value(1);
-  speed_->tooltip("Visualization rate, not the virtual CPU clock. Slower pacing increases real elapsed time only.");
+  speed_->tooltip(
+      "Visualization rate, not the virtual CPU clock. Slower pacing increases real elapsed time only.");
   clock_input_ = new Fl_Input(0, 0, 136, 32, "Clock (Hz)");
   clock_input_->value(std::to_string(DEFAULT_CLOCK_HZ).c_str());
   clock_input_->labelsize(12);
   clock_input_->textfont(FL_COURIER);
   clock_input_->textsize(15);
   clock_input_->maximum_size(32);
-  clock_input_->tooltip("Decimal integer, 1..1000000000 Hz. Click Apply or press Enter. Recalculates virtual time without changing execution speed.");
+  clock_input_->tooltip(
+      "Decimal integer, 1..1000000000 Hz. Click Apply or press Enter. Recalculates virtual time without changing execution speed.");
   clock_input_->when(FL_WHEN_ENTER_KEY_ALWAYS);
-  clock_input_->callback(action_callback, reinterpret_cast<void *>(static_cast<intptr_t>(Action::ApplyClock)));
+  clock_input_->callback(action_callback,
+                         reinterpret_cast<void *>(static_cast<intptr_t>(Action::ApplyClock)));
   apply_clock_ = new Fl_Button(0, 0, 65, 32, "Apply");
   apply_clock_->box(FL_FLAT_BOX);
-  apply_clock_->callback(action_callback, reinterpret_cast<void *>(static_cast<intptr_t>(Action::ApplyClock)));
+  apply_clock_->callback(action_callback,
+                         reinterpret_cast<void *>(static_cast<intptr_t>(Action::ApplyClock)));
   active_clock_ = heading("", 12, ACCENT);
   tabs_ = new Fl_Tabs(0, 0, 1, 1);
   memory_page_ = new Fl_Group(0, 0, 1, 1, "Live memory");
@@ -222,11 +254,18 @@ App::App() : Fl_Double_Window(1480, 920, "VM8 Studio")
   tabs_->selection_color(PANEL);
   status_ = heading("", 12, ACCENT);
   end();
-  callback([](Fl_Widget *widget, void *) { static_cast<App *>(widget)->act(Action::Quit); });
+  callback(
+      [](Fl_Widget *widget, void *)
+      {
+        static_cast<App *>(widget)->act(Action::Quit);
+      });
   layout();
   int screen_x, screen_y, screen_width, screen_height;
   Fl::screen_work_area(screen_x, screen_y, screen_width, screen_height, 0);
-  resize(screen_x + 12, screen_y + 12, std::min(w(), screen_width - 24), std::min(h(), screen_height - 50));
+  resize(screen_x + 12,
+         screen_y + 12,
+         std::min(w(), screen_width - 24),
+         std::min(h(), screen_height - 50));
   set_source(popcount_source, "", false);
   append_log("Welcome to VM8 Studio. Popcount is ready to assemble.\n"
              "Input 0xA5 contains four set bits: run it and expect OUT = 0x04.\n"
@@ -249,31 +288,64 @@ App::~App()
 int App::handle(int event)
 {
   // Editor key bindings must not consume the workbench's advertised shortcuts.
-  if (event == FL_KEYDOWN) {
+  if (event == FL_KEYDOWN)
+  {
     const int key = Fl::event_key();
     const int modifiers = Fl::event_state() & (FL_CTRL | FL_ALT | FL_SHIFT | FL_META);
-    if (modifiers == 0) {
-      switch (key) {
-        case FL_F + 1: act(Action::Help); return 1;
-        case FL_F + 5: act(Action::Run); return 1;
-        case FL_F + 6: act(Action::Pause); return 1;
-        case FL_F + 9: act(Action::Breakpoint); return 1;
-        case FL_F + 10: act(Action::Step); return 1;
-        default: break;
+    if (modifiers == 0)
+    {
+      switch (key)
+      {
+        case FL_F + 1:
+          act(Action::Help);
+          return 1;
+        case FL_F + 5:
+          act(Action::Run);
+          return 1;
+        case FL_F + 6:
+          act(Action::Pause);
+          return 1;
+        case FL_F + 9:
+          act(Action::Breakpoint);
+          return 1;
+        case FL_F + 10:
+          act(Action::Step);
+          return 1;
+        default:
+          break;
       }
     }
-    if (modifiers == FL_CTRL) {
-      switch (key) {
-        case FL_Enter: act(Action::Assemble); return 1;
-        case 'n': act(Action::New); return 1;
-        case 'o': act(Action::Open); return 1;
-        case 's': act(Action::Save); return 1;
-        case 'r': act(Action::Reset); return 1;
-        case 'f': act(Action::Find); return 1;
-        default: break;
+    if (modifiers == FL_CTRL)
+    {
+      switch (key)
+      {
+        case FL_Enter:
+          act(Action::Assemble);
+          return 1;
+        case 'n':
+          act(Action::New);
+          return 1;
+        case 'o':
+          act(Action::Open);
+          return 1;
+        case 's':
+          act(Action::Save);
+          return 1;
+        case 'r':
+          act(Action::Reset);
+          return 1;
+        case 'f':
+          act(Action::Find);
+          return 1;
+        default:
+          break;
       }
     }
-    if (modifiers == (FL_CTRL | FL_SHIFT) && key == 's') { act(Action::SaveAs); return 1; }
+    if (modifiers == (FL_CTRL | FL_SHIFT) && key == 's')
+    {
+      act(Action::SaveAs);
+      return 1;
+    }
   }
   return Fl_Double_Window::handle(event);
 }
@@ -296,7 +368,8 @@ void App::layout()
   subtitle_->resize(370, 19, w() - 390, 26);
   menu_->resize(MARGIN, 64, w() - 2 * MARGIN, 26);
   int x = MARGIN;
-  for (auto *control : controls_) {
+  for (auto *control : controls_)
+  {
     const int width = 110;
     control->resize(x, TOOLBAR_Y, width, 36);
     x += width + 8;
@@ -319,9 +392,13 @@ void App::layout()
   const int tabs_top = CONTENT_Y + 254;
   tabs_->resize(right, tabs_top, right_width, bottom - tabs_top - 8);
   for (auto *page : {memory_page_, binary_page_})
+  {
     page->resize(right, tabs_top + 29, right_width, bottom - tabs_top - 37);
+  }
   for (auto *display : {memory_display_, binary_display_})
+  {
     display->resize(right + 2, tabs_top + 31, right_width - 4, bottom - tabs_top - 41);
+  }
   status_->resize(MARGIN, bottom + 3, w() - 2 * MARGIN, 24);
 }
 
@@ -334,7 +411,8 @@ void App::set_status(const std::string &text)
 void App::append_log(const std::string &text)
 {
   log_.append(text.c_str());
-  if (log_.length() > LOG_CAPACITY) {
+  if (log_.length() > LOG_CAPACITY)
+  {
     const int end = log_.line_end(log_.length() - LOG_CAPACITY) + 1;
     log_.remove(0, std::min(end, log_.length()));
   }
@@ -363,7 +441,10 @@ void App::set_source(const std::string &text, const std::string &path, bool modi
 
 void App::changed()
 {
-  if (loading_) return;
+  if (loading_)
+  {
+    return;
+  }
   pause("");
   dirty_ = true;
   machine_.assembled = false;
@@ -375,35 +456,62 @@ void App::changed()
 void App::refresh()
 {
   std::string title = "VM8 Studio / " + (path_.empty() ? std::string("Untitled.asm") : path_);
-  if (dirty_) title += " *";
+  if (dirty_)
+  {
+    title += " *";
+  }
   copy_label(title.c_str());
   const Cpu &cpu = machine_.cpu;
   char state[512];
   char bits[9]{};
   const unsigned output = cpu_get_output_port(&cpu);
-  for (unsigned bit = 0; bit < 8; ++bit) bits[bit] = (output & (1U << (7 - bit))) ? '1' : '0';
-  std::snprintf(state, sizeof state,
-      " A   0x%02X    B   0x%02X    PC  0x%02X\n"
-      " SP  0x%02X    Z   %s     C   %s\n"
-      " IN  0x%02X    OUT 0x%02X    %s\n"
-      " Cycles: %-7llu   %s",
-      static_cast<unsigned>(cpu.register_a), static_cast<unsigned>(cpu.register_b),
-      static_cast<unsigned>(cpu.program_counter), static_cast<unsigned>(cpu.stack_pointer),
-      cpu.zero_flag ? "set  " : "clear", cpu.carry_flag ? "set" : "clear",
-      static_cast<unsigned>(cpu_read_memory(&cpu, CPU_INPUT_PORT_ADDRESS)), output, bits,
-      static_cast<unsigned long long>(cpu.cycle_count), running_ ? "RUNNING" : cpu.halted ? "HALTED" : "PAUSED");
+  for (unsigned bit = 0; bit < 8; ++bit)
+  {
+    bits[bit] = (output & (1U << (7 - bit))) ? '1' : '0';
+  }
+  std::snprintf(state,
+                sizeof state,
+                " A   0x%02X    B   0x%02X    PC  0x%02X\n"
+                " SP  0x%02X    Z   %s     C   %s\n"
+                " IN  0x%02X    OUT 0x%02X    %s\n"
+                " Cycles: %-7llu   %s",
+                static_cast<unsigned>(cpu.register_a),
+                static_cast<unsigned>(cpu.register_b),
+                static_cast<unsigned>(cpu.program_counter),
+                static_cast<unsigned>(cpu.stack_pointer),
+                cpu.zero_flag ? "set  " : "clear",
+                cpu.carry_flag ? "set" : "clear",
+                static_cast<unsigned>(cpu_read_memory(&cpu, CPU_INPUT_PORT_ADDRESS)),
+                output,
+                bits,
+                static_cast<unsigned long long>(cpu.cycle_count),
+                running_     ? "RUNNING"
+                : cpu.halted ? "HALTED"
+                             : "PAUSED");
   state_.text(state);
-  const std::string timing = " Virtual time: " + format_seconds(virtual_seconds(cpu.cycle_count, clock_hz_)) +
+  const std::string timing =
+      " Virtual time: " + format_seconds(virtual_seconds(cpu.cycle_count, clock_hz_)) +
       "\n Real elapsed: " + format_seconds(execution_timer_.seconds());
   timing_.text(timing.c_str());
   active_clock_->copy_label(("Active: " + std::to_string(clock_hz_) + " Hz").c_str());
   memory_.text(machine_.memory_text().c_str());
-  binary_.text(machine_.assembled ? machine_.binary_text().c_str() : "Assemble the current source to inspect its bytes.\n");
+  binary_.text(machine_.assembled ? machine_.binary_text().c_str()
+                                  : "Assemble the current source to inspect its bytes.\n");
   char caption[128];
-  std::snprintf(caption, sizeof caption, "SOURCE / ASSEMBLY%s%s",
-                machine_.assembled ? " / " : "", machine_.assembled ? "BYTECODE READY" : "");
+  std::snprintf(caption,
+                sizeof caption,
+                "SOURCE / ASSEMBLY%s%s",
+                machine_.assembled ? " / " : "",
+                machine_.assembled ? "BYTECODE READY" : "");
   editor_title_->copy_label(caption);
-  if (running_) controls_[2]->activate(); else controls_[2]->deactivate();
+  if (running_)
+  {
+    controls_[2]->activate();
+  }
+  else
+  {
+    controls_[2]->deactivate();
+  }
   color_source();
 }
 
@@ -412,33 +520,67 @@ void App::color_source()
   const std::string text = text_of(source_);
   std::string style(text.size(), 'A');
   size_t line = 1;
-  for (size_t p = 0; p < text.size();) {
+  for (size_t p = 0; p < text.size();)
+  {
     const size_t newline = text.find('\n', p);
     const size_t end = newline == std::string::npos ? text.size() : newline;
     size_t comment = text.find(';', p);
-    if (comment == std::string::npos || comment > end) comment = end;
-    std::fill(style.begin() + static_cast<std::ptrdiff_t>(comment), style.begin() + static_cast<std::ptrdiff_t>(end), 'B');
-    for (size_t token = p; token < comment;) {
-      if (std::isspace(static_cast<unsigned char>(text[token])) || text[token] == ',') { ++token; continue; }
+    if (comment == std::string::npos || comment > end)
+    {
+      comment = end;
+    }
+    std::fill(style.begin() + static_cast<std::ptrdiff_t>(comment),
+              style.begin() + static_cast<std::ptrdiff_t>(end),
+              'B');
+    for (size_t token = p; token < comment;)
+    {
+      if (std::isspace(static_cast<unsigned char>(text[token])) || text[token] == ',')
+      {
+        ++token;
+        continue;
+      }
       size_t last = token + 1;
-      while (last < comment && !std::isspace(static_cast<unsigned char>(text[last])) && text[last] != ',') ++last;
+      while (last < comment && !std::isspace(static_cast<unsigned char>(text[last])) &&
+             text[last] != ',')
+      {
+        ++last;
+      }
       const std::string word = text.substr(token, last - token);
-      const char color = std::isdigit(static_cast<unsigned char>(word[0])) ? 'D' :
-                         word.back() == ':' ? 'E' : word[0] == '.' ? 'E' : 'C';
-      std::fill(style.begin() + static_cast<std::ptrdiff_t>(token), style.begin() + static_cast<std::ptrdiff_t>(last), color);
+      const char color = std::isdigit(static_cast<unsigned char>(word[0])) ? 'D'
+                         : word.back() == ':'                              ? 'E'
+                         : word[0] == '.'                                  ? 'E'
+                                                                           : 'C';
+      std::fill(style.begin() + static_cast<std::ptrdiff_t>(token),
+                style.begin() + static_cast<std::ptrdiff_t>(last),
+                color);
       token = last;
     }
     char line_style = line == error_line_ ? 'G' : 0;
-    if (machine_.assembled) {
-      for (size_t address = 0; address < machine_.image.byte_count; ++address) {
-        if (machine_.image.instruction_start[address] && machine_.image.line_for_address[address] == line) {
-          if (machine_.breakpoints[address]) line_style = 'G';
-          if (!machine_.cpu.halted && address == machine_.cpu.program_counter) line_style = 'F';
+    if (machine_.assembled)
+    {
+      for (size_t address = 0; address < machine_.image.byte_count; ++address)
+      {
+        if (machine_.image.instruction_start[address] &&
+            machine_.image.line_for_address[address] == line)
+        {
+          if (machine_.breakpoints[address])
+          {
+            line_style = 'G';
+          }
+          if (!machine_.cpu.halted && address == machine_.cpu.program_counter)
+          {
+            line_style = 'F';
+          }
           break;
         }
       }
     }
-    if (line_style) std::fill(style.begin() + static_cast<std::ptrdiff_t>(p), style.begin() + static_cast<std::ptrdiff_t>(end), line_style);
+    if (line_style)
+    {
+      std::fill(style.begin() + static_cast<std::ptrdiff_t>(p),
+                style.begin() + static_cast<std::ptrdiff_t>(end),
+                line_style);
+    }
     p = end == text.size() ? end : end + 1;
     ++line;
   }
@@ -448,7 +590,10 @@ void App::color_source()
 
 bool App::get_input(uint8_t &value)
 {
-  if (byte_value_parse(input_->value(), &value)) return true;
+  if (byte_value_parse(input_->value(), &value))
+  {
+    return true;
+  }
   append_log("Input rejected: use a decimal byte (0..255) or hexadecimal byte (0x00..0xFF).\n");
   set_status("Invalid input / CPU state was not changed");
   input_->take_focus();
@@ -457,8 +602,10 @@ bool App::get_input(uint8_t &value)
 
 void App::apply_clock()
 {
-  if (!parse_clock_hz(clock_input_->value(), clock_hz_)) {
-    append_log("Clock rejected: use a decimal integer from 1 to 1000000000 Hz, without units or separators.\n");
+  if (!parse_clock_hz(clock_input_->value(), clock_hz_))
+  {
+    append_log(
+        "Clock rejected: use a decimal integer from 1 to 1000000000 Hz, without units or separators.\n");
     set_status("Invalid clock / Active frequency, CPU state and timers were not changed");
     clock_input_->take_focus();
     return;
@@ -470,7 +617,10 @@ void App::apply_clock()
 
 void App::reveal_line(size_t line)
 {
-  if (!line) return;
+  if (!line)
+  {
+    return;
+  }
   const int position = source_.skip_lines(0, static_cast<int>(line - 1));
   editor_->insert_position(position);
   editor_->show_insert_position();
@@ -480,19 +630,29 @@ bool App::assemble()
 {
   pause("");
   uint8_t input;
-  if (!get_input(input)) return false;
+  if (!get_input(input))
+  {
+    return false;
+  }
   const bool success = machine_.assemble(text_of(source_), input);
   error_line_ = success ? 0 : machine_.image.error_line;
-  if (!success) {
+  if (!success)
+  {
     append_log(machine_.messages);
     set_status("Assembly failed / Check the event log and highlighted source line");
     reveal_line(error_line_);
-  } else {
+  }
+  else
+  {
     execution_timer_.reset();
     char message[160];
-    std::snprintf(message, sizeof message, "Assembled: %u / %u bytes, %u instructions, %u symbols. CPU reset.\n",
-        static_cast<unsigned>(machine_.image.byte_count), static_cast<unsigned>(CPU_PROGRAM_MEMORY_SIZE),
-        static_cast<unsigned>(machine_.image.instruction_count), static_cast<unsigned>(machine_.image.symbol_count));
+    std::snprintf(message,
+                  sizeof message,
+                  "Assembled: %u / %u bytes, %u instructions, %u symbols. CPU reset.\n",
+                  static_cast<unsigned>(machine_.image.byte_count),
+                  static_cast<unsigned>(CPU_PROGRAM_MEMORY_SIZE),
+                  static_cast<unsigned>(machine_.image.instruction_count),
+                  static_cast<unsigned>(machine_.image.symbol_count));
     append_log(message);
     set_status(message);
     breakpoint_stop_ = false;
@@ -512,14 +672,25 @@ void App::pause(const std::string &reason)
   running_ = false;
   execution_timer_.stop();
   Fl::remove_timeout(timer, this);
-  if (!reason.empty()) { append_log(reason + "\n"); set_status(reason); }
-  if (was_running) refresh();
+  if (!reason.empty())
+  {
+    append_log(reason + "\n");
+    set_status(reason);
+  }
+  if (was_running)
+  {
+    refresh();
+  }
 }
 
 void App::run()
 {
-  if (running_ || !ensure_assembled()) return;
-  if (machine_.cpu.halted) {
+  if (running_ || !ensure_assembled())
+  {
+    return;
+  }
+  if (machine_.cpu.halted)
+  {
     set_status("CPU is halted / Reset to run the program again");
     return;
   }
@@ -533,17 +704,25 @@ void App::run()
   Fl::add_timeout(TIMER_SECONDS, timer, this);
 }
 
-void App::timer(void *context) { static_cast<App *>(context)->tick(); }
+void App::timer(void *context)
+{
+  static_cast<App *>(context)->tick();
+}
 
 void App::tick()
 {
-  if (!running_) return;
+  if (!running_)
+  {
+    return;
+  }
   constexpr unsigned BATCH_SIZES[] = {1, 16, 128};
   const unsigned batch = BATCH_SIZES[std::clamp(speed_->value(), 0, 2)];
   std::string rows;
-  for (unsigned i = 0; i < batch && running_; ++i) {
+  for (unsigned i = 0; i < batch && running_; ++i)
+  {
     const uint8_t pc = machine_.cpu.program_counter;
-    if (machine_.breakpoints[pc] && !skip_breakpoint_) {
+    if (machine_.breakpoints[pc] && !skip_breakpoint_)
+    {
       breakpoint_stop_ = true;
       pause("Paused before breakpoint / Step or Run to continue");
       reveal_line(machine_.image.line_for_address[pc]);
@@ -554,26 +733,43 @@ void App::tick()
     const auto result = machine_.step(trace_->value() ? &row : nullptr);
     rows += row;
     ++run_count_;
-    if (result != CPU_STEP_OK) {
+    if (result != CPU_STEP_OK)
+    {
       append_log(rows);
       rows.clear();
       pause(std::string("Execution result: ") + Machine::result_name(result));
-    } else if (run_count_ == RUN_INSTRUCTION_LIMIT) {
+    }
+    else if (run_count_ == RUN_INSTRUCTION_LIMIT)
+    {
       append_log(rows);
       rows.clear();
-      pause("Paused: 10,000-instruction safety limit reached / Inspect the loop or Run to continue");
+      pause(
+          "Paused: 10,000-instruction safety limit reached / Inspect the loop or Run to continue");
     }
   }
-  if (!rows.empty()) append_log(rows);
+  if (!rows.empty())
+  {
+    append_log(rows);
+  }
   refresh();
-  if (running_) Fl::add_timeout(TIMER_SECONDS, timer, this);
+  if (running_)
+  {
+    Fl::add_timeout(TIMER_SECONDS, timer, this);
+  }
 }
 
 void App::step()
 {
   pause("");
-  if (!ensure_assembled()) return;
-  if (machine_.cpu.halted) { set_status("CPU is halted / Reset before stepping"); return; }
+  if (!ensure_assembled())
+  {
+    return;
+  }
+  if (machine_.cpu.halted)
+  {
+    set_status("CPU is halted / Reset before stepping");
+    return;
+  }
   breakpoint_stop_ = false;
   std::string row;
   execution_timer_.start();
@@ -582,21 +778,33 @@ void App::step()
   append_log(row);
   set_status(std::string("Step: ") + Machine::result_name(result));
   if (!machine_.cpu.halted && machine_.cpu.program_counter < CPU_PROGRAM_MEMORY_SIZE)
+  {
     reveal_line(machine_.image.line_for_address[machine_.cpu.program_counter]);
+  }
   refresh();
 }
 
 void App::toggle_breakpoint()
 {
   const int position = editor_->insert_position();
-  if (!ensure_assembled()) return;
+  if (!ensure_assembled())
+  {
+    return;
+  }
   const size_t line = static_cast<size_t>(source_.count_lines(0, position)) + 1;
-  for (size_t address = 0; address < machine_.image.byte_count; ++address) {
-    if (machine_.image.instruction_start[address] && machine_.image.line_for_address[address] == line) {
+  for (size_t address = 0; address < machine_.image.byte_count; ++address)
+  {
+    if (machine_.image.instruction_start[address] &&
+        machine_.image.line_for_address[address] == line)
+    {
       machine_.breakpoints[address] = !machine_.breakpoints[address];
       char message[100];
-      std::snprintf(message, sizeof message, "Breakpoint %s at 0x%02X (source line %u)",
-          machine_.breakpoints[address] ? "set" : "removed", static_cast<unsigned>(address), static_cast<unsigned>(line));
+      std::snprintf(message,
+                    sizeof message,
+                    "Breakpoint %s at 0x%02X (source line %u)",
+                    machine_.breakpoints[address] ? "set" : "removed",
+                    static_cast<unsigned>(address),
+                    static_cast<unsigned>(line));
       append_log(std::string(message) + "\n");
       set_status(message);
       refresh();
@@ -609,11 +817,11 @@ void App::toggle_breakpoint()
 bool App::save_to(const std::string &path)
 {
   const std::string text = text_of(source_);
-  FILE *file = fl_fopen(path.c_str(), "wb");
-  if (!file) { fl_alert("Cannot open this location for writing.\n%s", path.c_str()); return false; }
-  const bool written = std::fwrite(text.data(), 1, text.size(), file) == text.size();
-  const bool closed = std::fclose(file) == 0;
-  if (!written || !closed) { fl_alert("Could not finish saving this file.\n%s", path.c_str()); return false; }
+  if (!write_file_atomic(path, text.data(), text.size()))
+  {
+    fl_alert("Could not save this file. The previous file has been preserved.\n%s", path.c_str());
+    return false;
+  }
   path_ = path;
   dirty_ = false;
   set_status("Saved / " + path_);
@@ -623,40 +831,60 @@ bool App::save_to(const std::string &path)
 
 bool App::save(bool choose_path)
 {
-  if (!choose_path && !path_.empty()) return save_to(path_);
+  if (!choose_path && !path_.empty())
+  {
+    return save_to(path_);
+  }
   Fl_Native_File_Chooser chooser;
   chooser.title("Save Assembly source");
   chooser.type(Fl_Native_File_Chooser::BROWSE_SAVE_FILE);
   chooser.options(Fl_Native_File_Chooser::SAVEAS_CONFIRM | Fl_Native_File_Chooser::USE_FILTER_EXT);
   chooser.filter("Assembly source\t*.asm");
   chooser.preset_file(path_.empty() ? "program.asm" : path_.c_str());
-  if (chooser.show() != 0) return false;
+  if (chooser.show() != 0)
+  {
+    return false;
+  }
   return save_to(chooser.filename());
 }
 
 bool App::may_replace()
 {
-  if (!dirty_) return true;
+  if (!dirty_)
+  {
+    return true;
+  }
   pause("");
   const int answer = fl_choice("Save your changes before continuing?", "Cancel", "Save", "Discard");
-  if (answer == 1) return save(false);
+  if (answer == 1)
+  {
+    return save(false);
+  }
   return answer == 2;
 }
 
 bool App::read_from(const std::string &path)
 {
   FILE *file = fl_fopen(path.c_str(), "rb");
-  if (!file) { fl_alert("Cannot open source file.\n%s", path.c_str()); return false; }
+  if (!file)
+  {
+    fl_alert("Cannot open source file.\n%s", path.c_str());
+    return false;
+  }
   std::string text(static_cast<size_t>(ASSEMBLY_SOURCE_CAPACITY) + 1, '\0');
   const size_t size = std::fread(text.data(), 1, text.size(), file);
   const bool error = std::ferror(file) != 0;
   std::fclose(file);
   text.resize(size);
-  if (error || size > ASSEMBLY_SOURCE_CAPACITY || text.find('\0') != std::string::npos) {
+  if (error || size > ASSEMBLY_SOURCE_CAPACITY || text.find('\0') != std::string::npos)
+  {
     fl_alert("Use a text Assembly file of at most 64 KiB, without NUL bytes.");
     return false;
   }
-  if (text.compare(0, 3, "\xEF\xBB\xBF") == 0) text.erase(0, 3);
+  if (text.compare(0, 3, "\xEF\xBB\xBF") == 0)
+  {
+    text.erase(0, 3);
+  }
   text.erase(std::remove(text.begin(), text.end(), '\r'), text.end());
   set_source(text, path, false);
   set_status("Opened / " + path);
@@ -666,31 +894,45 @@ bool App::read_from(const std::string &path)
 void App::open()
 {
   pause("");
-  if (!may_replace()) return;
+  if (!may_replace())
+  {
+    return;
+  }
   Fl_Native_File_Chooser chooser;
   chooser.title("Open Assembly source");
   chooser.type(Fl_Native_File_Chooser::BROWSE_FILE);
   chooser.filter("Assembly source\t*.asm\nText files\t*.txt");
-  if (chooser.show() == 0) (void)read_from(chooser.filename());
+  if (chooser.show() == 0)
+  {
+    (void)read_from(chooser.filename());
+  }
 }
 
 void App::export_binary()
 {
   pause("");
-  if (!ensure_assembled()) return;
+  if (!ensure_assembled())
+  {
+    return;
+  }
   Fl_Native_File_Chooser chooser;
   chooser.title("Export VM8 bytecode (not a desktop executable)");
   chooser.type(Fl_Native_File_Chooser::BROWSE_SAVE_FILE);
   chooser.filter("VM8 binary\t*.bin");
   chooser.options(Fl_Native_File_Chooser::SAVEAS_CONFIRM | Fl_Native_File_Chooser::USE_FILTER_EXT);
   chooser.preset_file("program.bin");
-  if (chooser.show() != 0) return;
-  FILE *file = fl_fopen(chooser.filename(), "wb");
-  if (!file) { fl_alert("Cannot create the binary file at this location."); return; }
-  const bool written = std::fwrite(machine_.image.bytes, 1, machine_.image.byte_count, file) == machine_.image.byte_count;
-  const bool closed = std::fclose(file) == 0;
-  if (!written || !closed) fl_alert("Could not finish writing the binary file.");
-  else set_status(std::string("Exported VM8 bytecode / ") + chooser.filename());
+  if (chooser.show() != 0)
+  {
+    return;
+  }
+  if (!write_file_atomic(chooser.filename(), machine_.image.bytes, machine_.image.byte_count))
+  {
+    fl_alert("Could not export the binary. The previous file has been preserved.");
+  }
+  else
+  {
+    set_status(std::string("Exported VM8 bytecode / ") + chooser.filename());
+  }
 }
 
 void App::action_callback(Fl_Widget *widget, void *data)
@@ -700,37 +942,76 @@ void App::action_callback(Fl_Widget *widget, void *data)
 
 void App::act(Action action)
 {
-  switch (action) {
+  switch (action)
+  {
     case Action::New:
-      if (may_replace()) { set_source("; Write your VM8 Assembly program here.\n\nHALT\n", "", false); set_status("New source / Untitled.asm"); }
+      if (may_replace())
+      {
+        set_source("; Write your VM8 Assembly program here.\n\nHALT\n", "", false);
+        set_status("New source / Untitled.asm");
+      }
       break;
-    case Action::Open: open(); break;
-    case Action::Save: (void)save(false); break;
-    case Action::SaveAs: (void)save(true); break;
-    case Action::Export: export_binary(); break;
+    case Action::Open:
+      open();
+      break;
+    case Action::Save:
+      (void)save(false);
+      break;
+    case Action::SaveAs:
+      (void)save(true);
+      break;
+    case Action::Export:
+      export_binary();
+      break;
     case Action::Quit:
-      if (may_replace()) { pause(""); help_.hide(); hide(); }
+      if (may_replace())
+      {
+        pause("");
+        help_.hide();
+        hide();
+      }
       break;
-    case Action::Find: {
+    case Action::Find:
+    {
       pause("");
       const char *term = fl_input("Find in Assembly source (case-sensitive):", "");
-      if (!term || !*term) break;
+      if (!term || !*term)
+      {
+        break;
+      }
       int position;
-      if (source_.search_forward(editor_->insert_position(), term, &position, 1) || source_.search_forward(0, term, &position, 1)) {
+      if (source_.search_forward(editor_->insert_position(), term, &position, 1) ||
+          source_.search_forward(0, term, &position, 1))
+      {
         source_.select(position, position + static_cast<int>(std::strlen(term)));
         editor_->insert_position(position + static_cast<int>(std::strlen(term)));
         editor_->show_insert_position();
-      } else set_status(std::string("Text not found / ") + term);
+      }
+      else
+      {
+        set_status(std::string("Text not found / ") + term);
+      }
       break;
     }
-    case Action::Assemble: (void)assemble(); break;
-    case Action::Run: run(); break;
-    case Action::Pause: pause("Paused by user"); refresh(); break;
-    case Action::Step: step(); break;
-    case Action::Reset: {
+    case Action::Assemble:
+      (void)assemble();
+      break;
+    case Action::Run:
+      run();
+      break;
+    case Action::Pause:
+      pause("Paused by user");
+      refresh();
+      break;
+    case Action::Step:
+      step();
+      break;
+    case Action::Reset:
+    {
       pause("");
       uint8_t input;
-      if (get_input(input) && ensure_assembled()) {
+      if (get_input(input) && ensure_assembled())
+      {
         machine_.reset(input);
         execution_timer_.reset();
         breakpoint_stop_ = false;
@@ -739,20 +1020,43 @@ void App::act(Action action)
       }
       break;
     }
-    case Action::Breakpoint: toggle_breakpoint(); break;
-    case Action::ClearBreakpoints: machine_.breakpoints.fill(false); breakpoint_stop_ = false; refresh(); set_status("All breakpoints cleared"); break;
+    case Action::Breakpoint:
+      toggle_breakpoint();
+      break;
+    case Action::ClearBreakpoints:
+      machine_.breakpoints.fill(false);
+      breakpoint_stop_ = false;
+      refresh();
+      set_status("All breakpoints cleared");
+      break;
     case Action::Demo:
     case Action::Popcount:
-      if (may_replace()) { set_source(action == Action::Demo ? demo_source : popcount_source, "", false); set_status("Example loaded / Save As to keep your own copy"); }
+      if (may_replace())
+      {
+        set_source(action == Action::Demo ? demo_source : popcount_source, "", false);
+        set_status("Example loaded / Save As to keep your own copy");
+      }
       break;
-    case Action::Help: help_.open(); break;
-    case Action::Apply: {
+    case Action::Help:
+      help_.open();
+      break;
+    case Action::Apply:
+    {
       uint8_t input;
-      if (get_input(input)) { cpu_set_input_port(&machine_.cpu, input); set_status("Virtual input applied at address 0xEE"); refresh(); }
+      if (get_input(input))
+      {
+        cpu_set_input_port(&machine_.cpu, input);
+        set_status("Virtual input applied at address 0xEE");
+        refresh();
+      }
       break;
     }
-    case Action::ClearLog: log_.text(""); break;
-    case Action::ApplyClock: apply_clock(); break;
+    case Action::ClearLog:
+      log_.text("");
+      break;
+    case Action::ApplyClock:
+      apply_clock();
+      break;
   }
 }
 
@@ -761,78 +1065,162 @@ int App::smoke_test(const std::string &directory)
   // Exercise the same actions as the widgets, without file-dialog interaction.
   show();
   Fl::check();
-  if (clock_hz_ != DEFAULT_CLOCK_HZ || execution_timer_.seconds() != 0.0) return 21;
-  if (!assemble()) return 10;
+  if (clock_hz_ != DEFAULT_CLOCK_HZ || execution_timer_.seconds() != 0.0)
+  {
+    return 21;
+  }
+  if (!assemble())
+  {
+    return 10;
+  }
   run();
   // Exercise real event-loop pacing as well as the deterministic timer unit tests.
   const auto deadline = ExecutionTimer::Clock::now() + std::chrono::seconds(10);
-  while (running_ && ExecutionTimer::Clock::now() < deadline) Fl::wait(TIMER_SECONDS);
-  if (cpu_get_output_port(&machine_.cpu) != 4 || machine_.cpu.cycle_count != 126 || running_) return 11;
+  while (running_ && ExecutionTimer::Clock::now() < deadline)
+  {
+    Fl::wait(TIMER_SECONDS);
+  }
+  if (cpu_get_output_port(&machine_.cpu) != 4 || machine_.cpu.cycle_count != 126 || running_)
+  {
+    return 11;
+  }
   const double completed_seconds = execution_timer_.seconds();
   if (execution_timer_.running() || completed_seconds <= 0.0 ||
-      text_of(timing_).find("Virtual time: 126.000 us") == std::string::npos) return 22;
-  if (!capture(*this, directory + "/studio.png")) return 12;
+      text_of(timing_).find("Virtual time: 126.000 us") == std::string::npos)
+  {
+    return 22;
+  }
+  if (!capture(*this, directory + "/studio.png"))
+  {
+    return 12;
+  }
   clock_input_->value("1000");
   act(Action::ApplyClock);
   if (clock_hz_ != 1000 || machine_.cpu.cycle_count != 126 ||
       execution_timer_.seconds() != completed_seconds ||
-      text_of(timing_).find("Virtual time: 126.000 ms") == std::string::npos) return 23;
+      text_of(timing_).find("Virtual time: 126.000 ms") == std::string::npos)
+  {
+    return 23;
+  }
   clock_input_->value("0");
   act(Action::ApplyClock);
-  if (clock_hz_ != 1000 || execution_timer_.seconds() != completed_seconds) return 24;
+  if (clock_hz_ != 1000 || execution_timer_.seconds() != completed_seconds)
+  {
+    return 24;
+  }
   clock_input_->value("1000");
   act(Action::Reset);
   if (clock_hz_ != 1000 || machine_.cpu.cycle_count != 0 || execution_timer_.seconds() != 0.0 ||
-      execution_timer_.running()) return 25;
-  editor_->insert_position(source_.skip_lines(0, static_cast<int>(machine_.image.line_for_address[0] - 1)));
+      execution_timer_.running())
+  {
+    return 25;
+  }
+  editor_->insert_position(
+      source_.skip_lines(0, static_cast<int>(machine_.image.line_for_address[0] - 1)));
   toggle_breakpoint();
   run();
   Fl::remove_timeout(timer, this);
   tick();
-  if (running_ || !breakpoint_stop_ || machine_.cpu.cycle_count != 0) return 13;
-  if (execution_timer_.running()) return 26;
+  if (running_ || !breakpoint_stop_ || machine_.cpu.cycle_count != 0)
+  {
+    return 13;
+  }
+  if (execution_timer_.running())
+  {
+    return 26;
+  }
   step();
-  if (machine_.cpu.cycle_count != 1) return 14;
+  if (machine_.cpu.cycle_count != 1)
+  {
+    return 14;
+  }
   if (execution_timer_.running() ||
-      text_of(timing_).find("Virtual time: 1.000 ms") == std::string::npos) return 27;
+      text_of(timing_).find("Virtual time: 1.000 ms") == std::string::npos)
+  {
+    return 27;
+  }
   run();
   pause("Smoke test pause");
-  if (running_) return 15;
+  if (running_)
+  {
+    return 15;
+  }
   const double paused_seconds = execution_timer_.seconds();
-  if (execution_timer_.running() || execution_timer_.seconds(
-      ExecutionTimer::Clock::now() + std::chrono::hours(1)) != paused_seconds) return 28;
+  if (execution_timer_.running() ||
+      execution_timer_.seconds(ExecutionTimer::Clock::now() + std::chrono::hours(1)) !=
+          paused_seconds)
+  {
+    return 28;
+  }
   source_.append("\nLDI A 1\n");
-  if (!dirty_ || machine_.assembled || assemble() || error_line_ == 0) return 16;
-  if (execution_timer_.seconds() != paused_seconds) return 29;
-  if (!capture(*this, directory + "/assembly-error.png")) return 17;
+  if (!dirty_ || machine_.assembled || assemble() || error_line_ == 0)
+  {
+    return 16;
+  }
+  if (execution_timer_.seconds() != paused_seconds)
+  {
+    return 29;
+  }
+  if (!capture(*this, directory + "/assembly-error.png"))
+  {
+    return 17;
+  }
   set_source(demo_source, "", true);
   const std::string save_path = directory + "/smoke-source.asm";
-  if (!save_to(save_path) || dirty_ || !read_from(save_path) || text_of(source_) != demo_source || !assemble()) return 18;
-  if (execution_timer_.seconds() != 0.0 || clock_hz_ != 1000) return 30;
+  if (!save_to(save_path) || dirty_ || !read_from(save_path) || text_of(source_) != demo_source ||
+      !assemble())
+  {
+    return 18;
+  }
+  if (execution_timer_.seconds() != 0.0 || clock_hz_ != 1000)
+  {
+    return 30;
+  }
   set_source("loop:\nJMP loop\n", "", false);
   trace_->value(0);
   speed_->value(2);
   run();
-  for (unsigned ticks = 0; running_ && ticks < RUN_INSTRUCTION_LIMIT; ++ticks) { Fl::remove_timeout(timer, this); tick(); }
-  if (running_ || machine_.cpu.cycle_count != RUN_INSTRUCTION_LIMIT || machine_.cpu.halted) return 19;
-  if (execution_timer_.running()) return 31;
+  for (unsigned ticks = 0; running_ && ticks < RUN_INSTRUCTION_LIMIT; ++ticks)
+  {
+    Fl::remove_timeout(timer, this);
+    tick();
+  }
+  if (running_ || machine_.cpu.cycle_count != RUN_INSTRUCTION_LIMIT || machine_.cpu.halted)
+  {
+    return 19;
+  }
+  if (execution_timer_.running())
+  {
+    return 31;
+  }
   // Errors stop the real timer too, including invalid opcodes and stack failures.
-  for (const auto *invalid_program : {".BYTE 0xFF\n", "POP A\n"}) {
+  for (const auto *invalid_program : {".BYTE 0xFF\n", "POP A\n"})
+  {
     set_source(invalid_program, "", false);
     run();
     Fl::remove_timeout(timer, this);
     tick();
     if (running_ || execution_timer_.running() || !machine_.cpu.halted ||
-        machine_.cpu.cycle_count != 1) return 32;
+        machine_.cpu.cycle_count != 1)
+    {
+      return 32;
+    }
   }
   set_source(popcount_source, "", false);
-  if (execution_timer_.seconds() != 0.0 || machine_.cpu.cycle_count != 0 || clock_hz_ != 1000) return 33;
+  if (execution_timer_.seconds() != 0.0 || machine_.cpu.cycle_count != 0 || clock_hz_ != 1000)
+  {
+    return 33;
+  }
   help_.open();
   Fl::check();
-  if (help_.topic_count() < 28 || !capture(help_, directory + "/help.png")) return 20;
+  if (help_.topic_count() < 28 || !capture(help_, directory + "/help.png"))
+  {
+    return 20;
+  }
   help_.hide();
   hide();
-  std::puts("VM8 Studio GUI: assemble, run, reset, breakpoint, step, pause, edit, error, save, open, limit, clock, timing and help passed.");
+  std::puts(
+      "VM8 Studio GUI: assemble, run, reset, breakpoint, step, pause, edit, error, save, open, limit, clock, timing and help passed.");
   return 0;
 }
 }

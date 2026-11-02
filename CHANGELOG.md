@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.1.1 - 2026-11-02
+
+- Preserve existing Assembly and bytecode files if saving their replacement fails.
+- Reject embedded NUL bytes in Assembly files and monitor commands, and handle
+  the 255-byte line limit consistently with LF, CRLF and end-of-file.
+- Verify build downloads before caching them, clean temporary packaging files,
+  and preserve an existing AppImage when a replacement cannot be completed.
+- Standardize maintained source formatting and document repeatable style checks.
+- Embed the application icon in the Windows executable and in desktop windows.
+- Identify Linux windows as VM8 Studio so desktop menus and taskbars can
+  associate them with the installed launcher.
+- Include a PNG icon alongside the SVG in Linux packages for desktop
+  environments without SVG icon support.
+
 ## 1.1.0 - 2026-09-10
 
 - Add VM8 Studio for Windows x64 and Linux x86-64: an Assembly editor with syntax
