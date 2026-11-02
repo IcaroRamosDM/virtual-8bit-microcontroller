@@ -5,7 +5,11 @@
 #include "assembly.h"
 #include "source_reader.h"
 
-enum { DIAGNOSTIC_CAPACITY = 4096, LINE_SIZE = 4 };
+enum
+{
+  DIAGNOSTIC_CAPACITY = 4096,
+  LINE_SIZE = 4
+};
 
 static void collect_message(const char *message, void *context)
 {
@@ -17,7 +21,8 @@ static void collect_message(const char *message, void *context)
 
 static void test_valid_image_and_source_map(void)
 {
-  const char source[] = "; example\r\n.EQU VALUE, 0x2A\r\nstart:\r\nLDI A, VALUE\r\nHALT\r\n.BYTE start";
+  const char source[] =
+      "; example\r\n.EQU VALUE, 0x2A\r\nstart:\r\nLDI A, VALUE\r\nHALT\r\n.BYTE start";
   AssemblyImage image;
   char messages[DIAGNOSTIC_CAPACITY] = {0};
   const AssemblerDiagnostics diagnostics = {collect_message, messages};
@@ -42,14 +47,17 @@ static void test_valid_image_and_source_map(void)
 
 static void test_errors_are_captured_and_output_is_cleared(void)
 {
-  const char *sources[] = {"HALT\nBAD\n", "HALT\nLDI A 1\n", "HALT\nJMP missing\n", "HALT\nLDI A, 256\n"};
+  const char *sources[] = {"HALT\nBAD\n",
+                           "HALT\nLDI A 1\n",
+                           "HALT\nJMP missing\n",
+                           "HALT\nLDI A, 256\n"};
   for (size_t i = 0; i < sizeof sources / sizeof sources[0]; ++i)
   {
     AssemblyImage image = {0};
     image.byte_count = 1;
     char messages[DIAGNOSTIC_CAPACITY] = {0};
-    const bool success = assembly_compile(sources[i], &image,
-        (AssemblerDiagnostics){collect_message, messages});
+    const bool success =
+        assembly_compile(sources[i], &image, (AssemblerDiagnostics){collect_message, messages});
     assert(!success);
     assert(image.byte_count == 0);
     assert(image.error_line == 2);

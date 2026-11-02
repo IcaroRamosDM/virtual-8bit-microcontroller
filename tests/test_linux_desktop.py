@@ -4,6 +4,7 @@ import importlib.util
 from pathlib import Path
 import tempfile
 import unittest
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
 SPEC = importlib.util.spec_from_file_location("linux_desktop", ROOT / "tools/linux_desktop.py")
@@ -12,6 +13,25 @@ SPEC.loader.exec_module(desktop)
 
 
 class DesktopInstallationTests(unittest.TestCase):
+    def test_failed_write_preserves_launcher_and_removes_temporary_file(self):
+        with tempfile.TemporaryDirectory(prefix="vm8-write-test-") as directory:
+            entry = Path(directory) / "vm8-studio.desktop"
+            entry.write_text("original launcher")
+            with self.assertRaises(UnicodeEncodeError):
+                desktop.write_file(entry, "invalid UTF-8: \ud800")
+            self.assertEqual(entry.read_text(), "original launcher")
+            self.assertEqual(list(entry.parent.iterdir()), [entry])
+
+    def test_failed_replacement_preserves_launcher_and_removes_temporary_file(self):
+        with tempfile.TemporaryDirectory(prefix="vm8-replace-test-") as directory:
+            entry = Path(directory) / "vm8-studio.desktop"
+            entry.write_text("original launcher")
+            with mock.patch.object(Path, "replace", side_effect=OSError("replacement failed")):
+                with self.assertRaisesRegex(OSError, "replacement failed"):
+                    desktop.write_file(entry, "new launcher")
+            self.assertEqual(entry.read_text(), "original launcher")
+            self.assertEqual(list(entry.parent.iterdir()), [entry])
+
     def test_real_installation_and_repeat_preserve_one_release(self):
         if not desktop.APPIMAGE.is_file():
             self.skipTest("Build the Studio AppImage before testing its installation.")
@@ -25,6 +45,11 @@ class DesktopInstallationTests(unittest.TestCase):
             self.assertTrue(launcher.is_file())
             self.assertTrue((data / "icons/hicolor/scalable/apps/vm8-studio.svg").is_file())
             self.assertIn("Name=VM8 Studio\n", entry.read_text())
+            self.assertIn("StartupWMClass=Vm8-studio\n", entry.read_text())
+            packaged_png = releases[0] / "vm8-studio.png"
+            installed_png = data / "icons/hicolor/256x256/apps/vm8-studio.png"
+            self.assertEqual(installed_png.read_bytes(), packaged_png.read_bytes())
+            self.assertIn(f"Icon={installed_png}\n", entry.read_text())
             self.assertIn('Exec="', entry.read_text())
             self.assertNotIn(str(ROOT / "build"), entry.read_text())
             repeated_entry = desktop.install_user(desktop.APPIMAGE, data)

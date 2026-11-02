@@ -23,41 +23,33 @@ enum
 
 static void test_prints_cpu_state(void)
 {
-  static const char expected_output[] =
-    "Register A: 0xA5\n"
-    "Register B: 0x5A\n"
-    "Stack pointer: 0xFE\n"
-    "Input port: 0x3C\n"
-    "Output port: 0xC3\n"
-    "Zero flag: set\n"
-    "Carry flag: clear\n"
-    "Program counter: 128\n"
-    "Cycle count: 42\n";
+  static const char expected_output[] = "Register A: 0xA5\n"
+                                        "Register B: 0x5A\n"
+                                        "Stack pointer: 0xFE\n"
+                                        "Input port: 0x3C\n"
+                                        "Output port: 0xC3\n"
+                                        "Zero flag: set\n"
+                                        "Carry flag: clear\n"
+                                        "Program counter: 128\n"
+                                        "Cycle count: 42\n";
 
   const uint64_t state_cycle_count = UINT64_C(42);
 
-  Cpu cpu =
-  {
-    .register_a = STATE_REGISTER_A,
-    .register_b = STATE_REGISTER_B,
-    .program_counter = STATE_PROGRAM_COUNTER,
-    .stack_pointer = STATE_STACK_POINTER,
-    .input_port = 0,
-    .output_port = 0,
-    .zero_flag = true,
-    .carry_flag = false,
-    .halted = false,
-    .cycle_count = state_cycle_count,
-    .memory = {0}
-  };
+  Cpu cpu = {.register_a = STATE_REGISTER_A,
+             .register_b = STATE_REGISTER_B,
+             .program_counter = STATE_PROGRAM_COUNTER,
+             .stack_pointer = STATE_STACK_POINTER,
+             .input_port = 0,
+             .output_port = 0,
+             .zero_flag = true,
+             .carry_flag = false,
+             .halted = false,
+             .cycle_count = state_cycle_count,
+             .memory = {0}};
 
   cpu_set_input_port(&cpu, STATE_INPUT_PORT);
 
-  cpu_write_memory(
-    &cpu,
-    CPU_OUTPUT_PORT_ADDRESS,
-    STATE_OUTPUT_PORT
-  );
+  cpu_write_memory(&cpu, CPU_OUTPUT_PORT_ADDRESS, STATE_OUTPUT_PORT);
 
   FILE *const output = test_tmpfile();
 
@@ -73,15 +65,10 @@ static void test_prints_cpu_state(void)
 
   char actual_output[STATE_BUFFER_CAPACITY] = {0};
 
-  const size_t read_byte_count = fread(
-    actual_output,
-    sizeof actual_output[0],
-    sizeof actual_output - 1,
-    output
-  );
+  const size_t read_byte_count =
+      fread(actual_output, sizeof actual_output[0], sizeof actual_output - 1, output);
 
-  const size_t expected_byte_count =
-    strlen(expected_output);
+  const size_t expected_byte_count = strlen(expected_output);
 
   assert(read_byte_count == expected_byte_count);
   assert(strcmp(actual_output, expected_output) == 0);

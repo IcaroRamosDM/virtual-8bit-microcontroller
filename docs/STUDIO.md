@@ -9,10 +9,29 @@ Download the files attached to [GitHub Releases](https://github.com/IcaroRamosDM
 | Computer | Copy this one file | Start it |
 | --- | --- | --- |
 | Windows x64 | `build/studio-windows/vm8-studio.exe` | Double-click the `.exe`. |
-| Ubuntu/Debian x86-64 desktop | `build/studio-linux/vm8-studio_1.1.0-1_amd64.deb` | Open with the graphical software installer, install, then search for **VM8 Studio**. |
+| Ubuntu/Debian x86-64 desktop | `build/studio-linux/vm8-studio_1.1.1-1_amd64.deb` | Open with the graphical software installer, install, then search for **VM8 Studio**. |
 | Linux x86-64 desktop | `build/studio-linux/VM8_Studio-x86_64.AppImage` | Allow execution if necessary, then double-click the AppImage. |
 
 Choose the package for the target operating system. The host is 64-bit; the simulated microcontroller is still 8-bit. ARM computers, 32-bit operating systems, macOS, and non-glibc Linux distributions are not targets of these builds.
+
+The paths above describe desktop release 1.1.1.
+
+### Application icons
+
+Version 1.1.1 embeds the program icon in the Windows executable and in the
+running application on both platforms. Linux launchers identify its window
+class and install both SVG and PNG icons. This covers the installed menu
+entry and lets desktop environments associate it with the running window.
+
+A downloaded AppImage or Debian package can still have a generic file icon
+in a file manager. Its thumbnail depends on that file manager's integration;
+it is separate from the installed application and running-window icons.
+
+The source artwork is `studio/vm8-studio.svg`. Its exported 256-pixel PNG is
+embedded at build time, and `studio/vm8-studio.ico` contains 16, 24, 32, 48,
+64, 128 and 256-pixel versions for Windows. If the artwork changes, update
+both exports. Normal builds use these committed assets and the existing
+MinGW resource compiler; no image conversion tool is needed to build.
 
 ### Install in the Ubuntu/Debian application menu
 
@@ -235,7 +254,7 @@ FLTK is downloaded from its official release and checked against a pinned SHA-25
 
 Keep the repository and portable-build cache on a Linux filesystem for faster builds. Set `VM8_PORTABLE_CACHE` to a dedicated build directory to override the default cache location. PRoot's optional seccomp acceleration is disabled for compatibility with kernels where that acceleration is unreliable; no host security policy is changed. This build environment is a compatibility tool, not a security sandbox for untrusted code.
 
-`make studio-linux` builds an unpackaged developer executable against the current host. Use `make studio-appimage` for the distributable Linux artifact. `make studio-test` runs backend checks, deterministic timing tests, and application actions on a virtual display, saving screenshots under `build/studio-smoke/`. The GUI checks include actual event-loop execution, clock changes and rejection, pause/resume, reset, and timer stops on breakpoints, instruction limits and CPU errors. The `--self-test` and `--ui-smoke-test <existing-output-directory>` arguments are developer test hooks, not required for ordinary use.
+`make studio-linux` builds an unpackaged developer executable against the current host. Use `make studio-appimage` for the distributable Linux artifact.
 
 After producing the AppImage, `make studio-deb` creates the Ubuntu/Debian installer
 with `dpkg-deb`; it reuses the finished release and does not download dependencies
@@ -243,8 +262,3 @@ or rebuild the CPU/GUI. `make studio-desktop-test` exercises installation into a
 temporary account-data directory, repeated installation, preservation of custom
 launchers, path validation and invalid package input. Desktop entry metadata
 follows the [freedesktop specification](https://specifications.freedesktop.org/desktop-entry/latest/recognized-keys.html).
-
-`make studio-timing-test` runs just the C++ timing tests without FLTK or a display. The tests inject monotonic timestamps, so pause/resume checks do not depend on sleep durations or machine speed. `make studio-timing-windows-build` cross-compiles the same tests; run `.\build\windows-tests\test_studio_timing.exe` in PowerShell from the repository root to verify them natively on Windows. These are separate from the existing C/CLI test suite.
-
-
-Generated executables, dependency caches, screenshots, and AppImages remain inside ignored build directories.

@@ -29,8 +29,6 @@ typedef struct EncodedInstruction
   size_t size;
 } EncodedInstruction;
 
-InstructionEncodeResult instruction_encode(
-    const ParsedInstruction *instruction,
-    const SymbolTable *symbols,
-    EncodedInstruction *encoded_instruction
-);
+InstructionEncodeResult instruction_encode(const ParsedInstruction *instruction,
+                                           const SymbolTable *symbols,
+                                           EncodedInstruction *encoded_instruction);

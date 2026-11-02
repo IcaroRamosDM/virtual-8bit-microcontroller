@@ -11,10 +11,7 @@ enum
   CPU_MEMORY_SIZE = UINT8_MAX + 1,
   CPU_STACK_CAPACITY = 16,
   CPU_IO_PORT_COUNT = 2,
-  CPU_PROGRAM_MEMORY_SIZE =
-    CPU_MEMORY_SIZE -
-    CPU_STACK_CAPACITY -
-    CPU_IO_PORT_COUNT,
+  CPU_PROGRAM_MEMORY_SIZE = CPU_MEMORY_SIZE - CPU_STACK_CAPACITY - CPU_IO_PORT_COUNT,
   CPU_INPUT_PORT_ADDRESS = CPU_PROGRAM_MEMORY_SIZE,
   CPU_OUTPUT_PORT_ADDRESS = CPU_INPUT_PORT_ADDRESS + 1,
   CPU_STACK_LOW_ADDRESS = CPU_OUTPUT_PORT_ADDRESS + 1,
@@ -46,13 +43,11 @@ typedef enum CpuStepResult
   CPU_STEP_STACK_UNDERFLOW
 } CpuStepResult;
 
-typedef void (*CpuStepObserver)(
-    uint8_t instruction_address,
-    uint8_t opcode,
-    const Cpu *cpu,
-    CpuStepResult step_result,
-    void *context
-);
+typedef void (*CpuStepObserver)(uint8_t instruction_address,
+                                uint8_t opcode,
+                                const Cpu *cpu,
+                                CpuStepResult step_result,
+                                void *context);
 
 typedef enum CpuRunResult
 {
@@ -67,11 +62,7 @@ void cpu_reset(Cpu *cpu);
 void cpu_set_input_port(Cpu *cpu, uint8_t value);
 uint8_t cpu_get_output_port(const Cpu *cpu);
 
-bool cpu_load_program(
-    Cpu *cpu,
-    const uint8_t *program,
-    size_t program_size
-    );
+bool cpu_load_program(Cpu *cpu, const uint8_t *program, size_t program_size);
 
 uint8_t cpu_read_memory(const Cpu *cpu, uint8_t address);
 void cpu_write_memory(Cpu *cpu, uint8_t address, uint8_t value);
@@ -79,11 +70,9 @@ uint8_t cpu_fetch_byte(Cpu *cpu);
 
 CpuStepResult cpu_step(Cpu *cpu);
 
-CpuRunResult cpu_run_with_observer(
-    Cpu *cpu,
-    uint64_t instruction_limit,
-    CpuStepObserver observer,
-    void *observer_context
-);
+CpuRunResult cpu_run_with_observer(Cpu *cpu,
+                                   uint64_t instruction_limit,
+                                   CpuStepObserver observer,
+                                   void *observer_context);
 
 CpuRunResult cpu_run(Cpu *cpu, uint64_t instruction_limit);

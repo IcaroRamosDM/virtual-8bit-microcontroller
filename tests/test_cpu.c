@@ -8,18 +8,16 @@
 
 static void test_cpu_reset_clears_state(void)
 {
-  Cpu cpu = {
-    .register_a = UINT8_MAX,
-    .register_b = UINT8_MAX,
-    .program_counter = UINT8_MAX,
-    .stack_pointer = UINT8_MAX,
-    .input_port = UINT8_MAX,
-    .output_port = UINT8_MAX,
-    .zero_flag = true,
-    .carry_flag = true,
-    .halted = true,
-    .cycle_count = UINT64_MAX
-  };
+  Cpu cpu = {.register_a = UINT8_MAX,
+             .register_b = UINT8_MAX,
+             .program_counter = UINT8_MAX,
+             .stack_pointer = UINT8_MAX,
+             .input_port = UINT8_MAX,
+             .output_port = UINT8_MAX,
+             .zero_flag = true,
+             .carry_flag = true,
+             .halted = true,
+             .cycle_count = UINT64_MAX};
 
   for (size_t index = 0; index < sizeof cpu.memory; ++index)
   {
@@ -68,30 +66,15 @@ static void test_cpu_memory_map_layout(void)
   const int expected_input_port_address = 0xEE;
   const int expected_output_port_address = 0xEF;
 
-  assert(
-    CPU_PROGRAM_MEMORY_SIZE ==
-    expected_program_memory_size
-  );
+  assert(CPU_PROGRAM_MEMORY_SIZE == expected_program_memory_size);
 
-  assert(
-    CPU_INPUT_PORT_ADDRESS ==
-    expected_input_port_address
-  );
+  assert(CPU_INPUT_PORT_ADDRESS == expected_input_port_address);
 
-  assert(
-    CPU_OUTPUT_PORT_ADDRESS ==
-    expected_output_port_address
-  );
+  assert(CPU_OUTPUT_PORT_ADDRESS == expected_output_port_address);
 
-  assert(
-    CPU_OUTPUT_PORT_ADDRESS ==
-    CPU_INPUT_PORT_ADDRESS + 1
-  );
+  assert(CPU_OUTPUT_PORT_ADDRESS == CPU_INPUT_PORT_ADDRESS + 1);
 
-  assert(
-    CPU_STACK_LOW_ADDRESS ==
-    CPU_OUTPUT_PORT_ADDRESS + 1
-  );
+  assert(CPU_STACK_LOW_ADDRESS == CPU_OUTPUT_PORT_ADDRESS + 1);
 }
 
 static void test_cpu_memory_mapped_ports(void)
@@ -103,35 +86,18 @@ static void test_cpu_memory_mapped_ports(void)
 
   cpu_set_input_port(&cpu, input_value);
 
-  assert(
-    cpu_read_memory(&cpu, CPU_INPUT_PORT_ADDRESS) ==
-    input_value
-  );
+  assert(cpu_read_memory(&cpu, CPU_INPUT_PORT_ADDRESS) == input_value);
 
-  cpu_write_memory(
-    &cpu,
-    CPU_INPUT_PORT_ADDRESS,
-    ignored_input_write
-  );
+  cpu_write_memory(&cpu, CPU_INPUT_PORT_ADDRESS, ignored_input_write);
 
-  assert(
-    cpu_read_memory(&cpu, CPU_INPUT_PORT_ADDRESS) ==
-    input_value
-  );
+  assert(cpu_read_memory(&cpu, CPU_INPUT_PORT_ADDRESS) == input_value);
 
   assert(cpu_get_output_port(&cpu) == 0);
 
-  cpu_write_memory(
-    &cpu,
-    CPU_OUTPUT_PORT_ADDRESS,
-    output_value
-  );
+  cpu_write_memory(&cpu, CPU_OUTPUT_PORT_ADDRESS, output_value);
 
   assert(cpu_get_output_port(&cpu) == output_value);
-  assert(
-    cpu_read_memory(&cpu, CPU_OUTPUT_PORT_ADDRESS) ==
-    output_value
-  );
+  assert(cpu_read_memory(&cpu, CPU_OUTPUT_PORT_ADDRESS) == output_value);
 }
 
 static void test_cpu_fetch_byte_reads_and_advances_program_counter(void)
@@ -219,10 +185,7 @@ static void test_cpu_step_rejects_invalid_opcode(void)
 
 static void test_cpu_load_program_copies_valid_program(void)
 {
-  const uint8_t program[] = {
-    OPCODE_NOP,
-    OPCODE_HALT
-  };
+  const uint8_t program[] = {OPCODE_NOP, OPCODE_HALT};
   const size_t program_size = sizeof program / sizeof program[0];
   const uint8_t first_unwritten_address = (uint8_t)program_size;
   Cpu cpu = {0};
@@ -233,9 +196,7 @@ static void test_cpu_load_program_copies_valid_program(void)
 
   for (size_t index = 0; index < program_size; ++index)
   {
-    assert(
-      cpu_read_memory(&cpu, (uint8_t)index) == program[index]
-    );
+    assert(cpu_read_memory(&cpu, (uint8_t)index) == program[index]);
   }
 
   assert(cpu_read_memory(&cpu, first_unwritten_address) == 0);
@@ -244,8 +205,7 @@ static void test_cpu_load_program_copies_valid_program(void)
 
 static void test_cpu_load_program_accepts_full_program_region(void)
 {
-  const uint8_t last_program_address =
-    (uint8_t)(CPU_PROGRAM_MEMORY_SIZE - 1);
+  const uint8_t last_program_address = (uint8_t)(CPU_PROGRAM_MEMORY_SIZE - 1);
   const uint8_t input_port_value = UINT8_C(0xA5);
   const uint8_t output_port_value = UINT8_C(0x5A);
   uint8_t program[CPU_PROGRAM_MEMORY_SIZE] = {0};
@@ -254,31 +214,15 @@ static void test_cpu_load_program_accepts_full_program_region(void)
   program[last_program_address] = OPCODE_HALT;
   cpu_set_input_port(&cpu, input_port_value);
 
-  cpu_write_memory(
-    &cpu,
-    CPU_OUTPUT_PORT_ADDRESS,
-    output_port_value
-  );
+  cpu_write_memory(&cpu, CPU_OUTPUT_PORT_ADDRESS, output_port_value);
 
-  const bool loaded = cpu_load_program(
-    &cpu,
-    program,
-    sizeof program
-  );
+  const bool loaded = cpu_load_program(&cpu, program, sizeof program);
 
   assert(loaded);
-  assert(
-    cpu_read_memory(&cpu, last_program_address) ==
-    OPCODE_HALT
-  );
-  assert(
-    cpu_read_memory(&cpu, CPU_INPUT_PORT_ADDRESS) ==
-    input_port_value
-  );
+  assert(cpu_read_memory(&cpu, last_program_address) == OPCODE_HALT);
+  assert(cpu_read_memory(&cpu, CPU_INPUT_PORT_ADDRESS) == input_port_value);
   assert(cpu_get_output_port(&cpu) == output_port_value);
-  assert(
-    cpu_read_memory(&cpu, CPU_STACK_LOW_ADDRESS) == 0
-  );
+  assert(cpu_read_memory(&cpu, CPU_STACK_LOW_ADDRESS) == 0);
 }
 
 static void test_cpu_load_program_validates_input(void)
@@ -296,65 +240,37 @@ static void test_cpu_load_program_validates_input(void)
 
   cpu_write_memory(&cpu, sentinel_address, sentinel_value);
 
-  const bool oversized_program_loaded = cpu_load_program(
-    &cpu,
-    oversized_program,
-    sizeof oversized_program
-  );
+  const bool oversized_program_loaded =
+      cpu_load_program(&cpu, oversized_program, sizeof oversized_program);
 
   assert(!oversized_program_loaded);
-  assert(
-    cpu_read_memory(&cpu, sentinel_address) == sentinel_value
-  );
+  assert(cpu_read_memory(&cpu, sentinel_address) == sentinel_value);
 
-  const bool null_program_loaded = cpu_load_program(
-    &cpu,
-    NULL,
-    nonempty_program_size
-  );
+  const bool null_program_loaded = cpu_load_program(&cpu, NULL, nonempty_program_size);
 
   assert(!null_program_loaded);
-  assert(
-    cpu_read_memory(&cpu, sentinel_address) == sentinel_value
-  );
+  assert(cpu_read_memory(&cpu, sentinel_address) == sentinel_value);
 
-  const bool empty_program_loaded = cpu_load_program(
-    &cpu,
-    NULL,
-    0
-  );
+  const bool empty_program_loaded = cpu_load_program(&cpu, NULL, 0);
 
   assert(empty_program_loaded);
-  assert(
-    cpu_read_memory(&cpu, sentinel_address) == sentinel_value
-  );
+  assert(cpu_read_memory(&cpu, sentinel_address) == sentinel_value);
 }
 
 static void test_cpu_run_stops_at_halt(void)
 {
-  const uint8_t program[] = {
-    OPCODE_NOP,
-    OPCODE_NOP,
-    OPCODE_HALT
-  };
+  const uint8_t program[] = {OPCODE_NOP, OPCODE_NOP, OPCODE_HALT};
   const size_t program_size = sizeof program / sizeof program[0];
   const uint64_t instruction_limit = CPU_MEMORY_SIZE;
   const uint64_t expected_cycle_count = (uint64_t)program_size;
   const uint8_t expected_program_counter = (uint8_t)program_size;
   Cpu cpu = {0};
 
-  const bool loaded = cpu_load_program(
-    &cpu,
-    program,
-    program_size
-  );
+  const bool loaded = cpu_load_program(&cpu, program, program_size);
 
   assert(loaded);
 
-  const CpuRunResult result = cpu_run(
-    &cpu,
-    instruction_limit
-  );
+  const CpuRunResult result = cpu_run(&cpu, instruction_limit);
 
   assert(result == CPU_RUN_HALTED);
   assert(cpu.halted);
@@ -364,27 +280,18 @@ static void test_cpu_run_stops_at_halt(void)
 
 static void test_cpu_run_reports_invalid_opcode(void)
 {
-  const uint8_t program[] = {
-    UINT8_MAX
-  };
+  const uint8_t program[] = {UINT8_MAX};
   const size_t program_size = sizeof program / sizeof program[0];
   const uint64_t instruction_limit = (uint64_t)program_size;
   const uint64_t expected_cycle_count = (uint64_t)program_size;
   const uint8_t expected_program_counter = (uint8_t)program_size;
   Cpu cpu = {0};
 
-  const bool loaded = cpu_load_program(
-    &cpu,
-    program,
-    program_size
-  );
+  const bool loaded = cpu_load_program(&cpu, program, program_size);
 
   assert(loaded);
 
-  const CpuRunResult result = cpu_run(
-    &cpu,
-    instruction_limit
-  );
+  const CpuRunResult result = cpu_run(&cpu, instruction_limit);
 
   assert(result == CPU_RUN_INVALID_OPCODE);
   assert(cpu.halted);
@@ -395,28 +302,18 @@ static void test_cpu_run_reports_invalid_opcode(void)
 static void test_cpu_run_enforces_instruction_limit(void)
 {
   const uint8_t program_start = 0;
-  const uint8_t program[] = {
-    OPCODE_JUMP,
-    program_start
-  };
+  const uint8_t program[] = {OPCODE_JUMP, program_start};
   const size_t program_size = sizeof program / sizeof program[0];
   const uint64_t instruction_limit = UINT64_C(3);
   const uint64_t expected_cycle_count = instruction_limit;
   const uint8_t expected_program_counter = program_start;
   Cpu cpu = {0};
 
-  const bool loaded = cpu_load_program(
-    &cpu,
-    program,
-    program_size
-  );
+  const bool loaded = cpu_load_program(&cpu, program, program_size);
 
   assert(loaded);
 
-  const CpuRunResult result = cpu_run(
-    &cpu,
-    instruction_limit
-  );
+  const CpuRunResult result = cpu_run(&cpu, instruction_limit);
 
   assert(result == CPU_RUN_INSTRUCTION_LIMIT_REACHED);
   assert(!cpu.halted);
@@ -428,23 +325,13 @@ static void test_cpu_run_handles_zero_limit_and_halted_cpu(void)
 {
   const uint64_t zero_instruction_limit = 0;
   Cpu active_cpu = {0};
-  Cpu halted_cpu = {
-    .halted = true
-  };
+  Cpu halted_cpu = {.halted = true};
 
-  const CpuRunResult active_result = cpu_run(
-    &active_cpu,
-    zero_instruction_limit
-  );
+  const CpuRunResult active_result = cpu_run(&active_cpu, zero_instruction_limit);
 
-  const CpuRunResult halted_result = cpu_run(
-    &halted_cpu,
-    zero_instruction_limit
-  );
+  const CpuRunResult halted_result = cpu_run(&halted_cpu, zero_instruction_limit);
 
-  assert(
-    active_result == CPU_RUN_INSTRUCTION_LIMIT_REACHED
-  );
+  assert(active_result == CPU_RUN_INSTRUCTION_LIMIT_REACHED);
   assert(active_cpu.program_counter == 0);
   assert(active_cpu.cycle_count == 0);
   assert(!active_cpu.halted);
@@ -458,42 +345,21 @@ static void test_cpu_run_handles_zero_limit_and_halted_cpu(void)
 static void test_cpu_step_executes_load_immediate_a(void)
 {
   const uint8_t nonzero_value = UINT8_C(0xA5);
-  const uint8_t nonzero_program[] = {
-    OPCODE_LOAD_IMMEDIATE_A,
-    nonzero_value
-  };
-  const size_t nonzero_program_size =
-    sizeof nonzero_program / sizeof nonzero_program[0];
+  const uint8_t nonzero_program[] = {OPCODE_LOAD_IMMEDIATE_A, nonzero_value};
+  const size_t nonzero_program_size = sizeof nonzero_program / sizeof nonzero_program[0];
 
   const uint8_t zero_value = 0;
-  const uint8_t zero_program[] = {
-    OPCODE_LOAD_IMMEDIATE_A,
-    zero_value
-  };
-  const size_t zero_program_size =
-    sizeof zero_program / sizeof zero_program[0];
+  const uint8_t zero_program[] = {OPCODE_LOAD_IMMEDIATE_A, zero_value};
+  const size_t zero_program_size = sizeof zero_program / sizeof zero_program[0];
 
   const uint64_t expected_cycle_count = UINT64_C(1);
 
-  Cpu nonzero_cpu = {
-    .zero_flag = true,
-    .carry_flag = true
-  };
-  Cpu zero_cpu = {
-    .register_a = UINT8_MAX,
-    .carry_flag = true
-  };
+  Cpu nonzero_cpu = {.zero_flag = true, .carry_flag = true};
+  Cpu zero_cpu = {.register_a = UINT8_MAX, .carry_flag = true};
 
-  const bool nonzero_program_loaded = cpu_load_program(
-    &nonzero_cpu,
-    nonzero_program,
-    nonzero_program_size
-  );
-  const bool zero_program_loaded = cpu_load_program(
-    &zero_cpu,
-    zero_program,
-    zero_program_size
-  );
+  const bool nonzero_program_loaded =
+      cpu_load_program(&nonzero_cpu, nonzero_program, nonzero_program_size);
+  const bool zero_program_loaded = cpu_load_program(&zero_cpu, zero_program, zero_program_size);
 
   assert(nonzero_program_loaded);
   assert(zero_program_loaded);
@@ -506,9 +372,7 @@ static void test_cpu_step_executes_load_immediate_a(void)
   assert(!nonzero_cpu.zero_flag);
   assert(nonzero_cpu.carry_flag);
   assert(!nonzero_cpu.halted);
-  assert(
-    nonzero_cpu.program_counter == (uint8_t)nonzero_program_size
-  );
+  assert(nonzero_cpu.program_counter == (uint8_t)nonzero_program_size);
   assert(nonzero_cpu.cycle_count == expected_cycle_count);
 
   assert(zero_result == CPU_STEP_OK);
@@ -523,42 +387,21 @@ static void test_cpu_step_executes_load_immediate_a(void)
 static void test_cpu_step_executes_load_immediate_b(void)
 {
   const uint8_t nonzero_value = UINT8_C(0x5A);
-  const uint8_t nonzero_program[] = {
-    OPCODE_LOAD_IMMEDIATE_B,
-    nonzero_value
-  };
-  const size_t nonzero_program_size =
-    sizeof nonzero_program / sizeof nonzero_program[0];
+  const uint8_t nonzero_program[] = {OPCODE_LOAD_IMMEDIATE_B, nonzero_value};
+  const size_t nonzero_program_size = sizeof nonzero_program / sizeof nonzero_program[0];
 
   const uint8_t zero_value = 0;
-  const uint8_t zero_program[] = {
-    OPCODE_LOAD_IMMEDIATE_B,
-    zero_value
-  };
-  const size_t zero_program_size =
-    sizeof zero_program / sizeof zero_program[0];
+  const uint8_t zero_program[] = {OPCODE_LOAD_IMMEDIATE_B, zero_value};
+  const size_t zero_program_size = sizeof zero_program / sizeof zero_program[0];
 
   const uint64_t expected_cycle_count = UINT64_C(1);
 
-  Cpu nonzero_cpu = {
-    .zero_flag = true,
-    .carry_flag = true
-  };
-  Cpu zero_cpu = {
-    .register_b = UINT8_MAX,
-    .carry_flag = true
-  };
+  Cpu nonzero_cpu = {.zero_flag = true, .carry_flag = true};
+  Cpu zero_cpu = {.register_b = UINT8_MAX, .carry_flag = true};
 
-  const bool nonzero_program_loaded = cpu_load_program(
-    &nonzero_cpu,
-    nonzero_program,
-    nonzero_program_size
-  );
-  const bool zero_program_loaded = cpu_load_program(
-    &zero_cpu,
-    zero_program,
-    zero_program_size
-  );
+  const bool nonzero_program_loaded =
+      cpu_load_program(&nonzero_cpu, nonzero_program, nonzero_program_size);
+  const bool zero_program_loaded = cpu_load_program(&zero_cpu, zero_program, zero_program_size);
 
   assert(nonzero_program_loaded);
   assert(zero_program_loaded);
@@ -571,9 +414,7 @@ static void test_cpu_step_executes_load_immediate_b(void)
   assert(!nonzero_cpu.zero_flag);
   assert(nonzero_cpu.carry_flag);
   assert(!nonzero_cpu.halted);
-  assert(
-    nonzero_cpu.program_counter == (uint8_t)nonzero_program_size
-  );
+  assert(nonzero_cpu.program_counter == (uint8_t)nonzero_program_size);
   assert(nonzero_cpu.cycle_count == expected_cycle_count);
 
   assert(zero_result == CPU_STEP_OK);
@@ -596,60 +437,42 @@ static void test_cpu_step_executes_add_a_b(void)
     bool expected_carry_flag;
   } AddTestCase;
 
-  const AddTestCase test_cases[] = {
-    {
-      .initial_a = UINT8_C(0x12),
-      .initial_b = UINT8_C(0x34),
-      .expected_a = UINT8_C(0x46),
-      .expected_zero_flag = false,
-      .expected_carry_flag = false
-    },
-    {
-      .initial_a = UINT8_C(0xF0),
-      .initial_b = UINT8_C(0x20),
-      .expected_a = UINT8_C(0x10),
-      .expected_zero_flag = false,
-      .expected_carry_flag = true
-    },
-    {
-      .initial_a = UINT8_C(0xFF),
-      .initial_b = UINT8_C(0x01),
-      .expected_a = 0,
-      .expected_zero_flag = true,
-      .expected_carry_flag = true
-    },
-    {
-      .initial_a = 0,
-      .initial_b = 0,
-      .expected_a = 0,
-      .expected_zero_flag = true,
-      .expected_carry_flag = false
-    }
-  };
+  const AddTestCase test_cases[] = {{.initial_a = UINT8_C(0x12),
+                                     .initial_b = UINT8_C(0x34),
+                                     .expected_a = UINT8_C(0x46),
+                                     .expected_zero_flag = false,
+                                     .expected_carry_flag = false},
+                                    {.initial_a = UINT8_C(0xF0),
+                                     .initial_b = UINT8_C(0x20),
+                                     .expected_a = UINT8_C(0x10),
+                                     .expected_zero_flag = false,
+                                     .expected_carry_flag = true},
+                                    {.initial_a = UINT8_C(0xFF),
+                                     .initial_b = UINT8_C(0x01),
+                                     .expected_a = 0,
+                                     .expected_zero_flag = true,
+                                     .expected_carry_flag = true},
+                                    {.initial_a = 0,
+                                     .initial_b = 0,
+                                     .expected_a = 0,
+                                     .expected_zero_flag = true,
+                                     .expected_carry_flag = false}};
 
-  const size_t test_case_count =
-    sizeof test_cases / sizeof test_cases[0];
+  const size_t test_case_count = sizeof test_cases / sizeof test_cases[0];
   const uint8_t instruction_address = 0;
-  const uint8_t expected_program_counter =
-    instruction_address + 1;
+  const uint8_t expected_program_counter = instruction_address + 1;
   const uint64_t expected_cycle_count = UINT64_C(1);
 
   for (size_t index = 0; index < test_case_count; ++index)
   {
     const AddTestCase *test_case = &test_cases[index];
 
-    Cpu cpu = {
-      .register_a = test_case->initial_a,
-      .register_b = test_case->initial_b,
-      .zero_flag = !test_case->expected_zero_flag,
-      .carry_flag = !test_case->expected_carry_flag
-    };
+    Cpu cpu = {.register_a = test_case->initial_a,
+               .register_b = test_case->initial_b,
+               .zero_flag = !test_case->expected_zero_flag,
+               .carry_flag = !test_case->expected_carry_flag};
 
-    cpu_write_memory(
-      &cpu,
-      instruction_address,
-      OPCODE_ADD_A_B
-    );
+    cpu_write_memory(&cpu, instruction_address, OPCODE_ADD_A_B);
 
     const CpuStepResult result = cpu_step(&cpu);
 
@@ -675,60 +498,42 @@ static void test_cpu_step_executes_sub_a_b(void)
     bool expected_carry_flag;
   } SubtractTestCase;
 
-  const SubtractTestCase test_cases[] = {
-    {
-      .initial_a = UINT8_C(0x34),
-      .initial_b = UINT8_C(0x12),
-      .expected_a = UINT8_C(0x22),
-      .expected_zero_flag = false,
-      .expected_carry_flag = false
-    },
-    {
-      .initial_a = UINT8_C(0x12),
-      .initial_b = UINT8_C(0x34),
-      .expected_a = UINT8_C(0xDE),
-      .expected_zero_flag = false,
-      .expected_carry_flag = true
-    },
-    {
-      .initial_a = UINT8_C(0x5A),
-      .initial_b = UINT8_C(0x5A),
-      .expected_a = 0,
-      .expected_zero_flag = true,
-      .expected_carry_flag = false
-    },
-    {
-      .initial_a = 0,
-      .initial_b = UINT8_C(0x01),
-      .expected_a = UINT8_MAX,
-      .expected_zero_flag = false,
-      .expected_carry_flag = true
-    }
-  };
+  const SubtractTestCase test_cases[] = {{.initial_a = UINT8_C(0x34),
+                                          .initial_b = UINT8_C(0x12),
+                                          .expected_a = UINT8_C(0x22),
+                                          .expected_zero_flag = false,
+                                          .expected_carry_flag = false},
+                                         {.initial_a = UINT8_C(0x12),
+                                          .initial_b = UINT8_C(0x34),
+                                          .expected_a = UINT8_C(0xDE),
+                                          .expected_zero_flag = false,
+                                          .expected_carry_flag = true},
+                                         {.initial_a = UINT8_C(0x5A),
+                                          .initial_b = UINT8_C(0x5A),
+                                          .expected_a = 0,
+                                          .expected_zero_flag = true,
+                                          .expected_carry_flag = false},
+                                         {.initial_a = 0,
+                                          .initial_b = UINT8_C(0x01),
+                                          .expected_a = UINT8_MAX,
+                                          .expected_zero_flag = false,
+                                          .expected_carry_flag = true}};
 
-  const size_t test_case_count =
-    sizeof test_cases / sizeof test_cases[0];
+  const size_t test_case_count = sizeof test_cases / sizeof test_cases[0];
   const uint8_t instruction_address = 0;
-  const uint8_t expected_program_counter =
-    instruction_address + 1;
+  const uint8_t expected_program_counter = instruction_address + 1;
   const uint64_t expected_cycle_count = UINT64_C(1);
 
   for (size_t index = 0; index < test_case_count; ++index)
   {
     const SubtractTestCase *test_case = &test_cases[index];
 
-    Cpu cpu = {
-      .register_a = test_case->initial_a,
-      .register_b = test_case->initial_b,
-      .zero_flag = !test_case->expected_zero_flag,
-      .carry_flag = !test_case->expected_carry_flag
-    };
+    Cpu cpu = {.register_a = test_case->initial_a,
+               .register_b = test_case->initial_b,
+               .zero_flag = !test_case->expected_zero_flag,
+               .carry_flag = !test_case->expected_carry_flag};
 
-    cpu_write_memory(
-      &cpu,
-      instruction_address,
-      OPCODE_SUB_A_B
-    );
+    cpu_write_memory(&cpu, instruction_address, OPCODE_SUB_A_B);
 
     const CpuStepResult result = cpu_step(&cpu);
 
@@ -754,126 +559,37 @@ static void test_cpu_step_executes_bitwise_operations(void)
     bool expected_carry_flag;
   } BitwiseTestCase;
 
-  static const BitwiseTestCase test_cases[] =
-  {
-    {
-      OPCODE_AND_A_B,
-      UINT8_C(0xF0),
-      UINT8_C(0x3C),
-      UINT8_C(0x30),
-      false
-    },
-    {
-      OPCODE_AND_A_B,
-      UINT8_C(0x0F),
-      UINT8_C(0xF0),
-      UINT8_C(0x00),
-      false
-    },
-    {
-      OPCODE_OR_A_B,
-      UINT8_C(0x50),
-      UINT8_C(0x0A),
-      UINT8_C(0x5A),
-      false
-    },
-    {
-      OPCODE_OR_A_B,
-      UINT8_C(0x00),
-      UINT8_C(0x00),
-      UINT8_C(0x00),
-      false
-    },
-    {
-      OPCODE_XOR_A_B,
-      UINT8_C(0xAA),
-      UINT8_C(0x0F),
-      UINT8_C(0xA5),
-      false
-    },
-    {
-      OPCODE_XOR_A_B,
-      UINT8_C(0x5A),
-      UINT8_C(0x5A),
-      UINT8_C(0x00),
-      false
-    },
-    {
-      OPCODE_NOT_A,
-      UINT8_C(0x0F),
-      UINT8_C(0xA5),
-      UINT8_C(0xF0),
-      false
-    },
-    {
-      OPCODE_NOT_A,
-      UINT8_C(0xFF),
-      UINT8_C(0xA5),
-      UINT8_C(0x00),
-      false
-    },
-    {
-      OPCODE_SHIFT_LEFT_A,
-      UINT8_C(0x25),
-      UINT8_C(0xA5),
-      UINT8_C(0x4A),
-      false
-    },
-    {
-      OPCODE_SHIFT_LEFT_A,
-      UINT8_C(0x80),
-      UINT8_C(0xA5),
-      UINT8_C(0x00),
-      true
-    },
-    {
-      OPCODE_SHIFT_RIGHT_A,
-      UINT8_C(0x84),
-      UINT8_C(0xA5),
-      UINT8_C(0x42),
-      false
-    },
-    {
-      OPCODE_SHIFT_RIGHT_A,
-      UINT8_C(0x01),
-      UINT8_C(0xA5),
-      UINT8_C(0x00),
-      true
-    }
-  };
+  static const BitwiseTestCase test_cases[] = {
+      {OPCODE_AND_A_B, UINT8_C(0xF0), UINT8_C(0x3C), UINT8_C(0x30), false},
+      {OPCODE_AND_A_B, UINT8_C(0x0F), UINT8_C(0xF0), UINT8_C(0x00), false},
+      {OPCODE_OR_A_B, UINT8_C(0x50), UINT8_C(0x0A), UINT8_C(0x5A), false},
+      {OPCODE_OR_A_B, UINT8_C(0x00), UINT8_C(0x00), UINT8_C(0x00), false},
+      {OPCODE_XOR_A_B, UINT8_C(0xAA), UINT8_C(0x0F), UINT8_C(0xA5), false},
+      {OPCODE_XOR_A_B, UINT8_C(0x5A), UINT8_C(0x5A), UINT8_C(0x00), false},
+      {OPCODE_NOT_A, UINT8_C(0x0F), UINT8_C(0xA5), UINT8_C(0xF0), false},
+      {OPCODE_NOT_A, UINT8_C(0xFF), UINT8_C(0xA5), UINT8_C(0x00), false},
+      {OPCODE_SHIFT_LEFT_A, UINT8_C(0x25), UINT8_C(0xA5), UINT8_C(0x4A), false},
+      {OPCODE_SHIFT_LEFT_A, UINT8_C(0x80), UINT8_C(0xA5), UINT8_C(0x00), true},
+      {OPCODE_SHIFT_RIGHT_A, UINT8_C(0x84), UINT8_C(0xA5), UINT8_C(0x42), false},
+      {OPCODE_SHIFT_RIGHT_A, UINT8_C(0x01), UINT8_C(0xA5), UINT8_C(0x00), true}};
 
-  const size_t test_case_count =
-    sizeof test_cases / sizeof test_cases[0];
+  const size_t test_case_count = sizeof test_cases / sizeof test_cases[0];
   const uint8_t instruction_address = 0;
-  const uint8_t expected_program_counter =
-    instruction_address + 1;
+  const uint8_t expected_program_counter = instruction_address + 1;
   const uint64_t expected_cycle_count = UINT64_C(1);
 
-  for (
-    size_t index = 0;
-    index < test_case_count;
-    ++index
-  )
+  for (size_t index = 0; index < test_case_count; ++index)
   {
-    const BitwiseTestCase *const test_case =
-      &test_cases[index];
+    const BitwiseTestCase *const test_case = &test_cases[index];
 
-    const bool expected_zero_flag =
-      test_case->expected_a == 0;
+    const bool expected_zero_flag = test_case->expected_a == 0;
 
-    Cpu cpu =
-    {
-      .register_a = test_case->initial_a,
-      .register_b = test_case->initial_b,
-      .zero_flag = !expected_zero_flag,
-      .carry_flag = !test_case->expected_carry_flag
-    };
+    Cpu cpu = {.register_a = test_case->initial_a,
+               .register_b = test_case->initial_b,
+               .zero_flag = !expected_zero_flag,
+               .carry_flag = !test_case->expected_carry_flag};
 
-    cpu_write_memory(
-      &cpu,
-      instruction_address,
-      (uint8_t)test_case->opcode
-    );
+    cpu_write_memory(&cpu, instruction_address, (uint8_t)test_case->opcode);
 
     const CpuStepResult result = cpu_step(&cpu);
 
@@ -881,10 +597,7 @@ static void test_cpu_step_executes_bitwise_operations(void)
     assert(cpu.register_a == test_case->expected_a);
     assert(cpu.register_b == test_case->initial_b);
     assert(cpu.zero_flag == expected_zero_flag);
-    assert(
-      cpu.carry_flag ==
-      test_case->expected_carry_flag
-    );
+    assert(cpu.carry_flag == test_case->expected_carry_flag);
     assert(cpu.program_counter == expected_program_counter);
     assert(cpu.cycle_count == expected_cycle_count);
     assert(!cpu.halted);
@@ -901,57 +614,25 @@ static void test_cpu_step_executes_compare_a_b(void)
     bool expected_carry_flag;
   } CompareTestCase;
 
-  static const CompareTestCase test_cases[] =
-  {
-    {
-      UINT8_C(0x5A),
-      UINT8_C(0x5A),
-      true,
-      false
-    },
-    {
-      UINT8_C(0x20),
-      UINT8_C(0x10),
-      false,
-      false
-    },
-    {
-      UINT8_C(0x10),
-      UINT8_C(0x20),
-      false,
-      true
-    }
-  };
+  static const CompareTestCase test_cases[] = {{UINT8_C(0x5A), UINT8_C(0x5A), true, false},
+                                               {UINT8_C(0x20), UINT8_C(0x10), false, false},
+                                               {UINT8_C(0x10), UINT8_C(0x20), false, true}};
 
-  const size_t test_case_count =
-    sizeof test_cases / sizeof test_cases[0];
+  const size_t test_case_count = sizeof test_cases / sizeof test_cases[0];
   const uint8_t instruction_address = 0;
-  const uint8_t expected_program_counter =
-    instruction_address + 1;
+  const uint8_t expected_program_counter = instruction_address + 1;
   const uint64_t expected_cycle_count = UINT64_C(1);
 
-  for (
-    size_t index = 0;
-    index < test_case_count;
-    ++index
-  )
+  for (size_t index = 0; index < test_case_count; ++index)
   {
-    const CompareTestCase *const test_case =
-      &test_cases[index];
+    const CompareTestCase *const test_case = &test_cases[index];
 
-    Cpu cpu =
-    {
-      .register_a = test_case->register_a,
-      .register_b = test_case->register_b,
-      .zero_flag = !test_case->expected_zero_flag,
-      .carry_flag = !test_case->expected_carry_flag
-    };
+    Cpu cpu = {.register_a = test_case->register_a,
+               .register_b = test_case->register_b,
+               .zero_flag = !test_case->expected_zero_flag,
+               .carry_flag = !test_case->expected_carry_flag};
 
-    cpu_write_memory(
-      &cpu,
-      instruction_address,
-      (uint8_t)OPCODE_COMPARE_A_B
-    );
+    cpu_write_memory(&cpu, instruction_address, (uint8_t)OPCODE_COMPARE_A_B);
 
     const CpuStepResult result = cpu_step(&cpu);
 
@@ -959,10 +640,7 @@ static void test_cpu_step_executes_compare_a_b(void)
     assert(cpu.register_a == test_case->register_a);
     assert(cpu.register_b == test_case->register_b);
     assert(cpu.zero_flag == test_case->expected_zero_flag);
-    assert(
-      cpu.carry_flag ==
-      test_case->expected_carry_flag
-    );
+    assert(cpu.carry_flag == test_case->expected_carry_flag);
     assert(cpu.program_counter == expected_program_counter);
     assert(cpu.cycle_count == expected_cycle_count);
     assert(!cpu.halted);
@@ -979,58 +657,36 @@ static void test_cpu_step_executes_conditional_branches(void)
     bool expected_taken;
   } ConditionalBranchTestCase;
 
-  static const ConditionalBranchTestCase test_cases[] =
-  {
-    {OPCODE_JUMP_IF_ZERO, true, false, true},
-    {OPCODE_JUMP_IF_ZERO, false, true, false},
-    {OPCODE_JUMP_IF_NOT_ZERO, false, false, true},
-    {OPCODE_JUMP_IF_NOT_ZERO, true, true, false},
-    {OPCODE_JUMP_IF_CARRY, true, true, true},
-    {OPCODE_JUMP_IF_CARRY, false, true, true},
-    {OPCODE_JUMP_IF_CARRY, true, false, false},
-    {OPCODE_JUMP_IF_CARRY, false, false, false}
-  };
+  static const ConditionalBranchTestCase test_cases[] = {
+      {OPCODE_JUMP_IF_ZERO, true, false, true},
+      {OPCODE_JUMP_IF_ZERO, false, true, false},
+      {OPCODE_JUMP_IF_NOT_ZERO, false, false, true},
+      {OPCODE_JUMP_IF_NOT_ZERO, true, true, false},
+      {OPCODE_JUMP_IF_CARRY, true, true, true},
+      {OPCODE_JUMP_IF_CARRY, false, true, true},
+      {OPCODE_JUMP_IF_CARRY, true, false, false},
+      {OPCODE_JUMP_IF_CARRY, false, false, false}};
 
-  const size_t test_case_count =
-    sizeof test_cases / sizeof test_cases[0];
+  const size_t test_case_count = sizeof test_cases / sizeof test_cases[0];
   const uint8_t target_address = UINT8_C(0x80);
   const uint8_t expected_register_a = UINT8_C(0xA5);
   const uint8_t expected_register_b = UINT8_C(0x5A);
   const uint64_t expected_cycle_count = UINT64_C(1);
 
-  for (
-    size_t index = 0;
-    index < test_case_count;
-    ++index
-  )
+  for (size_t index = 0; index < test_case_count; ++index)
   {
-    const ConditionalBranchTestCase *const test_case =
-      &test_cases[index];
-    const uint8_t program[] =
-    {
-      (uint8_t)test_case->opcode,
-      target_address
-    };
-    const size_t program_size =
-      sizeof program / sizeof program[0];
+    const ConditionalBranchTestCase *const test_case = &test_cases[index];
+    const uint8_t program[] = {(uint8_t)test_case->opcode, target_address};
+    const size_t program_size = sizeof program / sizeof program[0];
     const uint8_t expected_program_counter =
-      test_case->expected_taken
-        ? target_address
-        : (uint8_t)program_size;
+        test_case->expected_taken ? target_address : (uint8_t)program_size;
 
-    Cpu cpu =
-    {
-      .register_a = expected_register_a,
-      .register_b = expected_register_b,
-      .zero_flag = test_case->zero_flag,
-      .carry_flag = test_case->carry_flag
-    };
+    Cpu cpu = {.register_a = expected_register_a,
+               .register_b = expected_register_b,
+               .zero_flag = test_case->zero_flag,
+               .carry_flag = test_case->carry_flag};
 
-    const bool program_loaded = cpu_load_program(
-      &cpu,
-      program,
-      program_size
-    );
+    const bool program_loaded = cpu_load_program(&cpu, program, program_size);
 
     assert(program_loaded);
 
@@ -1052,26 +708,16 @@ static void test_cpu_step_executes_jump(void)
   const uint8_t target_address = UINT8_C(0x80);
   const uint8_t expected_register_a = UINT8_C(0xA5);
   const uint8_t expected_register_b = UINT8_C(0x5A);
-  const uint8_t program[] = {
-    OPCODE_JUMP,
-    target_address
-  };
-  const size_t program_size =
-    sizeof program / sizeof program[0];
+  const uint8_t program[] = {OPCODE_JUMP, target_address};
+  const size_t program_size = sizeof program / sizeof program[0];
   const uint64_t expected_cycle_count = UINT64_C(1);
 
-  Cpu cpu = {
-    .register_a = expected_register_a,
-    .register_b = expected_register_b,
-    .zero_flag = true,
-    .carry_flag = true
-  };
+  Cpu cpu = {.register_a = expected_register_a,
+             .register_b = expected_register_b,
+             .zero_flag = true,
+             .carry_flag = true};
 
-  const bool loaded = cpu_load_program(
-    &cpu,
-    program,
-    program_size
-  );
+  const bool loaded = cpu_load_program(&cpu, program, program_size);
 
   assert(loaded);
 
@@ -1096,66 +742,39 @@ static void test_cpu_step_executes_load_a_from_memory(void)
   } LoadMemoryTestCase;
 
   const LoadMemoryTestCase test_cases[] = {
-    {
-      .stored_value = 0,
-      .expected_zero_flag = true
-    },
-    {
-      .stored_value = UINT8_C(0xA5),
-      .expected_zero_flag = false
-    }
-  };
+      {.stored_value = 0, .expected_zero_flag = true},
+      {.stored_value = UINT8_C(0xA5), .expected_zero_flag = false}};
 
-  const size_t test_case_count =
-    sizeof test_cases / sizeof test_cases[0];
+  const size_t test_case_count = sizeof test_cases / sizeof test_cases[0];
   const uint8_t data_address = UINT8_C(0x80);
   const uint8_t expected_register_b = UINT8_C(0x5A);
-  const uint8_t program[] = {
-    OPCODE_LOAD_A_FROM_MEMORY,
-    data_address
-  };
-  const size_t program_size =
-    sizeof program / sizeof program[0];
+  const uint8_t program[] = {OPCODE_LOAD_A_FROM_MEMORY, data_address};
+  const size_t program_size = sizeof program / sizeof program[0];
   const uint64_t expected_cycle_count = UINT64_C(1);
 
   for (size_t index = 0; index < test_case_count; ++index)
   {
     const LoadMemoryTestCase *test_case = &test_cases[index];
 
-    Cpu cpu = {
-      .register_a = UINT8_MAX,
-      .register_b = expected_register_b,
-      .zero_flag = !test_case->expected_zero_flag,
-      .carry_flag = true
-    };
+    Cpu cpu = {.register_a = UINT8_MAX,
+               .register_b = expected_register_b,
+               .zero_flag = !test_case->expected_zero_flag,
+               .carry_flag = true};
 
-    const bool loaded = cpu_load_program(
-      &cpu,
-      program,
-      program_size
-    );
+    const bool loaded = cpu_load_program(&cpu, program, program_size);
 
     assert(loaded);
 
-    cpu_write_memory(
-      &cpu,
-      data_address,
-      test_case->stored_value
-    );
+    cpu_write_memory(&cpu, data_address, test_case->stored_value);
 
     const CpuStepResult result = cpu_step(&cpu);
 
     assert(result == CPU_STEP_OK);
     assert(cpu.register_a == test_case->stored_value);
     assert(cpu.register_b == expected_register_b);
-    assert(
-      cpu.zero_flag == test_case->expected_zero_flag
-    );
+    assert(cpu.zero_flag == test_case->expected_zero_flag);
     assert(cpu.carry_flag);
-    assert(
-      cpu_read_memory(&cpu, data_address) ==
-      test_case->stored_value
-    );
+    assert(cpu_read_memory(&cpu, data_address) == test_case->stored_value);
     assert(cpu.program_counter == (uint8_t)program_size);
     assert(cpu.cycle_count == expected_cycle_count);
     assert(!cpu.halted);
@@ -1168,41 +787,25 @@ static void test_cpu_step_executes_store_a_to_memory(void)
   const uint8_t initial_memory_value = UINT8_C(0x3C);
   const uint8_t value_to_store = UINT8_C(0xA5);
   const uint8_t expected_register_b = UINT8_C(0x5A);
-  const uint8_t program[] = {
-    OPCODE_STORE_A_TO_MEMORY,
-    data_address
-  };
-  const size_t program_size =
-    sizeof program / sizeof program[0];
+  const uint8_t program[] = {OPCODE_STORE_A_TO_MEMORY, data_address};
+  const size_t program_size = sizeof program / sizeof program[0];
   const uint64_t expected_cycle_count = UINT64_C(1);
 
-  Cpu cpu = {
-    .register_a = value_to_store,
-    .register_b = expected_register_b,
-    .zero_flag = true,
-    .carry_flag = true
-  };
+  Cpu cpu = {.register_a = value_to_store,
+             .register_b = expected_register_b,
+             .zero_flag = true,
+             .carry_flag = true};
 
-  const bool loaded = cpu_load_program(
-    &cpu,
-    program,
-    program_size
-  );
+  const bool loaded = cpu_load_program(&cpu, program, program_size);
 
   assert(loaded);
 
-  cpu_write_memory(
-    &cpu,
-    data_address,
-    initial_memory_value
-  );
+  cpu_write_memory(&cpu, data_address, initial_memory_value);
 
   const CpuStepResult result = cpu_step(&cpu);
 
   assert(result == CPU_STEP_OK);
-  assert(
-    cpu_read_memory(&cpu, data_address) == value_to_store
-  );
+  assert(cpu_read_memory(&cpu, data_address) == value_to_store);
   assert(cpu.register_a == value_to_store);
   assert(cpu.register_b == expected_register_b);
   assert(cpu.zero_flag);
@@ -1223,33 +826,21 @@ static void test_cpu_executes_memory_mapped_io(void)
   const uint8_t expected_register_b = UINT8_C(0x3C);
   const uint64_t expected_cycle_count = UINT64_C(3);
 
-  const uint8_t program[] = {
-    OPCODE_LOAD_A_FROM_MEMORY,
-    CPU_INPUT_PORT_ADDRESS,
-    OPCODE_STORE_A_TO_MEMORY,
-    CPU_OUTPUT_PORT_ADDRESS,
-    OPCODE_HALT
-  };
+  const uint8_t program[] = {OPCODE_LOAD_A_FROM_MEMORY,
+                             CPU_INPUT_PORT_ADDRESS,
+                             OPCODE_STORE_A_TO_MEMORY,
+                             CPU_OUTPUT_PORT_ADDRESS,
+                             OPCODE_HALT};
 
-  Cpu cpu = {
-    .register_b = expected_register_b,
-    .carry_flag = true
-  };
+  Cpu cpu = {.register_b = expected_register_b, .carry_flag = true};
 
-  const bool loaded = cpu_load_program(
-    &cpu,
-    program,
-    sizeof program
-  );
+  const bool loaded = cpu_load_program(&cpu, program, sizeof program);
 
   assert(loaded);
 
   cpu_set_input_port(&cpu, input_value);
 
-  const CpuRunResult result = cpu_run(
-    &cpu,
-    CPU_MEMORY_SIZE
-  );
+  const CpuRunResult result = cpu_run(&cpu, CPU_MEMORY_SIZE);
 
   assert(result == CPU_RUN_HALTED);
   assert(cpu.register_a == input_value);
@@ -1273,22 +864,13 @@ static void test_cpu_input_port_updates_zero_flag(void)
   const uint8_t expected_register_b = UINT8_C(0x3C);
   const uint64_t expected_cycle_count = UINT64_C(1);
 
-  const uint8_t program[] = {
-    OPCODE_LOAD_A_FROM_MEMORY,
-    CPU_INPUT_PORT_ADDRESS
-  };
+  const uint8_t program[] = {OPCODE_LOAD_A_FROM_MEMORY, CPU_INPUT_PORT_ADDRESS};
 
-  Cpu cpu = {
-    .register_a = original_register_a,
-    .register_b = expected_register_b,
-    .carry_flag = true
-  };
+  Cpu cpu = {.register_a = original_register_a,
+             .register_b = expected_register_b,
+             .carry_flag = true};
 
-  const bool loaded = cpu_load_program(
-    &cpu,
-    program,
-    sizeof program
-  );
+  const bool loaded = cpu_load_program(&cpu, program, sizeof program);
 
   assert(loaded);
 
@@ -1312,29 +894,17 @@ static void test_cpu_step_executes_push_a(void)
   const uint8_t first_value = UINT8_C(0xA5);
   const uint8_t second_value = UINT8_C(0x5A);
   const uint8_t expected_register_b = UINT8_C(0x3C);
-  const uint8_t second_stack_address =
-    (uint8_t)(CPU_STACK_HIGH_ADDRESS - 1);
-  const uint8_t program[] = {
-    OPCODE_PUSH_A,
-    OPCODE_PUSH_A
-  };
-  const size_t program_size =
-    sizeof program / sizeof program[0];
-  const uint64_t expected_cycle_count =
-    (uint64_t)program_size;
+  const uint8_t second_stack_address = (uint8_t)(CPU_STACK_HIGH_ADDRESS - 1);
+  const uint8_t program[] = {OPCODE_PUSH_A, OPCODE_PUSH_A};
+  const size_t program_size = sizeof program / sizeof program[0];
+  const uint64_t expected_cycle_count = (uint64_t)program_size;
 
-  Cpu cpu = {
-    .register_a = first_value,
-    .register_b = expected_register_b,
-    .zero_flag = true,
-    .carry_flag = true
-  };
+  Cpu cpu = {.register_a = first_value,
+             .register_b = expected_register_b,
+             .zero_flag = true,
+             .carry_flag = true};
 
-  const bool loaded = cpu_load_program(
-    &cpu,
-    program,
-    program_size
-  );
+  const bool loaded = cpu_load_program(&cpu, program, program_size);
 
   assert(loaded);
 
@@ -1342,10 +912,7 @@ static void test_cpu_step_executes_push_a(void)
 
   assert(first_result == CPU_STEP_OK);
   assert(cpu.stack_pointer == CPU_STACK_HIGH_ADDRESS);
-  assert(
-    cpu_read_memory(&cpu, CPU_STACK_HIGH_ADDRESS) ==
-    first_value
-  );
+  assert(cpu_read_memory(&cpu, CPU_STACK_HIGH_ADDRESS) == first_value);
 
   cpu.register_a = second_value;
 
@@ -1353,14 +920,8 @@ static void test_cpu_step_executes_push_a(void)
 
   assert(second_result == CPU_STEP_OK);
   assert(cpu.stack_pointer == second_stack_address);
-  assert(
-    cpu_read_memory(&cpu, second_stack_address) ==
-    second_value
-  );
-  assert(
-    cpu_read_memory(&cpu, CPU_STACK_HIGH_ADDRESS) ==
-    first_value
-  );
+  assert(cpu_read_memory(&cpu, second_stack_address) == second_value);
+  assert(cpu_read_memory(&cpu, CPU_STACK_HIGH_ADDRESS) == first_value);
   assert(cpu.register_a == second_value);
   assert(cpu.register_b == expected_register_b);
   assert(cpu.zero_flag);
@@ -1375,43 +936,23 @@ static void test_cpu_step_executes_pop_a(void)
   const uint8_t older_value = UINT8_C(0xA5);
   const uint8_t newer_value = 0;
   const uint8_t expected_register_b = UINT8_C(0x3C);
-  const uint8_t newer_value_address =
-    (uint8_t)(CPU_STACK_HIGH_ADDRESS - 1);
-  const uint8_t program[] = {
-    OPCODE_POP_A,
-    OPCODE_POP_A
-  };
-  const size_t program_size =
-    sizeof program / sizeof program[0];
-  const uint64_t expected_cycle_count =
-    (uint64_t)program_size;
+  const uint8_t newer_value_address = (uint8_t)(CPU_STACK_HIGH_ADDRESS - 1);
+  const uint8_t program[] = {OPCODE_POP_A, OPCODE_POP_A};
+  const size_t program_size = sizeof program / sizeof program[0];
+  const uint64_t expected_cycle_count = (uint64_t)program_size;
 
-  Cpu cpu = {
-    .register_a = UINT8_MAX,
-    .register_b = expected_register_b,
-    .stack_pointer = newer_value_address,
-    .carry_flag = true
-  };
+  Cpu cpu = {.register_a = UINT8_MAX,
+             .register_b = expected_register_b,
+             .stack_pointer = newer_value_address,
+             .carry_flag = true};
 
-  const bool loaded = cpu_load_program(
-    &cpu,
-    program,
-    program_size
-  );
+  const bool loaded = cpu_load_program(&cpu, program, program_size);
 
   assert(loaded);
 
-  cpu_write_memory(
-    &cpu,
-    CPU_STACK_HIGH_ADDRESS,
-    older_value
-  );
+  cpu_write_memory(&cpu, CPU_STACK_HIGH_ADDRESS, older_value);
 
-  cpu_write_memory(
-    &cpu,
-    newer_value_address,
-    newer_value
-  );
+  cpu_write_memory(&cpu, newer_value_address, newer_value);
 
   const CpuStepResult first_result = cpu_step(&cpu);
 
@@ -1441,8 +982,7 @@ static void test_cpu_step_executes_nested_calls_and_returns(void)
     FIRST_SUBROUTINE_ADDRESS = 0x03,
     SECOND_RETURN_ADDRESS = 0x05,
     SECOND_SUBROUTINE_ADDRESS = 0x06,
-    EXPECTED_HALTED_PROGRAM_COUNTER =
-      FIRST_RETURN_ADDRESS + 1,
+    EXPECTED_HALTED_PROGRAM_COUNTER = FIRST_RETURN_ADDRESS + 1,
     FIRST_CALL_CYCLE_COUNT = 1,
     SECOND_CALL_CYCLE_COUNT = 2,
     FIRST_RETURN_CYCLE_COUNT = 3,
@@ -1452,31 +992,22 @@ static void test_cpu_step_executes_nested_calls_and_returns(void)
 
   const uint8_t expected_register_a = UINT8_C(0xA5);
   const uint8_t expected_register_b = UINT8_C(0x5A);
-  const uint8_t second_stack_address =
-    (uint8_t)(CPU_STACK_HIGH_ADDRESS - 1);
+  const uint8_t second_stack_address = (uint8_t)(CPU_STACK_HIGH_ADDRESS - 1);
 
-  const uint8_t program[] = {
-    OPCODE_CALL,
-    FIRST_SUBROUTINE_ADDRESS,
-    OPCODE_HALT,
-    OPCODE_CALL,
-    SECOND_SUBROUTINE_ADDRESS,
-    OPCODE_RETURN,
-    OPCODE_RETURN
-  };
+  const uint8_t program[] = {OPCODE_CALL,
+                             FIRST_SUBROUTINE_ADDRESS,
+                             OPCODE_HALT,
+                             OPCODE_CALL,
+                             SECOND_SUBROUTINE_ADDRESS,
+                             OPCODE_RETURN,
+                             OPCODE_RETURN};
 
-  Cpu cpu = {
-    .register_a = expected_register_a,
-    .register_b = expected_register_b,
-    .zero_flag = true,
-    .carry_flag = true
-  };
+  Cpu cpu = {.register_a = expected_register_a,
+             .register_b = expected_register_b,
+             .zero_flag = true,
+             .carry_flag = true};
 
-  const bool loaded = cpu_load_program(
-    &cpu,
-    program,
-    sizeof program
-  );
+  const bool loaded = cpu_load_program(&cpu, program, sizeof program);
 
   assert(loaded);
 
@@ -1485,10 +1016,7 @@ static void test_cpu_step_executes_nested_calls_and_returns(void)
   assert(first_call_result == CPU_STEP_OK);
   assert(cpu.program_counter == FIRST_SUBROUTINE_ADDRESS);
   assert(cpu.stack_pointer == CPU_STACK_HIGH_ADDRESS);
-  assert(
-    cpu_read_memory(&cpu, CPU_STACK_HIGH_ADDRESS) ==
-    FIRST_RETURN_ADDRESS
-  );
+  assert(cpu_read_memory(&cpu, CPU_STACK_HIGH_ADDRESS) == FIRST_RETURN_ADDRESS);
   assert(cpu.cycle_count == FIRST_CALL_CYCLE_COUNT);
 
   const CpuStepResult second_call_result = cpu_step(&cpu);
@@ -1496,14 +1024,8 @@ static void test_cpu_step_executes_nested_calls_and_returns(void)
   assert(second_call_result == CPU_STEP_OK);
   assert(cpu.program_counter == SECOND_SUBROUTINE_ADDRESS);
   assert(cpu.stack_pointer == second_stack_address);
-  assert(
-    cpu_read_memory(&cpu, second_stack_address) ==
-    SECOND_RETURN_ADDRESS
-  );
-  assert(
-    cpu_read_memory(&cpu, CPU_STACK_HIGH_ADDRESS) ==
-    FIRST_RETURN_ADDRESS
-  );
+  assert(cpu_read_memory(&cpu, second_stack_address) == SECOND_RETURN_ADDRESS);
+  assert(cpu_read_memory(&cpu, CPU_STACK_HIGH_ADDRESS) == FIRST_RETURN_ADDRESS);
   assert(cpu.cycle_count == SECOND_CALL_CYCLE_COUNT);
 
   const CpuStepResult first_return_result = cpu_step(&cpu);
@@ -1523,10 +1045,7 @@ static void test_cpu_step_executes_nested_calls_and_returns(void)
   const CpuStepResult halt_result = cpu_step(&cpu);
 
   assert(halt_result == CPU_STEP_HALTED);
-  assert(
-    cpu.program_counter ==
-    EXPECTED_HALTED_PROGRAM_COUNTER
-  );
+  assert(cpu.program_counter == EXPECTED_HALTED_PROGRAM_COUNTER);
   assert(cpu.cycle_count == HALT_CYCLE_COUNT);
   assert(cpu.register_a == expected_register_a);
   assert(cpu.register_b == expected_register_b);
@@ -1549,48 +1068,27 @@ static void test_cpu_step_reports_call_and_return_stack_errors(void)
   const uint8_t stack_sentinel = UINT8_C(0x3C);
   const uint64_t expected_cycle_count = UINT64_C(1);
 
-  const uint8_t call_program[] = {
-    OPCODE_CALL,
-    CALL_TARGET_ADDRESS
-  };
+  const uint8_t call_program[] = {OPCODE_CALL, CALL_TARGET_ADDRESS};
 
-  Cpu overflow_cpu = {
-    .register_a = expected_register_a,
-    .register_b = expected_register_b,
-    .stack_pointer = CPU_STACK_LOW_ADDRESS,
-    .zero_flag = true,
-    .carry_flag = true
-  };
+  Cpu overflow_cpu = {.register_a = expected_register_a,
+                      .register_b = expected_register_b,
+                      .stack_pointer = CPU_STACK_LOW_ADDRESS,
+                      .zero_flag = true,
+                      .carry_flag = true};
 
-  const bool call_loaded = cpu_load_program(
-    &overflow_cpu,
-    call_program,
-    sizeof call_program
-  );
+  const bool call_loaded = cpu_load_program(&overflow_cpu, call_program, sizeof call_program);
 
   assert(call_loaded);
 
-  cpu_write_memory(
-    &overflow_cpu,
-    CPU_STACK_LOW_ADDRESS,
-    stack_sentinel
-  );
+  cpu_write_memory(&overflow_cpu, CPU_STACK_LOW_ADDRESS, stack_sentinel);
 
   const CpuStepResult call_result = cpu_step(&overflow_cpu);
 
   assert(call_result == CPU_STEP_STACK_OVERFLOW);
   assert(overflow_cpu.halted);
-  assert(
-    overflow_cpu.program_counter ==
-    EXPECTED_CALL_PROGRAM_COUNTER
-  );
+  assert(overflow_cpu.program_counter == EXPECTED_CALL_PROGRAM_COUNTER);
   assert(overflow_cpu.stack_pointer == CPU_STACK_LOW_ADDRESS);
-  assert(
-    cpu_read_memory(
-      &overflow_cpu,
-      CPU_STACK_LOW_ADDRESS
-    ) == stack_sentinel
-  );
+  assert(cpu_read_memory(&overflow_cpu, CPU_STACK_LOW_ADDRESS) == stack_sentinel);
   assert(overflow_cpu.register_a == expected_register_a);
   assert(overflow_cpu.register_b == expected_register_b);
   assert(overflow_cpu.zero_flag);
@@ -1599,18 +1097,13 @@ static void test_cpu_step_reports_call_and_return_stack_errors(void)
 
   const uint8_t return_program[] = {OPCODE_RETURN};
 
-  Cpu underflow_cpu = {
-    .register_a = expected_register_a,
-    .register_b = expected_register_b,
-    .zero_flag = true,
-    .carry_flag = true
-  };
+  Cpu underflow_cpu = {.register_a = expected_register_a,
+                       .register_b = expected_register_b,
+                       .zero_flag = true,
+                       .carry_flag = true};
 
-  const bool return_loaded = cpu_load_program(
-    &underflow_cpu,
-    return_program,
-    sizeof return_program
-  );
+  const bool return_loaded =
+      cpu_load_program(&underflow_cpu, return_program, sizeof return_program);
 
   assert(return_loaded);
 
@@ -1618,14 +1111,8 @@ static void test_cpu_step_reports_call_and_return_stack_errors(void)
 
   assert(return_result == CPU_STEP_STACK_UNDERFLOW);
   assert(underflow_cpu.halted);
-  assert(
-    underflow_cpu.program_counter ==
-    EXPECTED_RETURN_PROGRAM_COUNTER
-  );
-  assert(
-    underflow_cpu.stack_pointer ==
-    CPU_STACK_EMPTY_POINTER
-  );
+  assert(underflow_cpu.program_counter == EXPECTED_RETURN_PROGRAM_COUNTER);
+  assert(underflow_cpu.stack_pointer == CPU_STACK_EMPTY_POINTER);
   assert(underflow_cpu.register_a == expected_register_a);
   assert(underflow_cpu.register_b == expected_register_b);
   assert(underflow_cpu.zero_flag);
@@ -1640,94 +1127,47 @@ static void test_cpu_step_reports_stack_errors(void)
   const uint64_t expected_cycle_count = UINT64_C(1);
   const uint8_t push_program[] = {OPCODE_PUSH_A};
   const uint8_t pop_program[] = {OPCODE_POP_A};
-  const uint8_t expected_program_counter =
-    (uint8_t)(
-      sizeof push_program /
-      sizeof push_program[0]
-    );
+  const uint8_t expected_program_counter = (uint8_t)(sizeof push_program / sizeof push_program[0]);
 
-  Cpu overflow_cpu = {
-    .register_a = value,
-    .stack_pointer = CPU_STACK_LOW_ADDRESS,
-    .zero_flag = true,
-    .carry_flag = true
-  };
+  Cpu overflow_cpu = {.register_a = value,
+                      .stack_pointer = CPU_STACK_LOW_ADDRESS,
+                      .zero_flag = true,
+                      .carry_flag = true};
 
-  const bool push_loaded = cpu_load_program(
-    &overflow_cpu,
-    push_program,
-    sizeof push_program
-  );
+  const bool push_loaded = cpu_load_program(&overflow_cpu, push_program, sizeof push_program);
 
   assert(push_loaded);
 
-  cpu_write_memory(
-    &overflow_cpu,
-    CPU_STACK_LOW_ADDRESS,
-    sentinel
-  );
+  cpu_write_memory(&overflow_cpu, CPU_STACK_LOW_ADDRESS, sentinel);
 
-  const CpuStepResult overflow_result =
-    cpu_step(&overflow_cpu);
+  const CpuStepResult overflow_result = cpu_step(&overflow_cpu);
 
   assert(overflow_result == CPU_STEP_STACK_OVERFLOW);
   assert(overflow_cpu.halted);
-  assert(
-    overflow_cpu.stack_pointer ==
-    CPU_STACK_LOW_ADDRESS
-  );
-  assert(
-    cpu_read_memory(
-      &overflow_cpu,
-      CPU_STACK_LOW_ADDRESS
-    ) == sentinel
-  );
+  assert(overflow_cpu.stack_pointer == CPU_STACK_LOW_ADDRESS);
+  assert(cpu_read_memory(&overflow_cpu, CPU_STACK_LOW_ADDRESS) == sentinel);
   assert(overflow_cpu.register_a == value);
   assert(overflow_cpu.zero_flag);
   assert(overflow_cpu.carry_flag);
-  assert(
-    overflow_cpu.program_counter ==
-    expected_program_counter
-  );
-  assert(
-    overflow_cpu.cycle_count ==
-    expected_cycle_count
-  );
+  assert(overflow_cpu.program_counter == expected_program_counter);
+  assert(overflow_cpu.cycle_count == expected_cycle_count);
 
-  Cpu underflow_cpu = {
-    .register_a = value,
-    .zero_flag = true,
-    .carry_flag = true
-  };
+  Cpu underflow_cpu = {.register_a = value, .zero_flag = true, .carry_flag = true};
 
-  const bool pop_loaded = cpu_load_program(
-    &underflow_cpu,
-    pop_program,
-    sizeof pop_program
-  );
+  const bool pop_loaded = cpu_load_program(&underflow_cpu, pop_program, sizeof pop_program);
 
   assert(pop_loaded);
 
-  const CpuStepResult underflow_result =
-    cpu_step(&underflow_cpu);
+  const CpuStepResult underflow_result = cpu_step(&underflow_cpu);
 
   assert(underflow_result == CPU_STEP_STACK_UNDERFLOW);
   assert(underflow_cpu.halted);
-  assert(
-    underflow_cpu.stack_pointer ==
-    CPU_STACK_EMPTY_POINTER
-  );
+  assert(underflow_cpu.stack_pointer == CPU_STACK_EMPTY_POINTER);
   assert(underflow_cpu.register_a == value);
   assert(underflow_cpu.zero_flag);
   assert(underflow_cpu.carry_flag);
-  assert(
-    underflow_cpu.program_counter ==
-    expected_program_counter
-  );
-  assert(
-    underflow_cpu.cycle_count ==
-    expected_cycle_count
-  );
+  assert(underflow_cpu.program_counter == expected_program_counter);
+  assert(underflow_cpu.cycle_count == expected_cycle_count);
 }
 
 static void test_cpu_run_reports_stack_errors(void)
@@ -1736,39 +1176,23 @@ static void test_cpu_run_reports_stack_errors(void)
   const uint8_t pop_program[] = {OPCODE_POP_A};
   const uint64_t instruction_limit = UINT64_C(1);
 
-  Cpu overflow_cpu = {
-    .stack_pointer = CPU_STACK_LOW_ADDRESS
-  };
+  Cpu overflow_cpu = {.stack_pointer = CPU_STACK_LOW_ADDRESS};
 
-  const bool push_loaded = cpu_load_program(
-    &overflow_cpu,
-    push_program,
-    sizeof push_program
-  );
+  const bool push_loaded = cpu_load_program(&overflow_cpu, push_program, sizeof push_program);
 
   assert(push_loaded);
 
-  const CpuRunResult overflow_result = cpu_run(
-    &overflow_cpu,
-    instruction_limit
-  );
+  const CpuRunResult overflow_result = cpu_run(&overflow_cpu, instruction_limit);
 
   assert(overflow_result == CPU_RUN_STACK_OVERFLOW);
 
   Cpu underflow_cpu = {0};
 
-  const bool pop_loaded = cpu_load_program(
-    &underflow_cpu,
-    pop_program,
-    sizeof pop_program
-  );
+  const bool pop_loaded = cpu_load_program(&underflow_cpu, pop_program, sizeof pop_program);
 
   assert(pop_loaded);
 
-  const CpuRunResult underflow_result = cpu_run(
-    &underflow_cpu,
-    instruction_limit
-  );
+  const CpuRunResult underflow_result = cpu_run(&underflow_cpu, instruction_limit);
 
   assert(underflow_result == CPU_RUN_STACK_UNDERFLOW);
 }

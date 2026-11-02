@@ -16,9 +16,7 @@ typedef struct FirstPassResult
 
 void first_pass_initialize(FirstPassResult *result);
 
-bool first_pass_process_statement(
-    const char *input_path,
-    size_t line_number,
-    const char *statement,
-    void *context
-);
+bool first_pass_process_statement(const char *input_path,
+                                  size_t line_number,
+                                  const char *statement,
+                                  void *context);

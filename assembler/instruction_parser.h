@@ -7,8 +7,7 @@
 enum
 {
   INSTRUCTION_MAX_OPERAND_COUNT = 2,
-  INSTRUCTION_TOKEN_BUFFER_SIZE =
-    SOURCE_READER_MAX_LINE_LENGTH + 1
+  INSTRUCTION_TOKEN_BUFFER_SIZE = SOURCE_READER_MAX_LINE_LENGTH + 1
 };
 
 typedef enum InstructionParseResult
@@ -25,13 +24,8 @@ typedef enum InstructionParseResult
 typedef struct ParsedInstruction
 {
   char mnemonic[INSTRUCTION_TOKEN_BUFFER_SIZE];
-  char operands
-    [INSTRUCTION_MAX_OPERAND_COUNT]
-    [INSTRUCTION_TOKEN_BUFFER_SIZE];
+  char operands[INSTRUCTION_MAX_OPERAND_COUNT][INSTRUCTION_TOKEN_BUFFER_SIZE];
   size_t operand_count;
 } ParsedInstruction;
 
-InstructionParseResult instruction_parse(
-    const char *statement,
-    ParsedInstruction *instruction
-);
+InstructionParseResult instruction_parse(const char *statement, ParsedInstruction *instruction);

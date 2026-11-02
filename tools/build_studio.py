@@ -2,29 +2,42 @@
 """Build VM8 Studio through Make. Python is needed only on the build host."""
 
 import argparse
-import hashlib
 import json
 import fcntl
 from pathlib import Path
 import shlex
 import subprocess
 import tarfile
-import urllib.request
+
+from downloads import download_verified
 
 ROOT = Path(__file__).resolve().parents[1]
 DEPS = ROOT / "build/studio-deps"
 VERSION = "1.4.5"
 ARCHIVE_SHA256 = "eede1fb2b8e9c2e581e77082e15252145855c79aad30070ee3b24aabe2f926f1"
-URL = f"https://github.com/fltk/fltk/releases/download/release-{VERSION}/fltk-{VERSION}-source.tar.gz"
+URL = (
+    f"https://github.com/fltk/fltk/releases/download/release-{VERSION}/fltk-{VERSION}-source.tar.gz"
+)
 C_SOURCES = [
-    "src/cpu.c", "src/byte_value.c", "src/instruction_set.c",
-    "assembler/assembly.c", "assembler/byte_literal.c", "assembler/byte_operand.c",
-    "assembler/first_pass.c", "assembler/instruction_encoder.c",
-    "assembler/instruction_parser.c", "assembler/second_pass.c",
-    "assembler/source_line.c", "assembler/symbol_table.c",
+    "src/cpu.c",
+    "src/byte_value.c",
+    "src/instruction_set.c",
+    "assembler/assembly.c",
+    "assembler/byte_literal.c",
+    "assembler/byte_operand.c",
+    "assembler/first_pass.c",
+    "assembler/instruction_encoder.c",
+    "assembler/instruction_parser.c",
+    "assembler/second_pass.c",
+    "assembler/source_line.c",
+    "assembler/symbol_table.c",
 ]
-WINDOWS_FLAGS = ["-D__USE_MINGW_ANSI_STDIO=1", "-fno-builtin-printf",
-                 "-fno-builtin-fprintf", "-fno-builtin-snprintf"]
+WINDOWS_FLAGS = [
+    "-D__USE_MINGW_ANSI_STDIO=1",
+    "-fno-builtin-printf",
+    "-fno-builtin-fprintf",
+    "-fno-builtin-snprintf",
+]
 
 
 def run(arguments, **kwargs):
@@ -42,19 +55,18 @@ def dependencies(platform):
 def build_dependencies(platform):
     DEPS.mkdir(parents=True, exist_ok=True)
     archive = DEPS / f"fltk-{VERSION}-source.tar.gz"
-    if not archive.exists():
-        print(f"Downloading FLTK {VERSION} from the official release", flush=True)
-        urllib.request.urlretrieve(URL, archive)
-    if hashlib.sha256(archive.read_bytes()).hexdigest() != ARCHIVE_SHA256:
-        raise RuntimeError("FLTK checksum mismatch; no archive was extracted")
+    download_verified(URL, archive, ARCHIVE_SHA256)
     source = DEPS / f"fltk-{VERSION}"
     if not source.exists():
         with tarfile.open(archive) as package:
             # Support Python 3.11 on the Debian 12 compatibility baseline.
             # The pinned source archive needs only directories and regular files.
             for member in package:
-                if (member.name.startswith("/") or ".." in Path(member.name).parts
-                        or not (member.isdir() or member.isfile())):
+                if (
+                    member.name.startswith("/")
+                    or ".." in Path(member.name).parts
+                    or not (member.isdir() or member.isfile())
+                ):
                     raise RuntimeError("Unsafe FLTK source archive member")
             package.extractall(DEPS)
     build = DEPS / f"build-{platform}"
@@ -63,22 +75,39 @@ def build_dependencies(platform):
     if marker.exists() and marker.read_text() == VERSION:
         return prefix
     options = [
-        "cmake", "-S", source, "-B", build,
-        f"-DCMAKE_INSTALL_PREFIX={prefix}", "-DCMAKE_INSTALL_LIBDIR=lib",
-        "-DCMAKE_BUILD_TYPE=Release", "-DFLTK_BUILD_SHARED_LIBS=OFF",
-        "-DFLTK_BUILD_TEST=OFF", "-DFLTK_BUILD_EXAMPLES=OFF", "-DFLTK_BUILD_GL=OFF",
-        "-DFLTK_BUILD_FLUID=OFF", "-DFLTK_BUILD_FLTK_OPTIONS=OFF", "-DFLTK_BUILD_FORMS=OFF",
-        "-DFLTK_BUILD_HTML_DOCS=OFF", "-DFLTK_BUILD_PDF_DOCS=OFF",
-        "-DFLTK_OPTION_PRINT_SUPPORT=OFF", "-DFLTK_OPTION_SVG=OFF",
-        "-DFLTK_USE_SYSTEM_LIBPNG=OFF", "-DFLTK_USE_SYSTEM_LIBJPEG=OFF",
-        "-DFLTK_USE_SYSTEM_ZLIB=OFF", "-DFLTK_BACKEND_WAYLAND=OFF",
+        "cmake",
+        "-S",
+        source,
+        "-B",
+        build,
+        f"-DCMAKE_INSTALL_PREFIX={prefix}",
+        "-DCMAKE_INSTALL_LIBDIR=lib",
+        "-DCMAKE_BUILD_TYPE=Release",
+        "-DFLTK_BUILD_SHARED_LIBS=OFF",
+        "-DFLTK_BUILD_TEST=OFF",
+        "-DFLTK_BUILD_EXAMPLES=OFF",
+        "-DFLTK_BUILD_GL=OFF",
+        "-DFLTK_BUILD_FLUID=OFF",
+        "-DFLTK_BUILD_FLTK_OPTIONS=OFF",
+        "-DFLTK_BUILD_FORMS=OFF",
+        "-DFLTK_BUILD_HTML_DOCS=OFF",
+        "-DFLTK_BUILD_PDF_DOCS=OFF",
+        "-DFLTK_OPTION_PRINT_SUPPORT=OFF",
+        "-DFLTK_OPTION_SVG=OFF",
+        "-DFLTK_USE_SYSTEM_LIBPNG=OFF",
+        "-DFLTK_USE_SYSTEM_LIBJPEG=OFF",
+        "-DFLTK_USE_SYSTEM_ZLIB=OFF",
+        "-DFLTK_BACKEND_WAYLAND=OFF",
     ]
     if platform == "windows":
-        options += ["-DCMAKE_SYSTEM_NAME=Windows", "-DCMAKE_C_COMPILER=x86_64-w64-mingw32-gcc",
-                    "-DCMAKE_CXX_COMPILER=x86_64-w64-mingw32-g++",
-                    "-DCMAKE_RC_COMPILER=x86_64-w64-mingw32-windres",
-                    "-DCMAKE_C_FLAGS=" + " ".join(WINDOWS_FLAGS),
-                    "-DCMAKE_CXX_FLAGS=" + " ".join(WINDOWS_FLAGS)]
+        options += [
+            "-DCMAKE_SYSTEM_NAME=Windows",
+            "-DCMAKE_C_COMPILER=x86_64-w64-mingw32-gcc",
+            "-DCMAKE_CXX_COMPILER=x86_64-w64-mingw32-g++",
+            "-DCMAKE_RC_COMPILER=x86_64-w64-mingw32-windres",
+            "-DCMAKE_C_FLAGS=" + " ".join(WINDOWS_FLAGS),
+            "-DCMAKE_CXX_FLAGS=" + " ".join(WINDOWS_FLAGS),
+        ]
     log_path = DEPS / f"fltk-{platform}.log"
     print(f"Building static FLTK ({platform}); log: {log_path.relative_to(ROOT)}", flush=True)
     with log_path.open("w") as log:
@@ -101,11 +130,24 @@ def assets(platform):
         "project_license": (ROOT / "LICENSE").read_text(),
         "third_party_notices": "\n\n".join(
             name + "\n" + (DEPS / f"fltk-{VERSION}" / name).read_text(errors="replace")
-            for name in ("COPYING", "png/LICENSE", "jpeg/README", "zlib/README")),
+            for name in ("COPYING", "png/LICENSE", "jpeg/README", "zlib/README")
+        ),
     }
-    lines = ["// Generated at build time; all content is embedded in the executable.", "#pragma once"]
+    lines = [
+        "// Generated at build time; all content is embedded in the executable.",
+        "#pragma once",
+    ]
     for name, value in values.items():
-        lines.append(f"inline constexpr const char {name}[] = {json.dumps(value, ensure_ascii=True)};")
+        lines.append(
+            f"inline constexpr const char {name}[] = {json.dumps(value, ensure_ascii=True)};"
+        )
+    icon = (ROOT / "studio/vm8-studio.png").read_bytes()
+    lines.append("inline constexpr unsigned char studio_icon_png[] = {")
+    for offset in range(0, len(icon), 16):
+        lines.append(
+            "    " + ", ".join(f"0x{byte:02x}" for byte in icon[offset : offset + 16]) + ","
+        )
+    lines.append("};")
     (output / "assets.h").write_text("\n".join(lines) + "\n")
     return output
 
@@ -128,13 +170,49 @@ def compile_studio(platform):
         compiled.append(obj)
     for source in sorted((ROOT / "studio").glob("*.cpp")):
         obj = objects / (source.name + ".o")
-        run([cxx, "-std=c++17", *common, "-isystem", prefix / "include",
-             "-I", generated, "-Istudio", "-c", source, "-o", obj])
+        run(
+            [
+                cxx,
+                "-std=c++17",
+                *common,
+                "-isystem",
+                prefix / "include",
+                "-I",
+                generated,
+                "-Istudio",
+                "-c",
+                source,
+                "-o",
+                obj,
+            ]
+        )
         compiled.append(obj)
-    flags = shlex.split(subprocess.check_output(
-        ["sh", str(prefix / "bin/fltk-config"), "--use-images", "--ldstaticflags"], text=True))
+    if platform == "windows":
+        resource = objects / "windows.res.o"
+        run(
+            [
+                "x86_64-w64-mingw32-windres",
+                "-I",
+                ROOT / "studio",
+                ROOT / "studio/windows.rc",
+                "-O",
+                "coff",
+                "-o",
+                resource,
+            ]
+        )
+        compiled.append(resource)
+    flags = shlex.split(
+        subprocess.check_output(
+            ["sh", str(prefix / "bin/fltk-config"), "--use-images", "--ldstaticflags"], text=True
+        )
+    )
     executable = output / ("vm8-studio.exe" if platform == "windows" else "vm8-studio")
-    link = ["-static", "-mwindows"] if platform == "windows" else ["-static-libgcc", "-static-libstdc++"]
+    link = (
+        ["-static", "-mwindows"]
+        if platform == "windows"
+        else ["-static-libgcc", "-static-libstdc++"]
+    )
     run([cxx, *compiled, *link, *flags, "-s", "-o", executable])
     print(f"Built {executable.relative_to(ROOT)}", flush=True)
 

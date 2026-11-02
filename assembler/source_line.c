@@ -22,10 +22,7 @@ void source_line_normalize(char *line)
 
   size_t content_length = strlen(content_start);
 
-  while (
-      (content_length > 0) &&
-      isspace((unsigned char) content_start[content_length - 1])
-  )
+  while ((content_length > 0) && isspace((unsigned char)content_start[content_length - 1]))
   {
     --content_length;
   }
@@ -34,10 +31,6 @@ void source_line_normalize(char *line)
 
   if (content_start != line)
   {
-    memmove(
-        line,
-        content_start,
-        content_length + 1
-    );
+    memmove(line, content_start, content_length + 1);
   }
 }

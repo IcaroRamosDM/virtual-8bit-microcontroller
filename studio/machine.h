@@ -3,16 +3,19 @@
 #include <array>
 #include <string>
 
-extern "C" {
+extern "C"
+{
 #include "assembly.h"
 #include "byte_value.h"
 #include "cpu.h"
 }
 
-namespace vm8 {
+namespace vm8
+{
 constexpr unsigned RUN_INSTRUCTION_LIMIT = 10000;
 
-class Machine {
+class Machine
+{
 public:
   Cpu cpu{};
   AssemblyImage image{};

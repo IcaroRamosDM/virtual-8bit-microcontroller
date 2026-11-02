@@ -5,11 +5,17 @@
 #include <algorithm>
 #include <cctype>
 
-namespace vm8 {
+namespace vm8
+{
 static std::string lowercase(std::string text)
 {
-  std::transform(text.begin(), text.end(), text.begin(),
-      [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+  std::transform(text.begin(),
+                 text.end(),
+                 text.begin(),
+                 [](unsigned char c)
+                 {
+                   return static_cast<char>(std::tolower(c));
+                 });
   return text;
 }
 
@@ -169,47 +175,71 @@ TRY IT
   const size_t instructions = reference.find("Supported instructions:\n");
   const size_t map = reference.find("Memory map:\n", instructions);
   std::vector<size_t> starts;
-  for (size_t p = instructions; p != std::string::npos && p < map;) {
+  for (size_t p = instructions; p != std::string::npos && p < map;)
+  {
     const size_t end = reference.find('\n', p);
-    if (reference.substr(p, end - p).find("Opcode:") != std::string::npos) starts.push_back(p);
+    if (reference.substr(p, end - p).find("Opcode:") != std::string::npos)
+    {
+      starts.push_back(p);
+    }
     p = end == std::string::npos ? end : end + 1;
   }
-  for (size_t i = 0; i < starts.size(); ++i) {
+  for (size_t i = 0; i < starts.size(); ++i)
+  {
     const size_t end = i + 1 < starts.size() ? starts[i + 1] : map;
-    std::string title = reference.substr(starts[i] + 2, reference.find("Opcode:", starts[i]) - starts[i] - 2);
-    while (!title.empty() && title.back() == ' ') title.pop_back();
+    std::string title =
+        reference.substr(starts[i] + 2, reference.find("Opcode:", starts[i]) - starts[i] - 2);
+    while (!title.empty() && title.back() == ' ')
+    {
+      title.pop_back();
+    }
     entries_.push_back({title, reference.substr(starts[i], end - starts[i])});
   }
   const size_t directives = reference.find("Assembler directives:\n");
   const size_t workflow = reference.find("Simulator workflow:\n", directives);
   entries_.push_back({"Memory map", reference.substr(map, directives - map)});
   entries_.push_back({".EQU and .BYTE", reference.substr(directives, workflow - directives)});
-  entries_.push_back({"Full command reference", std::string(
-      "This is the embedded CLI reference. Its Make commands are for developers;\n"
-      "use the Studio buttons for the equivalent actions, without installing Make.\n\n") + reference});
+  entries_.push_back(
+      {"Full command reference",
+       std::string(
+           "This is the embedded CLI reference. Its Make commands are for developers;\n"
+           "use the Studio buttons for the equivalent actions, without installing Make.\n\n") +
+           reference});
   entries_.push_back({"How the system works", system_guide});
-  entries_.push_back({"About and licenses", std::string(
-      "VM8 Studio - Virtual 8-bit Microcontroller\n\n"
-      "Icaro Ramos Rodrigues dos Santos\n"
-      "Embedded Systems | Firmware | C | Hardware Design | STM32 | ARM Cortex-M\n"
-      "Linux | Verilog | UVM | Design Verification\n\n"
-      "GitHub: https://github.com/IcaroRamosDM\n"
-      "LinkedIn: https://www.linkedin.com/in/icaro-ramos-r/\n"
-      "Contact: icaroelt@gmail.com\n\n"
-      "The CPU and assembler are C17. The graphical layer is C++17.\n"
-      "VM8 Studio is based in part on the work of the FLTK project\n"
-      "(https://www.fltk.org), using FLTK 1.4.5 without source modifications.\n"
-      "FLTK uses LGPL 2 with its static-linking exceptions.\n\n") + project_license});
+  entries_.push_back(
+      {"About and licenses",
+       std::string("VM8 Studio - Virtual 8-bit Microcontroller\n\n"
+                   "Icaro Ramos Rodrigues dos Santos\n"
+                   "Embedded Systems | Firmware | C | Hardware Design | STM32 | ARM Cortex-M\n"
+                   "Linux | Verilog | UVM | Design Verification\n\n"
+                   "GitHub: https://github.com/IcaroRamosDM\n"
+                   "LinkedIn: https://www.linkedin.com/in/icaro-ramos-r/\n"
+                   "Contact: icaroelt@gmail.com\n\n"
+                   "The CPU and assembler are C17. The graphical layer is C++17.\n"
+                   "VM8 Studio is based in part on the work of the FLTK project\n"
+                   "(https://www.fltk.org), using FLTK 1.4.5 without source modifications.\n"
+                   "FLTK uses LGPL 2 with its static-linking exceptions.\n\n") +
+           project_license});
 
   entries_.push_back({"Third-party notices", third_party_notices});
   begin();
   search_ = new Fl_Input(88, 16, w() - 104, 32, "Search");
   search_->when(FL_WHEN_CHANGED);
-  search_->callback([](Fl_Widget *, void *p) { static_cast<HelpWindow *>(p)->filter(); }, this);
+  search_->callback(
+      [](Fl_Widget *, void *p)
+      {
+        static_cast<HelpWindow *>(p)->filter();
+      },
+      this);
   topics_ = new Fl_Hold_Browser(16, 64, 236, h() - 80);
   topics_->textsize(14);
   topics_->selection_color(fl_rgb_color(29, 83, 79));
-  topics_->callback([](Fl_Widget *, void *p) { static_cast<HelpWindow *>(p)->select(); }, this);
+  topics_->callback(
+      [](Fl_Widget *, void *p)
+      {
+        static_cast<HelpWindow *>(p)->select();
+      },
+      this);
   display_ = new Fl_Text_Display(268, 64, w() - 284, h() - 80);
   display_->buffer(&buffer_);
   display_->textfont(FL_COURIER);
@@ -218,8 +248,15 @@ TRY IT
   end();
   int screen_x, screen_y, screen_width, screen_height;
   Fl::screen_work_area(screen_x, screen_y, screen_width, screen_height, 0);
-  resize(screen_x + 24, screen_y + 24, std::min(w(), screen_width - 48), std::min(h(), screen_height - 70));
-  callback([](Fl_Widget *widget, void *) { widget->hide(); });
+  resize(screen_x + 24,
+         screen_y + 24,
+         std::min(w(), screen_width - 48),
+         std::min(h(), screen_height - 70));
+  callback(
+      [](Fl_Widget *widget, void *)
+      {
+        widget->hide();
+      });
   filter();
 }
 
@@ -241,8 +278,11 @@ void HelpWindow::filter()
   const std::string term = lowercase(search_->value());
   topics_->clear();
   filtered_.clear();
-  for (size_t i = 0; i < entries_.size(); ++i) {
-    if (term.empty() || lowercase(entries_[i].title + "\n" + entries_[i].body).find(term) != std::string::npos) {
+  for (size_t i = 0; i < entries_.size(); ++i)
+  {
+    if (term.empty() ||
+        lowercase(entries_[i].title + "\n" + entries_[i].body).find(term) != std::string::npos)
+    {
       topics_->add(entries_[i].title.c_str());
       filtered_.push_back(i);
     }
@@ -254,7 +294,8 @@ void HelpWindow::filter()
 void HelpWindow::select()
 {
   const int index = topics_->value() - 1;
-  if (index < 0 || static_cast<size_t>(index) >= filtered_.size()) {
+  if (index < 0 || static_cast<size_t>(index) >= filtered_.size())
+  {
     buffer_.text("No matching topic. Try a mnemonic such as LDI, a flag, or memory.");
     return;
   }

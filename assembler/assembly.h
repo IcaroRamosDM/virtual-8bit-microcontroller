@@ -7,7 +7,10 @@
 #include "cpu.h"
 #include "diagnostics.h"
 
-enum { ASSEMBLY_SOURCE_CAPACITY = 65536 };
+enum
+{
+  ASSEMBLY_SOURCE_CAPACITY = 65536
+};
 
 typedef struct AssemblyImage
 {
@@ -22,7 +25,4 @@ typedef struct AssemblyImage
 } AssemblyImage;
 
 /* No filesystem or process launch is needed. Output is cleared on failure. */
-bool assembly_compile(
-    const char *source,
-    AssemblyImage *image,
-    AssemblerDiagnostics diagnostics);
+bool assembly_compile(const char *source, AssemblyImage *image, AssemblerDiagnostics diagnostics);

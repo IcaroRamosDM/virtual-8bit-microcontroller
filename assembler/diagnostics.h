@@ -12,10 +12,8 @@ typedef struct AssemblerDiagnostics
 } AssemblerDiagnostics;
 
 /* A missing handler preserves the command-line stderr diagnostics. */
-static inline void assembler_report(
-    const AssemblerDiagnostics *diagnostics,
-    const char *format,
-    ...)
+static inline void
+assembler_report(const AssemblerDiagnostics *diagnostics, const char *format, ...)
 {
   va_list arguments;
   va_start(arguments, format);
@@ -26,7 +24,10 @@ static inline void assembler_report(
   }
   else
   {
-    enum { ASSEMBLER_MESSAGE_CAPACITY = 2048 };
+    enum
+    {
+      ASSEMBLER_MESSAGE_CAPACITY = 2048
+    };
     char message[ASSEMBLER_MESSAGE_CAPACITY];
     (void)vsnprintf(message, sizeof message, format, arguments);
     diagnostics->handler(message, diagnostics->context);

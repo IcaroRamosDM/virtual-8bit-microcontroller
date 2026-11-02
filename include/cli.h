@@ -22,10 +22,7 @@ typedef struct CliOptions
   uint8_t input_port_value;
 } CliOptions;
 
-CliOptions cli_parse_arguments(
-    int argument_count,
-    char *arguments[]
-);
+CliOptions cli_parse_arguments(int argument_count, char *arguments[]);
 
 void cli_print_help(void);
 void cli_write_help(FILE *stream);

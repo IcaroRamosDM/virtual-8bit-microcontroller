@@ -10,7 +10,4 @@ typedef enum ByteLiteralParseResult
   BYTE_LITERAL_PARSE_OUT_OF_RANGE
 } ByteLiteralParseResult;
 
-ByteLiteralParseResult byte_literal_parse(
-    const char *text,
-    uint8_t *value
-);
+ByteLiteralParseResult byte_literal_parse(const char *text, uint8_t *value);

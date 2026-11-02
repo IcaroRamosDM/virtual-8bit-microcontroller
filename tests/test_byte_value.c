@@ -29,26 +29,13 @@ static void test_accepts_decimal_and_hexadecimal_bytes(void)
   uint8_t uppercase_hexadecimal_value = 0;
   uint8_t maximum_value = 0;
 
-  const bool decimal_parsed = byte_value_parse(
-    "165",
-    &decimal_value
-  );
+  const bool decimal_parsed = byte_value_parse("165", &decimal_value);
 
-  const bool hexadecimal_parsed = byte_value_parse(
-    "0xA5",
-    &hexadecimal_value
-  );
+  const bool hexadecimal_parsed = byte_value_parse("0xA5", &hexadecimal_value);
 
-  const bool uppercase_hexadecimal_parsed =
-    byte_value_parse(
-      "0XA5",
-      &uppercase_hexadecimal_value
-    );
+  const bool uppercase_hexadecimal_parsed = byte_value_parse("0XA5", &uppercase_hexadecimal_value);
 
-  const bool maximum_parsed = byte_value_parse(
-    "255",
-    &maximum_value
-  );
+  const bool maximum_parsed = byte_value_parse("255", &maximum_value);
 
   assert(decimal_parsed);
   assert(hexadecimal_parsed);
@@ -72,8 +59,7 @@ static void test_rejects_invalid_bytes(void)
   assert_rejected("0x100");
   assert_rejected("12abc");
 
-  const bool null_output_parsed =
-    byte_value_parse("0", NULL);
+  const bool null_output_parsed = byte_value_parse("0", NULL);
 
   assert(!null_output_parsed);
 }

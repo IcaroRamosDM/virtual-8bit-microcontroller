@@ -7,10 +7,7 @@
 #include <stdio.h>
 #include <string.h>
 
-static bool close_input_file(
-    FILE *input_file,
-    const char *input_path
-)
+static bool close_input_file(FILE *input_file, const char *input_path)
 {
   const int close_result = fclose(input_file);
 
@@ -21,26 +18,17 @@ static bool close_input_file(
 
   const int close_error = errno;
 
-  fprintf(
-    stderr,
-    "%s: could not close binary input: %s\n",
-    input_path,
-    strerror(close_error)
-  );
+  fprintf(stderr, "%s: could not close binary input: %s\n", input_path, strerror(close_error));
 
   return false;
 }
 
-bool binary_reader_read(
-    const char *input_path,
-    uint8_t *bytes,
-    size_t byte_capacity,
-    size_t *byte_count
-)
+bool binary_reader_read(const char *input_path,
+                        uint8_t *bytes,
+                        size_t byte_capacity,
+                        size_t *byte_count)
 {
-  if ((input_path == NULL) ||
-      (bytes == NULL) ||
-      (byte_count == NULL))
+  if ((input_path == NULL) || (bytes == NULL) || (byte_count == NULL))
   {
     fputs("binary reader: invalid argument\n", stderr);
     return false;
@@ -54,22 +42,12 @@ bool binary_reader_read(
   {
     const int open_error = errno;
 
-    fprintf(
-      stderr,
-      "%s: could not open binary input: %s\n",
-      input_path,
-      strerror(open_error)
-    );
+    fprintf(stderr, "%s: could not open binary input: %s\n", input_path, strerror(open_error));
 
     return false;
   }
 
-  const size_t read_byte_count = fread(
-    bytes,
-    sizeof bytes[0],
-    byte_capacity,
-    input_file
-  );
+  const size_t read_byte_count = fread(bytes, sizeof bytes[0], byte_capacity, input_file);
 
   const int trailing_byte = fgetc(input_file);
 
@@ -77,12 +55,7 @@ bool binary_reader_read(
   {
     const int read_error = errno;
 
-    fprintf(
-      stderr,
-      "%s: could not read binary input: %s\n",
-      input_path,
-      strerror(read_error)
-    );
+    fprintf(stderr, "%s: could not read binary input: %s\n", input_path, strerror(read_error));
 
     (void)close_input_file(input_file, input_path);
 
@@ -91,12 +64,7 @@ bool binary_reader_read(
 
   if (trailing_byte != EOF)
   {
-    fprintf(
-      stderr,
-      "%s: binary input exceeds %zu-byte capacity\n",
-      input_path,
-      byte_capacity
-    );
+    fprintf(stderr, "%s: binary input exceeds %zu-byte capacity\n", input_path, byte_capacity);
 
     (void)close_input_file(input_file, input_path);
 

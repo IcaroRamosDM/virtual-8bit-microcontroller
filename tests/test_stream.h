@@ -14,16 +14,17 @@ static inline FILE *test_tmpfile(void)
 {
 #ifdef _WIN32
   /* Legacy MSVCRT tmpfile() can require write access to the drive root. */
-  enum { TEST_STREAM_PATH_CAPACITY = 128 };
+  enum
+  {
+    TEST_STREAM_PATH_CAPACITY = 128
+  };
   static unsigned long sequence = 0;
   char path[TEST_STREAM_PATH_CAPACITY];
-  const int path_length = snprintf(
-    path,
-    sizeof path,
-    "build/test_stream_%lu_%lu.tmp",
-    (unsigned long)GetCurrentProcessId(),
-    sequence++
-  );
+  const int path_length = snprintf(path,
+                                   sizeof path,
+                                   "build/test_stream_%lu_%lu.tmp",
+                                   (unsigned long)GetCurrentProcessId(),
+                                   sequence++);
 
   if (path_length < 0 || (size_t)path_length >= sizeof path)
   {
@@ -31,25 +32,20 @@ static inline FILE *test_tmpfile(void)
   }
 
   /* CREATE_NEW refuses to overwrite an existing file. */
-  HANDLE const handle = CreateFileA(
-    path,
-    GENERIC_READ | GENERIC_WRITE,
-    0,
-    NULL,
-    CREATE_NEW,
-    FILE_ATTRIBUTE_TEMPORARY | FILE_FLAG_DELETE_ON_CLOSE,
-    NULL
-  );
+  HANDLE const handle = CreateFileA(path,
+                                    GENERIC_READ | GENERIC_WRITE,
+                                    0,
+                                    NULL,
+                                    CREATE_NEW,
+                                    FILE_ATTRIBUTE_TEMPORARY | FILE_FLAG_DELETE_ON_CLOSE,
+                                    NULL);
 
   if (handle == INVALID_HANDLE_VALUE)
   {
     return NULL;
   }
 
-  const int descriptor = _open_osfhandle(
-    (intptr_t)handle,
-    _O_RDWR | _O_BINARY
-  );
+  const int descriptor = _open_osfhandle((intptr_t)handle, _O_RDWR | _O_BINARY);
 
   if (descriptor == -1)
   {

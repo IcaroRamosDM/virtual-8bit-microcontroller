@@ -12,7 +12,7 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 APPIMAGE = ROOT / "build/studio-linux/VM8_Studio-x86_64.AppImage"
-PACKAGE_VERSION = "1.1.0-1"
+PACKAGE_VERSION = "1.1.1-1"
 APP_ID = "vm8-studio"
 MANAGED_KEY = "X-VM8-Managed=true"
 
@@ -22,8 +22,13 @@ def run(arguments, **kwargs):
 
 
 def desktop_string(value):
-    return (str(value).replace("\\", "\\\\").replace("\n", "\\n")
-            .replace("\r", "\\r").replace("\t", "\\t"))
+    return (
+        str(value)
+        .replace("\\", "\\\\")
+        .replace("\n", "\\n")
+        .replace("\r", "\\r")
+        .replace("\t", "\\t")
+    )
 
 
 def desktop_command(path):
@@ -39,8 +44,10 @@ def desktop_command(path):
 def desktop_entry(executable, icon, managed=False):
     lines = (ROOT / "studio/vm8-studio.desktop").read_text().splitlines()
     replacements = {"Exec": desktop_command(executable), "Icon": desktop_string(icon)}
-    lines = [line.split("=", 1)[0] + "=" + replacements[line.split("=", 1)[0]]
-             if line.split("=", 1)[0] in replacements else line for line in lines]
+    for index, line in enumerate(lines):
+        key = line.partition("=")[0]
+        if key in replacements:
+            lines[index] = f"{key}={replacements[key]}"
     if managed:
         lines.append(MANAGED_KEY)
     return "\n".join(lines) + "\n"
@@ -48,19 +55,22 @@ def desktop_entry(executable, icon, managed=False):
 
 def extract_image(image, temporary):
     # The input is a locally built, trusted VM8 release, not an arbitrary download.
-    header = image.open("rb")
-    with header:
+    with image.open("rb") as header:
         magic = header.read(11)
     if magic[:5] != b"\x7fELF\x02" or magic[8:11] != b"AI\x02":
         raise ValueError("Expected the x86-64 VM8 Studio type-2 AppImage.")
     executable = temporary / "studio.AppImage"
     shutil.copyfile(image, executable)
     executable.chmod(0o755)
-    run([executable, "--appimage-extract"], cwd=temporary,
-        stdout=subprocess.DEVNULL)
+    run([executable, "--appimage-extract"], cwd=temporary, stdout=subprocess.DEVNULL)
     appdir = temporary / "squashfs-root"
-    required = ("AppRun", "usr/bin/vm8-studio", "usr/share/fonts.conf",
-                "usr/share/licenses/VM8-MIT.txt", "vm8-studio.svg")
+    required = (
+        "AppRun",
+        "usr/bin/vm8-studio",
+        "usr/share/fonts.conf",
+        "usr/share/licenses/VM8-MIT.txt",
+        "vm8-studio.svg",
+    )
     for name in required:
         if not (appdir / name).is_file():
             raise ValueError(f"Incomplete VM8 Studio AppImage: missing {name}")
@@ -75,14 +85,16 @@ def validate_desktop(path):
 def write_file(path, content, mode=0o644):
     path.parent.mkdir(parents=True, exist_ok=True)
     # Keep an already installed menu entry valid until its replacement is complete.
-    with tempfile.NamedTemporaryFile(dir=path.parent, delete=False) as stream:
-        temporary = Path(stream.name)
-        stream.write(content.encode("utf-8"))
+    temporary = None
     try:
+        with tempfile.NamedTemporaryFile(dir=path.parent, delete=False) as stream:
+            temporary = Path(stream.name)
+            stream.write(content.encode("utf-8"))
         temporary.chmod(mode)
         temporary.replace(path)
     finally:
-        temporary.unlink(missing_ok=True)
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
 
 
 def require_managed(path):
@@ -105,20 +117,31 @@ def build_deb(image, version):
         installed_app = package / "opt/vm8-studio"
         installed_app.parent.mkdir(parents=True)
         shutil.move(str(appdir), installed_app)
-        write_file(package / "usr/bin/vm8-studio",
-                   '#!/bin/sh\nexec /opt/vm8-studio/AppRun "$@"\n', 0o755)
+        write_file(
+            package / "usr/bin/vm8-studio", '#!/bin/sh\nexec /opt/vm8-studio/AppRun "$@"\n', 0o755
+        )
         entry = package / "usr/share/applications/vm8-studio.desktop"
         write_file(entry, desktop_entry("/usr/bin/vm8-studio", APP_ID))
         validate_desktop(entry)
         icon = package / "usr/share/icons/hicolor/scalable/apps/vm8-studio.svg"
         icon.parent.mkdir(parents=True)
         shutil.copyfile(installed_app / "vm8-studio.svg", icon)
-        write_file(package / "usr/share/doc/vm8-studio/copyright",
-                   (ROOT / "LICENSE").read_text() + "\nBundled component notices and runtime sources: "
-                   "/opt/vm8-studio/usr/share/licenses and runtime-sources.\n")
-        installed_kib = (sum(path.stat().st_size for path in package.rglob("*")
-                             if path.is_file()) + 1023) // 1024
-        write_file(package / "DEBIAN/control", f"""Package: {APP_ID}
+        raster_icon = installed_app / "vm8-studio.png"
+        if raster_icon.is_file():
+            destination_icon = package / "usr/share/icons/hicolor/256x256/apps/vm8-studio.png"
+            destination_icon.parent.mkdir(parents=True)
+            shutil.copyfile(raster_icon, destination_icon)
+        write_file(
+            package / "usr/share/doc/vm8-studio/copyright",
+            (ROOT / "LICENSE").read_text() + "\nBundled component notices and runtime sources: "
+            "/opt/vm8-studio/usr/share/licenses and runtime-sources.\n",
+        )
+        installed_kib = (
+            sum(path.stat().st_size for path in package.rglob("*") if path.is_file()) + 1023
+        ) // 1024
+        write_file(
+            package / "DEBIAN/control",
+            f"""Package: {APP_ID}
 Version: {version}
 Section: education
 Priority: optional
@@ -131,7 +154,8 @@ Description: Offline Assembly editor and virtual 8-bit microcontroller
  Write, assemble, execute and debug VM8 Assembly programs, with built-in
  examples and searchable help. Includes desktop menu integration, GUI
  libraries and fonts. Uses X11 or XWayland; no FUSE mount is required.
-""")
+""",
+        )
         artifact = temporary / destination.name
         run(["dpkg-deb", "--root-owner-group", "--build", package, artifact])
         artifact.replace(destination)
@@ -151,8 +175,9 @@ def install_user(image, data_home, desktop_shortcut=False):
     require_managed(entry)
     shortcut = None
     if desktop_shortcut:
-        desktop = Path(run(["xdg-user-dir", "DESKTOP"], capture_output=True,
-                           text=True).stdout.strip())
+        desktop = Path(
+            run(["xdg-user-dir", "DESKTOP"], capture_output=True, text=True).stdout.strip()
+        )
         if not desktop.is_absolute() or desktop == Path.home():
             raise ValueError("No separate desktop folder is configured; omit --desktop-shortcut.")
         shortcut = desktop / "VM8 Studio.desktop"
@@ -166,6 +191,12 @@ def install_user(image, data_home, desktop_shortcut=False):
     run([installation / "AppRun", "--self-test"])
     icon.parent.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(installation / "vm8-studio.svg", icon)
+    raster_icon = installation / "vm8-studio.png"
+    if raster_icon.is_file():
+        destination_icon = data_home / "icons/hicolor/256x256/apps/vm8-studio.png"
+        destination_icon.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(raster_icon, destination_icon)
+        content = desktop_entry(installation / "AppRun", destination_icon, managed=True)
     write_file(entry, content)
     validate_desktop(entry)
     if shutil.which("update-desktop-database"):
@@ -173,8 +204,9 @@ def install_user(image, data_home, desktop_shortcut=False):
     if shortcut:
         write_file(shortcut, content, 0o755)
         if shutil.which("gio"):
-            result = subprocess.run(["gio", "set", str(shortcut),
-                                     "metadata::trusted", "true"], check=False)
+            result = subprocess.run(
+                ["gio", "set", str(shortcut), "metadata::trusted", "true"], check=False
+            )
             if result.returncode:
                 print("Right-click the desktop shortcut and choose Allow Launching once.")
         print(f"Desktop shortcut: {shortcut}")
@@ -189,8 +221,11 @@ def main():
     parser.add_argument("action", choices=("deb", "install-user"))
     parser.add_argument("--appimage", type=Path, default=APPIMAGE)
     parser.add_argument("--version", default=PACKAGE_VERSION)
-    parser.add_argument("--data-home", type=Path,
-                        default=Path(os.environ.get("XDG_DATA_HOME") or Path.home() / ".local/share"))
+    parser.add_argument(
+        "--data-home",
+        type=Path,
+        default=Path(os.environ.get("XDG_DATA_HOME") or Path.home() / ".local/share"),
+    )
     parser.add_argument("--desktop-shortcut", action="store_true")
     options = parser.parse_args()
     try:

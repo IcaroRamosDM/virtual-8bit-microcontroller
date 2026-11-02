@@ -1,0 +1,6 @@
+[tool.black]
+required-version = "25.9.0"
+line-length = 100
+target-version = ["py311"]
+include = '\.pyi?$'
+extend-exclude = '/(build|backups|verification)/'
