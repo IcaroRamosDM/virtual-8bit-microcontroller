@@ -1,16 +1,18 @@
 # Virtual 8-bit Microcontroller
 
+[![Checks](https://github.com/IcaroRamosDM/virtual-8bit-microcontroller/actions/workflows/checks.yml/badge.svg)](https://github.com/IcaroRamosDM/virtual-8bit-microcontroller/actions/workflows/checks.yml)
+
 A learning project that implements an 8-bit virtual microcontroller in C and executes programs written in a custom Assembly language.
 
 ## VM8 Studio: graphical desktop application
 
 Write Assembly, assemble, run, step, and inspect the simulated CPU in one offline application. VM8 Studio includes an editor with line numbers and syntax colors, breakpoints, registers, memory, bytecode inspection, virtual input/output, an execution log, two examples, and searchable help with detailed instruction explanations.
 
-Download **VM8 Studio 1.1.1** from [GitHub Releases](https://github.com/IcaroRamosDM/virtual-8bit-microcontroller/releases/tag/v1.1.1). Choose the Windows executable, the Ubuntu/Debian installer, or the portable Linux AppImage. The paths below are the corresponding local build outputs.
+Download **VM8 Studio 1.1.1** from [GitHub Releases](https://github.com/IcaroRamosDM/virtual-8bit-microcontroller/releases/tag/v1.1.1). Choose the package for your system:
 
-- **Windows x64:** copy `build/studio-windows/vm8-studio.exe` and double-click it.
-- **Ubuntu/Debian x86-64:** open `build/studio-linux/vm8-studio_1.1.1-1_amd64.deb` with the graphical software installer, install it, then search for **VM8 Studio** in the application menu. No terminal is needed for normal use.
-- **Linux x86-64:** copy `build/studio-linux/VM8_Studio-x86_64.AppImage`, enable execution if needed, and double-click it. The portable build targets glibc 2.36+ with X11 or XWayland; it is not Ubuntu-specific.
+- **Windows x64:** download `vm8-studio.exe` and double-click it.
+- **Ubuntu/Debian x86-64:** open `vm8-studio_1.1.1-1_amd64.deb` with the graphical software installer, install it, then search for **VM8 Studio** in the application menu. No terminal is needed for normal use.
+- **Linux x86-64:** download `VM8_Studio-x86_64.AppImage`, enable execution if needed, and double-click it. The portable build targets glibc 2.36+ with X11 or XWayland; it is not Ubuntu-specific.
 
 No compiler, terminal, WSL, Python, or Internet connection is needed by the person running Studio. The application embeds the assembler, simulator, examples, reference, and license. Source files can be opened and saved anywhere writable. The separate command-line programs below remain available for terminal workflows.
 
@@ -568,10 +570,11 @@ This project is licensed under the [MIT License](LICENSE).
 
 ## Author
 
-**Icaro Ramos Rodrigues dos Santos**
+**Icaro Ramos Rodrigues dos Santos**<br>
+Electronic Engineer
 
-Embedded Systems | Firmware | C | Hardware Design | STM32 | ARM Cortex-M | Linux | Verilog | UVM | Design Verification
+Embedded Systems | Firmware | C | C++ | Python | Dart | Assembly | Hardware Design | PCB Design | STM32 | ARM Cortex-M | Linux | Windows | RISC-V | Verilog | SystemVerilog | UVM | Design Verification | Instrumentation | Signal Processing | Qt | FLTK
 
-GitHub: [https://github.com/IcaroRamosDM](https://github.com/IcaroRamosDM)<br>
-LinkedIn: [https://www.linkedin.com/in/icaro-ramos-r/](https://www.linkedin.com/in/icaro-ramos-r/)<br>
+GitHub: [IcaroRamosDM](https://github.com/IcaroRamosDM)<br>
+LinkedIn: [icaro-ramos-r](https://www.linkedin.com/in/icaro-ramos-r/)<br>
 [icaroelt@gmail.com](mailto:icaroelt@gmail.com)
